@@ -1,45 +1,43 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
-
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
+# Archivos de la herramienta Dart.
 .dart_tool/
-.flutter-plugins-dependencies
+.packages
+
+# Archivos generados por Pub.
 .pub-cache/
 .pub/
-/build/
-/coverage/
+build/
+coverage/
 
-# Symbolication related
+# Archivos generados por Flutter (Plugins)
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Archivos de Símbolos y Ofuscación
 app.*.symbols
-
-# Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# --- REGLAS DE PLATAFORMA (LO MÁS IMPORTANTE) ---
+
+# Ignorar archivos generados de iOS
+/ios/Flutter/Generated*.xcconfig
+/ios/Flutter/Generated.xcconfig
+/ios/Flutter/GeneratedPluginRegistrant.*
+
+# Ignorar archivos generados de Android
+/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+
+# Ignorar archivos generados de Linux
+/linux/flutter/generated_*.h
+/linux/flutter/generated_*.cc
+/linux/flutter/generated_plugins.cmake
+
+# Ignorar archivos generados de macOS
+/macos/Flutter/Generated*.swift
+
+# Ignorar archivos generados de Windows
+/windows/flutter/generated_*.h
+/windows/flutter/generated_*.cc
+/windows/flutter/generated_plugins.cmake
+
+# --- IGNORAR TU SCRIPT PERSONAL ---
+actualizar_git.bat
