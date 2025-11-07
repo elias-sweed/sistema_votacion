@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// --- INICIO DEL ARREGLO ---
-// La ruta antigua estaba mal.
-// Como movimos ambos archivos a la misma carpeta '3_cedula_votacion',
-// ahora solo necesitas un import local.
 import 'config_candidatos_provider.dart';
-// --- FIN DEL ARREGLO ---
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:elecciones_jp/shared/models/candidato.dart';
 
 class ConfigCandidatosScreen extends StatefulWidget {
   const ConfigCandidatosScreen({super.key});
@@ -44,104 +40,95 @@ class _ConfigCandidatosScreenState extends State<ConfigCandidatosScreen> {
       ),
       body: Row(
         children: [
+          // Lista de candidatos
           Expanded(
             flex: 2,
             child: Container(
-              color: theme.colorScheme.surfaceContainerHighest,
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Text(
-                    "Candidatos Agregados",
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ListView.builder(
+              color: theme.colorScheme.surfaceContainerHighest.withAlpha(128),
+              child: provider.listaCandidatos.isEmpty
+                  ? Center(
+                      child: Text(
+                      "No hay candidatos agregados",
+                      style: theme.textTheme.titleMedium,
+                    ))
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
                       itemCount: provider.listaCandidatos.length,
                       itemBuilder: (context, index) {
                         final candidato = provider.listaCandidatos[index];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 6.0),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundImage: FileImage(candidato.imagen),
-                            ),
-                            title: Text(candidato.nombre),
-                            subtitle: Text("Número: ${candidato.numero}"),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline,
-                                  color: Colors.red),
-                              onPressed: () =>
-                                  provider.eliminarCandidato(candidato, context),
-                            ),
-                          ),
-                        )
+                        return _buildCandidatoCard(context, candidato, provider)
                             .animate()
-                            .fadeIn(duration: 400.ms, delay: (index * 50).ms)
-                            .move(begin: const Offset(-20, 0));
+                            .fadeIn(delay: (100 * (index % 10)).ms);
                       },
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
+
+          // Panel para agregar
           Expanded(
-            flex: 3,
-            child: SingleChildScrollView(
+            flex: 1,
+            child: Container(
               padding: const EdgeInsets.all(24.0),
+              color: theme.colorScheme.surface,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
-                    child: Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        Container(
-                          height: 150,
-                          width: 150,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: theme.colorScheme.outline,
-                              width: 2,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: provider.imagenSeleccionada != null
-                                ? Image.file(
-                                    provider.imagenSeleccionada!,
-                                    fit: BoxFit.contain,
-                                  )
-                                : Icon(
-                                    Icons.person_search,
-                                    size: 80,
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                          ),
-                        ),
-                        IconButton.filled(
-                          icon: const Icon(Icons.image_search),
-                          onPressed: () => provider.seleccionarImagen(),
-                        ),
-                      ],
-                    ),
-                  ).animate().fadeIn(duration: 400.ms),
+                  Text(
+                    "Agregar Candidato",
+                    style: theme.textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 24),
+                  Text(
+                    "Agregando Candidato N°: ${provider.numeroSiguiente}",
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(color: theme.colorScheme.primary),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: _nombreController,
                     decoration: const InputDecoration(
                       labelText: "Nombre del Candidato",
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person_add_alt_1),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+                  AspectRatio(
+                    aspectRatio: 16 / 10,
+                    child: InkWell(
+                      onTap: () => provider.seleccionarImagen(),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: theme.dividerColor),
+                          borderRadius: BorderRadius.circular(8),
+                          color: theme.colorScheme.surfaceContainerLowest,
+                        ),
+                        child: provider.imagenSeleccionada != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  provider.imagenSeleccionada!,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_a_photo_outlined,
+                                      size: 40,
+                                      color: theme.colorScheme.primary),
+                                  const SizedBox(height: 8),
+                                  const Text("Seleccionar Imagen"),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ),
+                  const Spacer(), // Empuja el botón hacia abajo
+                  const Divider(height: 24),
                   ElevatedButton.icon(
-                    icon: const Icon(Icons.add),
+                    icon: const Icon(Icons.add_circle_outline),
                     label: const Text("Agregar Candidato"),
                     style: theme.elevatedButtonTheme.style?.merge(
                       ElevatedButton.styleFrom(
@@ -178,6 +165,31 @@ class _ConfigCandidatosScreenState extends State<ConfigCandidatosScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCandidatoCard(BuildContext context,
+      CandidatoParaMostrar candidato, ConfigCandidatosProvider provider) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      elevation: 2,
+      child: ListTile(
+        leading: CircleAvatar(
+          radius: 25,
+          backgroundImage: FileImage(candidato.imagen),
+          onBackgroundImageError: (e, s) =>
+              const Icon(Icons.error), // Fallback por si la imagen se borra
+        ),
+        title: Text(
+          "N° ${candidato.numero}: ${candidato.nombre}",
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        trailing: IconButton(
+          icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
+          onPressed: () => provider.eliminarCandidato(candidato, context),
         ),
       ),
     );

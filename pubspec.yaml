@@ -17,12 +17,13 @@ dependencies:
   path: ^1.9.1
   file_picker: ^10.3.3
   excel: ^4.0.6
-  sqflite: ^2.0.0
-  sqflite_common_ffi: ^2.3.0
-  sqlite3_flutter_libs: ^0.5.0
-  intl: ^0.17.0
+  sqflite: ^2.4.2
+  sqflite_common_ffi: ^2.3.6
+  sqlite3_flutter_libs: ^0.5.40
+  intl: ^0.20.2
   flutter_animate: ^4.5.2
   fl_chart: ^0.68.0
+  audioplayers: ^6.5.1
 
 dev_dependencies:
   flutter_test:
@@ -35,6 +36,7 @@ flutter:
   assets:
     - assets/imagenes/EleccionesIT5N.png
     - assets/imagenes/blanco_placeholder.png
+    - assets/sound/
 
   fonts:
     - family: Poppins

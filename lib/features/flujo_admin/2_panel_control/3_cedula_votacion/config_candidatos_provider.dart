@@ -14,6 +14,7 @@ class ConfigCandidatosProvider with ChangeNotifier {
 
   List<CandidatoParaMostrar> get listaCandidatos => _listaCandidatos;
   File? get imagenSeleccionada => _imagenSeleccionada;
+  int get numeroSiguiente => _numeroSiguiente;
 
   final ImagePicker _picker = ImagePicker();
 
@@ -37,87 +38,82 @@ class ConfigCandidatosProvider with ChangeNotifier {
         imagen: File(map['imagen']),
       ));
     }
-
+    // Si hay candidatos, el siguiente número es el último + 1
     if (_listaCandidatos.isNotEmpty) {
       _numeroSiguiente = _listaCandidatos.last.numero + 1;
     } else {
-      _numeroSiguiente = 1;
+      _numeroSiguiente = 1; // Si no hay, es 1
     }
-
     notifyListeners();
   }
 
   Future<void> seleccionarImagen() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      _imagenSeleccionada = File(image.path);
+    final XFile? pickedFile =
+        await _picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      _imagenSeleccionada = File(pickedFile.path);
       notifyListeners();
     }
   }
 
-  Future<String?> _copiarImagen(File imagenOriginal) async {
-    try {
-      final Directory appDir = await getApplicationDocumentsDirectory();
-      final String destinoDir = path.join(appDir.path, 'imagenes_candidatos');
-      final Directory dir = Directory(destinoDir);
-
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-
-      final String nombreArchivo =
-          "${DateTime.now().millisecondsSinceEpoch}${path.extension(imagenOriginal.path)}";
-      final String rutaDestino = path.join(destinoDir, nombreArchivo);
-
-      await imagenOriginal.copy(rutaDestino);
-
-      return rutaDestino;
-    } catch (e) {
-      debugPrint("Error al copiar imagen: $e");
-      return null;
+  Future<void> agregarCandidato(
+      String nombre, BuildContext context) async {
+    if (nombre.isEmpty) {
+      _mostrarAlerta(context, "Error", "El nombre no puede estar vacío.");
+      return;
     }
-  }
-
-  Future<void> agregarCandidato(String nombre, BuildContext context) async {
-    if (_imagenSeleccionada == null || nombre.isEmpty) {
+    if (_imagenSeleccionada == null) {
+      _mostrarAlerta(context, "Error", "Debe seleccionar una imagen.");
+      return;
+    }
+    if (nombre == "VOTO EN BLANCO") {
       _mostrarAlerta(
-          context, "Datos incompletos", "Debe seleccionar una imagen y escribir un nombre.");
+          context, "Error", "Nombre reservado. Use el botón 'Voto en Blanco'.");
       return;
     }
 
-    final String? rutaImagenCopiada = await _copiarImagen(_imagenSeleccionada!);
+    final File imagenParaGuardar = _imagenSeleccionada!;
+    final int numeroCandidato = _numeroSiguiente; // Se usa el número actual
 
-    if (rutaImagenCopiada != null) {
+    final String? pathDestino = await _copiarImagen(imagenParaGuardar);
+
+    if (pathDestino != null) {
       try {
         final db = await DatabaseService.instance.database;
-        Map<String, dynamic> row = {
-          'numero': _numeroSiguiente,
-          'nombre': nombre.toUpperCase(),
-          'imagen': rutaImagenCopiada,
-          'votos': 0
-        };
         await db.insert(
           'candidatos',
-          row,
-          conflictAlgorithm: ConflictAlgorithm.fail,
+          {
+            'numero': numeroCandidato, // Se guarda el N°
+            'nombre': nombre,
+            'imagen': pathDestino,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
         );
 
-        _listaCandidatos.add(CandidatoParaMostrar(
-          numero: _numeroSiguiente,
-          nombre: nombre.toUpperCase(),
-          imagen: File(rutaImagenCopiada),
-        ));
-
-        _numeroSiguiente++;
+        // Limpiar para el siguiente
         _imagenSeleccionada = null;
-        notifyListeners();
+        await _mostrarCandidatos(); // Recarga la lista (y actualiza _numeroSiguiente)
       } catch (e) {
         if (!context.mounted) return;
-        _mostrarAlerta(context, "Error", "No se pudo guardar el candidato en la BD: $e");
+        _mostrarAlerta(
+            context, "Error", "No se pudo guardar el candidato en la BD: $e");
       }
     } else {
       if (!context.mounted) return;
       _mostrarAlerta(context, "Error", "No se pudo copiar la imagen.");
+    }
+  }
+
+  Future<String?> _copiarImagen(File imagen) async {
+    try {
+      final Directory appDir = await getApplicationDocumentsDirectory();
+      final String nombreArchivo = path.basename(imagen.path);
+      final String pathDestino = path.join(appDir.path, nombreArchivo);
+
+      await imagen.copy(pathDestino);
+      return pathDestino;
+    } catch (e) {
+      return null;
     }
   }
 

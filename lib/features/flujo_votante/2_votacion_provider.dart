@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:elecciones_jp/shared/models/candidato.dart';
 import 'package:elecciones_jp/shared/services/database_service.dart';
+// *** CAMBIO 1: Importar el paquete de audio ***
+import 'package:audioplayers/audioplayers.dart';
 
 class VotacionProvider with ChangeNotifier {
   final String rneVotante;
@@ -10,8 +12,14 @@ class VotacionProvider with ChangeNotifier {
   Candidato? _candidatoSeleccionado;
   bool _votoConfirmado = false;
   Timer? _timer;
-  int _segundosRestantes = 5;
+  
+  // *** CAMBIO 2: Cambiar el tiempo a 2 segundos ***
+  int _segundosRestantes = 2; 
+  
   bool _isLoading = true;
+
+  // *** CAMBIO 3: Crear la instancia del reproductor de audio ***
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   List<Candidato> get candidatos => _candidatos;
   Candidato? get candidatoSeleccionado => _candidatoSeleccionado;
@@ -26,6 +34,8 @@ class VotacionProvider with ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
+    // *** CAMBIO 4: Limpiar el reproductor de audio ***
+    _audioPlayer.dispose(); 
     super.dispose();
   }
 
@@ -37,36 +47,30 @@ class VotacionProvider with ChangeNotifier {
       final List<Map<String, dynamic>> maps =
           await db.query('candidatos', orderBy: 'numero');
 
-      // --- AQUÍ ESTÁ EL ARREGLO (fromMap) ---
-      _candidatos = List.generate(maps.length, (i) {
-        final map = maps[i];
+      _candidatos = maps.map((map) {
         return Candidato(
-          codigo: map['codigo'] as int,
-          numero: map['numero'] as int,
-          nombre: map['nombre'] as String,
-          imagen: map['imagen'] as String,
-          votos: map['votos'] as int,
+          codigo: map['codigo'],
+          numero: map['numero'],
+          nombre: map['nombre'],
+          imagen: map['imagen'],
+          votos: map['votos'],
         );
-      });
-      // --- FIN DEL ARREGLO ---
-
+      }).toList();
     } catch (e) {
-      _candidatos = [];
+      debugPrint("Error al cargar candidatos: $e");
     }
     _isLoading = false;
     notifyListeners();
   }
 
   void seleccionarCandidato(Candidato candidato) {
-    if (_votoConfirmado) return;
     _candidatoSeleccionado = candidato;
     notifyListeners();
   }
 
   Future<void> confirmarVoto(BuildContext context, String rne) async {
     if (_candidatoSeleccionado == null) {
-      _mostrarAlerta(
-          context, "Error", "Debe seleccionar un candidato primero.");
+      _mostrarAlerta(context, "Error", "Debe seleccionar un candidato.");
       return;
     }
 
@@ -75,27 +79,37 @@ class VotacionProvider with ChangeNotifier {
 
     try {
       final db = await DatabaseService.instance.database;
-      await db.transaction((txn) async {
-        await txn.rawUpdate(
-          'UPDATE candidatos SET votos = votos + 1 WHERE codigo = ?',
-          [_candidatoSeleccionado!.codigo],
-        );
-        await txn.rawUpdate(
-          'UPDATE votantes SET voto = 1 WHERE rne = ?',
-          [rne],
-        );
-      });
 
+      // 1. Marcar al votante como que ya votó
+      await db.update(
+        'votantes',
+        {'voto': 1},
+        where: 'rne = ?',
+        whereArgs: [rne],
+      );
+
+      // 2. Sumar el voto al candidato
+      await db.update(
+        'candidatos',
+        {'votos': _candidatoSeleccionado!.votos + 1},
+        where: 'numero = ?',
+        whereArgs: [_candidatoSeleccionado!.numero],
+      );
+
+      // *** CAMBIO 5: Reproducir el sonido ***
+      try {
+        await _audioPlayer.play(AssetSource('sound/aceptado_sound.mp3'));
+      } catch (e) {
+        debugPrint("Error al reproducir sonido: $e");
+      }
+      
       _votoConfirmado = true;
       _iniciarTimer();
       notifyListeners();
+
     } catch (e) {
-      // --- AQUÍ ESTÁ EL ARREGLO (async gap) ---
-      if (context.mounted) {
-        _mostrarAlerta(context, "Error al Votar",
-            "No se pudo registrar el voto: ${e.toString()}");
-      }
-      // --- FIN DEL ARREGLO ---
+      if (!context.mounted) return;
+      _mostrarAlerta(context, "Error", "Error al registrar el voto: $e");
     }
   }
 
@@ -107,13 +121,13 @@ class VotacionProvider with ChangeNotifier {
         return AlertDialog(
           title: const Text('Confirmar Voto'),
           content: Text(
-              '¿Está seguro de votar por "${_candidatoSeleccionado?.nombre}"?'),
+              '¿Estás seguro de votar por "${_candidatoSeleccionado?.nombre}"?'),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: const Text('Cancelar'),
+              child: const Text('Revisar'),
             ),
             FilledButton(
               onPressed: () {
@@ -129,7 +143,8 @@ class VotacionProvider with ChangeNotifier {
   }
 
   void _iniciarTimer() {
-    _segundosRestantes = 5;
+    // *** CAMBIO 6: Asegurarse que el tiempo inicie en 2 ***
+    _segundosRestantes = 2; 
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _segundosRestantes--;

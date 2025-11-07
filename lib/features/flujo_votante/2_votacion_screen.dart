@@ -34,50 +34,63 @@ class VotacionScreen extends StatelessWidget {
             });
           }
 
+          // *** INICIO DEL CAMBIO (PopScope) ***
           return PopScope(
-            canPop: !provider.votoConfirmado,
+            // 1. Bloqueamos siempre el botón de retroceso
+            canPop: false, 
+            onPopInvokedWithResult: (bool didPop, dynamic _) {
+              if (didPop) return; // No debería pasar, pero por si acaso
+
+              // 2. Si el voto está confirmado, no hacemos nada (el timer nos sacará)
+              if (provider.votoConfirmado) return;
+
+              // 3. Si no ha votado, mostramos el mensaje amigable
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text(
+                    '¡Un momento! Para salir, primero debes marcar tu voto. ¡Elige tu favorito!',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  backgroundColor: theme.colorScheme.primary,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            // *** FIN DEL CAMBIO (PopScope) ***
             child: Scaffold(
               appBar: AppBar(
                 title: Text('Votando: $nombreAlumno'),
-                automaticallyImplyLeading: !provider.votoConfirmado,
+                // 4. Ocultamos la flecha de "atrás" del AppBar
+                automaticallyImplyLeading: false, 
               ),
               body: Stack(
                 children: [
                   if (provider.isLoading)
-                    const Center(child: CircularProgressIndicator())
-                  else
-                    Column(
-                      children: [
-                        Expanded(
-                          child: GridView.builder(
-                            padding: const EdgeInsets.all(16.0),
-                            gridDelegate:
-                                const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 200.0,
-                              childAspectRatio: 0.85,
-                              crossAxisSpacing: 12.0,
-                              mainAxisSpacing: 12.0,
-                            ),
-                            itemCount: provider.candidatos.length,
-                            itemBuilder: (context, index) {
-                              final candidato = provider.candidatos[index];
-                              return _CandidatoCard(
-                                candidato: candidato,
-                                isSelected:
-                                    provider.candidatoSeleccionado == candidato,
-                                onSelect: () =>
-                                    provider.seleccionarCandidato(candidato),
-                              );
-                            },
-                          ),
-                        ),
-                        _buildBotonConfirmar(context, provider, theme),
-                      ],
-                    ),
+                    const Center(child: CircularProgressIndicator()),
+                  if (!provider.isLoading)
+                    _buildSideBySideLayout(context, provider), // (Tu layout de dos columnas)
+
                   if (provider.votoConfirmado)
-                    _buildOverlayVotoConfirmado(context, provider, theme),
+                    _buildVotoConfirmadoOverlay(context, provider),
                 ],
               ),
+              floatingActionButton: (!provider.votoConfirmado &&
+                      !provider.isLoading &&
+                      provider.candidatoSeleccionado != null)
+                  ? FloatingActionButton.extended(
+                      onPressed: () => provider.confirmarVoto(context, rne),
+                      label: const Text(
+                        'Confirmar Voto',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      icon: const Icon(Icons.how_to_vote),
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: theme.colorScheme.onPrimary,
+                    ).animate().fadeIn(duration: 300.ms)
+                  : null,
+              floatingActionButtonLocation:
+                  FloatingActionButtonLocation.centerFloat,
             ),
           );
         },
@@ -85,127 +98,154 @@ class VotacionScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBotonConfirmar(
-      BuildContext context, VotacionProvider provider, ThemeData theme) {
-    final candidato = provider.candidatoSeleccionado;
-    final bool habilitado = candidato != null;
+  // (Aquí va tu método _buildSideBySideLayout ... )
+  // ...
+  // (Aquí va tu método _buildVotoConfirmadoOverlay ... )
+  // ...
+  // (Aquí va tu método _buildCandidatoCard ... )
+  // ...
 
-    return Container(
-      padding: const EdgeInsets.all(16.0).copyWith(top: 8.0),
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
-        border: Border(
-          top: BorderSide(color: theme.dividerColor, width: 1.0),
-        ),
-      ),
-      child: FilledButton.icon(
-        onPressed: habilitado
-            ? () => provider.confirmarVoto(context, rne)
-            : null,
-        icon: const Icon(Icons.check_circle),
-        label: Text(
-          candidato != null
-              ? 'CONFIRMAR VOTO POR "${candidato.nombre.toUpperCase()}"'
-              : 'SELECCIONE UN CANDIDATO',
-        ),
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          backgroundColor: habilitado ? Colors.green[700] : theme.disabledColor,
-        ),
-      ),
-    );
-  }
+  // (Pego tus métodos aquí por si acaso, no tienen cambios)
 
-  Widget _buildOverlayVotoConfirmado(
-      BuildContext context, VotacionProvider provider, ThemeData theme) {
-    return Positioned.fill(
-      child: Container(
-        // --- ARREGLO DEPRECATED ---
-        color: theme.scaffoldBackgroundColor.withAlpha(242), // 0.95
-        // --- FIN DEL ARREGLO ---
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.check_circle, size: 120, color: Colors.green[600]),
-              const SizedBox(height: 24),
-              Text(
-                "¡Voto Registrado!",
-                style: theme.textTheme.headlineLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                "Gracias por participar, $nombreAlumno.",
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: 32),
-              Text(
-                "Volviendo al inicio en...",
-                style: theme.textTheme.bodyMedium,
-              ),
-              Text(
-                "${provider.segundosRestantes}",
-                style: theme.textTheme.headlineMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ],
+  Widget _buildSideBySideLayout(BuildContext context, VotacionProvider provider) {
+    
+    Widget buildCard(Candidato candidato) {
+      final isSelected = provider.candidatoSeleccionado == candidato;
+      return _buildCandidatoCard(
+        context,
+        candidato,
+        isSelected,
+        () => provider.seleccionarCandidato(candidato),
+      ).animate().fadeIn(delay: (100 * (provider.candidatos.indexOf(candidato))).ms);
+    }
+
+    final candidatosReales =
+        provider.candidatos.where((c) => c.numero != 0).toList();
+    
+    Candidato? votoEnBlanco;
+    try {
+      votoEnBlanco = provider.candidatos.firstWhere((c) => c.numero == 0);
+    } catch (e) {
+      votoEnBlanco = null; 
+    }
+
+    const cardWidth = 180.0; 
+
+    return Row(
+      children: [
+        Expanded(
+          flex: 1, 
+          child: Center( 
+            child: Padding(
+              padding: const EdgeInsets.all(12.0), 
+              child: (votoEnBlanco != null)
+                  ? buildCard(votoEnBlanco) 
+                  : const SizedBox(width: cardWidth), 
+            ),
           ),
         ),
-      ).animate().fadeIn(duration: 300.ms),
+        Expanded(
+          flex: 2, 
+          child: Center( 
+            child: Padding(
+              padding: const EdgeInsets.all(12.0), 
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                runAlignment: WrapAlignment.center,
+                spacing: 12.0, 
+                runSpacing: 12.0, 
+                children: candidatosReales.map((c) => buildCard(c)).toList(),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
-}
 
-class _CandidatoCard extends StatelessWidget {
-  final Candidato candidato;
-  final bool isSelected;
-  final VoidCallback onSelect;
-
-  const _CandidatoCard({
-    required this.candidato,
-    required this.isSelected,
-    required this.onSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildVotoConfirmadoOverlay(
+      BuildContext context, VotacionProvider provider) {
     final theme = Theme.of(context);
-    final borderColor =
-        isSelected ? theme.colorScheme.primary : theme.dividerColor;
-    final borderWidth = isSelected ? 3.0 : 1.0;
-
-    return Card(
-      elevation: isSelected ? 8 : 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12.0),
-        side: BorderSide(color: borderColor, width: borderWidth),
+    return Container(
+      color: theme.colorScheme.surface.withAlpha(242),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle,
+                color: Colors.green[600], size: 120),
+            const SizedBox(height: 24),
+            Text(
+              '¡Voto Registrado!',
+              style: theme.textTheme.headlineLarge
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Gracias por participar, ${provider.nombreVotante}.',
+              style: theme.textTheme.titleLarge,
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'Saliendo en ${provider.segundosRestantes} segundos...',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
       ),
-      child: InkWell(
-        onTap: onSelect,
-        borderRadius: BorderRadius.circular(12.0),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12.0),
-            gradient: isSelected
-                ? LinearGradient(
-                    colors: [
-                      // --- ARREGLO DEPRECATED ---
-                      theme.colorScheme.primary.withAlpha(26), // 0.1
-                      theme.colorScheme.primary.withAlpha(0), // 0.0
-                      // --- FIN DEL ARREGLO ---
-                    ],
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                  )
-                : null,
+    ).animate().fadeIn(duration: 300.ms);
+  }
+
+  Widget _buildCandidatoCard(
+    BuildContext context,
+    Candidato candidato,
+    bool isSelected,
+    VoidCallback onSelect,
+  ) {
+    final theme = Theme.of(context);
+    const cardWidth = 180.0; 
+    const imageHeight = 120.0;
+
+    return SizedBox(
+      width: cardWidth,
+      child: Card(
+        elevation: isSelected ? 8.0 : 2.0,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0), 
+          side: BorderSide(
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outline.withAlpha(77),
+            width: isSelected ? 3.0 : 1.0,
           ),
+        ),
+        child: InkWell(
+          onTap: onSelect,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min, 
             children: [
-              Expanded(
+              Container(
+                color: theme.colorScheme.surfaceContainerHighest,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                child: Text(
+                  candidato.numero == 0
+                      ? 'VOTO EN BLANCO'
+                      : 'N° ${candidato.numero}',
+                  style: theme.textTheme.titleMedium?.copyWith( 
+                    fontWeight: FontWeight.bold,
+                    color: isSelected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurface,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              SizedBox(
+                height: imageHeight, 
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: ClipRRect(
@@ -217,27 +257,23 @@ class _CandidatoCard extends StatelessWidget {
                           : BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Center(
                           child: Icon(Icons.person,
-                              size: 50,
+                              size: 40, 
                               color: theme.colorScheme.onSurfaceVariant)),
                     ),
                   ),
                 ),
               ),
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
+                padding: const EdgeInsets.fromLTRB(8.0, 4.0, 8.0, 10.0), 
                 child: Text(
                   candidato.nombre,
-                  style: theme.textTheme.titleMedium?.copyWith(
+                  style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight:
                         isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected
-                        ? theme.colorScheme.primary
-                        : theme.textTheme.titleMedium?.color,
                   ),
                   textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2, 
+                  overflow: TextOverflow.ellipsis, 
                 ),
               ),
             ],
