@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:elecciones_jp/features/flujo_votante/1_votante_login_provider.dart';
 import 'package:elecciones_jp/features/flujo_admin/1_admin_login_screen.dart';
@@ -21,6 +22,9 @@ class _VotanteLoginScreenState extends State<VotanteLoginScreen> {
     _rneController = TextEditingController();
     final provider = context.read<VotanteLoginProvider>();
     _rneController.addListener(provider.resetStateOnTextChange);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      provider.limpiarCampos();
+    });
   }
 
   @override
@@ -78,6 +82,10 @@ class _VotanteLoginScreenState extends State<VotanteLoginScreen> {
                 context,
                 MaterialPageRoute(builder: (_) => const AdminLoginScreen()),
               );
+
+              _rneController.clear();
+              provider.limpiarCampos();
+              
               if (huboCambios == true && mounted) {
                 provider.refrescarDatosCentro();
               }
@@ -103,6 +111,9 @@ class _VotanteLoginScreenState extends State<VotanteLoginScreen> {
                 TextField(
                   controller: _rneController,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                  ],
                   decoration: const InputDecoration(
                     labelText: "DNI del Votante",
                     prefixIcon: Icon(Icons.person_search_outlined),
@@ -146,8 +157,11 @@ class _VotanteLoginScreenState extends State<VotanteLoginScreen> {
                 const SizedBox(height: 24),
                 if (provider.puedeVotar)
                   ElevatedButton.icon(
-                    onPressed: () =>
-                        provider.navegarAVotar(context, _rneController.text),
+                    onPressed: () {
+                      final rne = _rneController.text;
+                      provider.navegarAVotar(context, rne);
+                      _rneController.clear();
+                    },
                     icon: const Icon(Icons.how_to_vote_outlined),
                     label: const Text("IR A VOTAR"),
                     style: ElevatedButton.styleFrom(

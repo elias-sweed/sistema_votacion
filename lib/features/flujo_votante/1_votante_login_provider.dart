@@ -115,8 +115,6 @@ class VotanteLoginProvider with ChangeNotifier {
     if (!_autenticacionOk) return;
     final String nombre = _nombreVotante;
 
-    limpiarCampos();
-
     Navigator.push(
       context,
       MaterialPageRoute(
