@@ -3,9 +3,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart';
 import 'dart:io';
 import 'package:elecciones_jp/shared/models/votante.dart';
+import 'package:elecciones_jp/shared/services/database_service.dart';
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart';
 
 class ImportarVotantesProvider with ChangeNotifier {
   List<Votante> _votantes = [];
@@ -81,9 +81,7 @@ class ImportarVotantesProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final Map<String, int> result =
-          await compute(_saveVotantesInBackground, _votantes);
-      _votantesGuardados = result['votantesGuardados'] ?? 0;
+      _votantesGuardados = await _guardarVotantes();
 
       if (!context.mounted) return;
       _mostrarAlerta(
@@ -109,8 +107,33 @@ class ImportarVotantesProvider with ChangeNotifier {
     Navigator.of(context).pop();
   }
 
-  void limpiarImportacion() {
-  _resetState();
+void limpiarImportacion() {
+    _resetState();
+  }
+
+  Future<int> _guardarVotantes() async {
+    final db = await DatabaseService.instance.database;
+    final batch = db.batch();
+
+    for (final votante in _votantes) {
+      final String nombreCompleto =
+          '${votante.nombres} ${votante.apellidos}'.trim();
+
+      if (votante.dni.isNotEmpty || nombreCompleto.isNotEmpty) {
+        batch.insert(
+          'votantes',
+          {
+            'rne': votante.dni.isEmpty ? null : votante.dni,
+            'nombre': nombreCompleto,
+            'voto': 0
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+    }
+
+    final results = await batch.commit();
+    return results.where((r) => (r as int? ?? 0) > 0).length;
   }
 
   void _mostrarAlerta(BuildContext context, String titulo, String contenido,
@@ -159,51 +182,4 @@ Map<String, dynamic> _parseExcelInBackground(Excel excel) {
     }
   }
   return {'sheet': sheet, 'votantes': tempVotantes};
-}
-
-Future<Map<String, int>> _saveVotantesInBackground(
-    List<Votante> votantes) async {
-  sqfliteFfiInit();
-  databaseFactory = databaseFactoryFfi;
-
-  final dbPath = await getDatabasesPath();
-  final path = join(dbPath, 'elecciones.db');
-  Database db = await openDatabase(path);
-
-  var batch = db.batch();
-  int votantesValidos = 0;
-
-  try {
-    for (var votante in votantes) {
-      final String nombreCompleto =
-          '${votante.nombres} ${votante.apellidos}'.trim();
-
-      if (votante.dni.isNotEmpty || nombreCompleto.isNotEmpty) {
-        votantesValidos++;
-        batch.insert(
-          'votantes',
-          {
-            'rne': votante.dni.isEmpty ? null : votante.dni,
-            'nombre': nombreCompleto,
-            'voto': 0
-          },
-          conflictAlgorithm: ConflictAlgorithm.ignore,
-        );
-      }
-    }
-
-    final results = await batch.commit();
-    await db.close();
-
-    final int votantesGuardados =
-        results.where((r) => (r as int? ?? 0) > 0).length;
-
-    return {
-      'votantesValidos': votantesValidos,
-      'votantesGuardados': votantesGuardados
-    };
-  } catch (e) {
-    await db.close();
-    return {'votantesValidos': 0, 'votantesGuardados': 0};
-  }
 }
