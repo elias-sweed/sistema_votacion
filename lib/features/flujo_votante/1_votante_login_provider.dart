@@ -84,8 +84,17 @@ class VotanteLoginProvider with ChangeNotifier {
       if (votantes.isNotEmpty) {
         final votante = votantes.first;
         _nombreVotante = votante['nombre'] as String;
-        
-        final haVotado = (votante['voto'] as int) == 1;
+
+        // Un elector esta habilitado si no hay ni marca previa en `votantes`
+        // ni fila en la bitacora `votos`. La union cubre las instalaciones
+        // anteriores a v3, donde solo existia la marca.
+        final List<Map<String, dynamic>> votosEmitidos = await db.rawQuery(
+          'SELECT COUNT(*) AS total FROM votos WHERE rne = ?',
+          [rne],
+        );
+        final int totalVotos = (votosEmitidos.first['total'] as int?) ?? 0;
+
+        final haVotado = (votante['voto'] as int) == 1 || totalVotos > 0;
 
         if (haVotado) {
           _mensajeEstado = "Este votante ya ha emitido su voto.";

@@ -30,8 +30,11 @@ class VerResultadosProvider with ChangeNotifier {
           await db.rawQuery('SELECT COUNT(*) FROM votantes'));
       _padronTotal = totalVotantes ?? 0;
 
+      // La bitacora `votos` es la unica fuente de verdad: cada fila es un
+      // voto emitido. Antes se usaba el contador legacy `candidatos.votos`,
+      // que sufria perdidas por lectura-modificacion-escritura concurrente.
       final int? totalEmitidos = Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM votantes WHERE voto = 1'));
+          await db.rawQuery('SELECT COUNT(*) FROM votos'));
       _votosEmitidos = totalEmitidos ?? 0;
 
       if (_padronTotal > 0) {
@@ -41,23 +44,32 @@ class VerResultadosProvider with ChangeNotifier {
       }
 
       _votosPendientes = _padronTotal - _votosEmitidos;
+      if (_votosPendientes < 0) _votosPendientes = 0;
 
-      final List<Map<String, dynamic>> mapsCandidatos =
-          await db.query('candidatos', orderBy: 'votos DESC');
+      // Totales por candidato contados sobre `votos`.
+      final List<Map<String, dynamic>> mapsCandidatos = await db.rawQuery('''
+        SELECT c.nombre,
+               (SELECT COUNT(*) FROM votos v
+                 WHERE v.numero_candidato = c.numero) AS votos
+        FROM candidatos c
+        ORDER BY votos DESC, c.numero ASC
+      ''');
 
       final List<ResultadoCandidato> tempResultados = [];
       int contador = 0;
 
       for (var map in mapsCandidatos) {
         contador++;
-        final int votosCandidato = map['votos'] as int;
+        final int votosCandidato = (map['votos'] as int?) ?? 0;
         final String nombreCandidato = map['nombre'] as String;
 
         double progreso = 0.0;
         double porciento = 0.0;
 
         if (_votosEmitidos > 0) {
-          progreso = (votosCandidato / _votosEmitidos);
+          // Se limita a 1.0 para que una barra nunca supere el 100% si
+          // quedaran totales legacy inconsistentes con el padron.
+          progreso = (votosCandidato / _votosEmitidos).clamp(0.0, 1.0);
           porciento = progreso * 100;
         }
 

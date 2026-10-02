@@ -39,7 +39,7 @@ class BorrarDatosProvider with ChangeNotifier {
       _puedeBorrarElectores = (electoresCount ?? 0) > 0;
 
       final int? resultadosCount = Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM votantes WHERE voto = 1'));
+          await db.rawQuery('SELECT COUNT(*) FROM votos'));
       _puedeBorrarResultados = (resultadosCount ?? 0) > 0;
 
       _puedeBorrarTodo = _puedeBorrarCentro ||
@@ -126,7 +126,11 @@ class BorrarDatosProvider with ChangeNotifier {
       final db = await DatabaseService.instance.database;
       final batch = db.batch();
 
+      // La bitacora `votos` es la fuente de verdad de los resultados.
+      batch.delete('votos');
       batch.update('votantes', {'voto': 0}, where: 'voto = 1');
+      // El contador legacy se deja en cero para no resucitar datos si
+      // alguien vuelve a una version anterior de la app.
       batch.update('candidatos', {'votos': 0}, where: 'votos > 0');
 
       await batch.commit(noResult: true);
@@ -161,6 +165,7 @@ class BorrarDatosProvider with ChangeNotifier {
     try {
       final db = await DatabaseService.instance.database;
       final batch = db.batch();
+      batch.delete('votos');
       batch.delete('candidatos');
       batch.delete('votantes');
       batch.delete('centro');

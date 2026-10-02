@@ -4,6 +4,7 @@ import 'package:elecciones_jp/shared/models/candidato.dart';
 import 'package:elecciones_jp/shared/services/database_service.dart';
 // *** CAMBIO 1: Importar el paquete de audio ***
 import 'package:audioplayers/audioplayers.dart';
+import 'package:sqflite/sqflite.dart';
 
 class VotacionProvider with ChangeNotifier {
   final String rneVotante;
@@ -44,8 +45,16 @@ class VotacionProvider with ChangeNotifier {
     notifyListeners();
     try {
       final db = await DatabaseService.instance.database;
-      final List<Map<String, dynamic>> maps =
-          await db.query('candidatos', orderBy: 'numero');
+
+      // El total se deriva de la bitacora de votos, no del contador legacy
+      // `candidatos.votos`, para que ambos coincidan siempre.
+      final List<Map<String, dynamic>> maps = await db.rawQuery('''
+        SELECT c.codigo, c.numero, c.nombre, c.imagen,
+               (SELECT COUNT(*) FROM votos v
+                 WHERE v.numero_candidato = c.numero) AS votos
+        FROM candidatos c
+        ORDER BY c.numero
+      ''');
 
       _candidatos = maps.map((map) {
         return Candidato(
@@ -80,21 +89,26 @@ class VotacionProvider with ChangeNotifier {
     try {
       final db = await DatabaseService.instance.database;
 
-      // 1. Marcar al votante como que ya votó
-      await db.update(
-        'votantes',
-        {'voto': 1},
-        where: 'rne = ?',
-        whereArgs: [rne],
-      );
+      // Voto atomico: el registro en `votos` y la marca en `votantes` se
+      // escriben en la misma transaccion, o no se escribe ninguno.
+      //
+      // El indice unico sobre votos.rne es la garantia real de un solo voto
+      // por elector: si dos terminals emiten a la vez, el segundo INSERT
+      // falla y la transaccion se revierte.
+      await db.transaction((txn) async {
+        await txn.insert('votos', {
+          'rne': rne,
+          'numero_candidato': _candidatoSeleccionado!.numero,
+          'fecha': DateTime.now().toIso8601String(),
+        });
 
-      // 2. Sumar el voto al candidato
-      await db.update(
-        'candidatos',
-        {'votos': _candidatoSeleccionado!.votos + 1},
-        where: 'numero = ?',
-        whereArgs: [_candidatoSeleccionado!.numero],
-      );
+        await txn.update(
+          'votantes',
+          {'voto': 1},
+          where: 'rne = ?',
+          whereArgs: [rne],
+        );
+      });
 
       // *** CAMBIO 5: Reproducir el sonido ***
       try {
@@ -102,11 +116,22 @@ class VotacionProvider with ChangeNotifier {
       } catch (e) {
         debugPrint("Error al reproducir sonido: $e");
       }
-      
+
       _votoConfirmado = true;
       _iniciarTimer();
       notifyListeners();
 
+    } on DatabaseException catch (e) {
+      // Indice unico violado: este elector ya tiene un voto registrado.
+      if (e.isUniqueConstraintError()) {
+        _votoConfirmado = false;
+        if (!context.mounted) return;
+        _mostrarAlerta(context, "Voto ya registrado",
+            "Este votante ya emitió su voto.");
+        return;
+      }
+      if (!context.mounted) return;
+      _mostrarAlerta(context, "Error", "Error al registrar el voto: $e");
     } catch (e) {
       if (!context.mounted) return;
       _mostrarAlerta(context, "Error", "Error al registrar el voto: $e");
