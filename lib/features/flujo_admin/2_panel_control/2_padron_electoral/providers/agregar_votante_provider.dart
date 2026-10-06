@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:elecciones_jp/shared/services/database_service.dart';
-import 'package:elecciones_jp/shared/utils/rne.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:elecciones_jp/data/repositories/votante_repository_impl.dart';
+import 'package:elecciones_jp/domain/usecases/agregar_votante_use_case.dart';
 
 class AgregarVotanteProvider with ChangeNotifier {
   final TextEditingController dniController = TextEditingController();
@@ -10,6 +9,9 @@ class AgregarVotanteProvider with ChangeNotifier {
 
   bool get isAceptarEnabled => _isAceptarEnabled;
   final String? dniInicial;
+
+  final AgregarVotanteUseCase _agregarVotante =
+      AgregarVotanteUseCase(VotanteRepositoryImpl());
 
   AgregarVotanteProvider({this.dniInicial}) {
     dniController.text = dniInicial ?? '';
@@ -40,30 +42,19 @@ class AgregarVotanteProvider with ChangeNotifier {
     final String dni = dniController.text.trim();
     final String nombre = nombreController.text.trim().toUpperCase();
 
-    final String? rneNormalizado = Rne.normalizar(dni);
-    if (rneNormalizado == null) {
-      if (!context.mounted) return;
-      _mostrarAlerta(
-        context,
-        "Error al guardar",
-        "El DNI ingresado no tiene un formato válido.",
-      );
-      return;
-    }
-
     try {
-      final db = await DatabaseService.instance.database;
-      await db.insert(
-        'votantes',
-        {'rne': rneNormalizado, 'nombre': nombre},
-        conflictAlgorithm: ConflictAlgorithm.fail,
-      );
-
+      final resultado = await _agregarVotante.execute(dni: dni, nombre: nombre);
       if (!context.mounted) return;
+
+      if (!resultado.exito) {
+        _mostrarAlerta(context, "Error al guardar", resultado.mensaje);
+        return;
+      }
+
       _mostrarAlerta(
         context,
         "Votante guardado",
-        "Se ha agregado al sistema el votante $nombre con el registro $dni",
+        "Se ha agregado al sistema el votante ${resultado.votante?.nombre ?? nombre} con el registro ${resultado.votante?.rne ?? dni}",
         onAceptar: () {
           Navigator.of(context).pop();
           Navigator.of(context).pop(true);
@@ -71,22 +62,13 @@ class AgregarVotanteProvider with ChangeNotifier {
       );
       dniController.clear();
       nombreController.clear();
-
     } catch (e) {
       if (!context.mounted) return;
-      if (e is DatabaseException && e.isUniqueConstraintError()) {
       _mostrarAlerta(
         context,
         "Error al guardar",
-        "No se puede agregar el nuevo votante $nombre.\n\nYa existe un votante con el registro $rneNormalizado",
+        "No se pudo agregar el nuevo votante. Error: ${e.toString()}",
       );
-      } else {
-        _mostrarAlerta(
-          context,
-          "Error al guardar",
-          "No se pudo agregar el nuevo votante. Error: ${e.toString()}",
-        );
-      }
     }
   }
 
