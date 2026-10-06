@@ -54,4 +54,14 @@ class VotanteRepositoryImpl implements VotanteRepository {
     final db = await _db;
     await db.delete('votantes', where: 'id = ?', whereArgs: [id]);
   }
+
+  @override
+  Future<void> deleteMany(List<int> ids) async {
+    final db = await _db;
+    final batch = db.batch();
+    for (final id in ids) {
+      batch.delete('votantes', where: 'id = ?', whereArgs: [id]);
+    }
+    await batch.commit(noResult: true);
+  }
 }

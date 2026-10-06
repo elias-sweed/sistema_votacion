@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:elecciones_jp/shared/models/votante_admin.dart';
-import 'package:elecciones_jp/shared/services/database_service.dart';
+import 'package:elecciones_jp/data/repositories/votante_repository_impl.dart';
+import 'package:elecciones_jp/domain/entities/votante_entity.dart';
 import 'package:elecciones_jp/shared/utils/rne.dart';
-import 'package:sqflite/sqflite.dart';
 
 enum FiltroVoto { todos, pendientes, emitidos }
 
@@ -25,15 +25,22 @@ class AdminVotantesProvider with ChangeNotifier {
   bool get filtroIncompletos => _filtroIncompletos;
   FiltroVoto get filtroVoto => _filtroVoto;
 
+  final VotanteRepositoryImpl _votantesRepo = VotanteRepositoryImpl();
+
   Future<void> cargarVotantes() async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      final db = await DatabaseService.instance.database;
-      final List<Map<String, dynamic>> maps =
-          await db.query('votantes', orderBy: 'nombre');
-      _votantes = maps.map((map) => VotanteAdmin.fromMap(map)).toList();
+      final entidades = await _votantesRepo.findAll();
+      _votantes = entidades
+          .map((e) => VotanteAdmin(
+                id: e.id,
+                rne: e.rne ?? '',
+                nombre: e.nombre,
+                voto: e.voto,
+              ))
+          .toList();
       _filtrarVotantes();
     } catch (e) {
       debugPrint("Error cargando votantes: $e");
