@@ -4,8 +4,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
 import 'package:elecciones_jp/shared/models/candidato.dart';
-import 'package:elecciones_jp/shared/services/database_service.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:elecciones_jp/data/repositories/candidato_repository_impl.dart';
+import 'package:elecciones_jp/data/repositories/voto_repository_impl.dart';
+import 'package:elecciones_jp/domain/entities/candidato_entity.dart';
 
 class ConfigCandidatosProvider with ChangeNotifier {
   final List<CandidatoParaMostrar> _listaCandidatos = [];
@@ -17,6 +18,8 @@ class ConfigCandidatosProvider with ChangeNotifier {
   int get numeroSiguiente => _numeroSiguiente;
 
   final ImagePicker _picker = ImagePicker();
+  final CandidatoRepositoryImpl _candidatoRepo = CandidatoRepositoryImpl();
+  final VotoRepositoryImpl _votoRepo = VotoRepositoryImpl();
 
   Future<void> initCandidatos() async {
     _numeroSiguiente = 1;
@@ -26,17 +29,15 @@ class ConfigCandidatosProvider with ChangeNotifier {
   }
 
   Future<void> _mostrarCandidatos() async {
-    final db = await DatabaseService.instance.database;
-    final List<Map<String, dynamic>> maps =
-        await db.query('candidatos', orderBy: 'numero');
+    final candidatos = await _candidatoRepo.findAll();
 
     _listaCandidatos.clear();
-    for (var map in maps) {
+    for (final candidato in candidatos) {
       _listaCandidatos.add(CandidatoParaMostrar(
-        codigo: map['codigo'],
-        numero: map['numero'],
-        nombre: map['nombre'],
-        imagen: File(map['imagen']),
+        codigo: candidato.codigo,
+        numero: candidato.numero,
+        nombre: candidato.nombre,
+        imagen: File(candidato.imagen),
       ));
     }
     // Si hay candidatos, el siguiente número es el último + 1
@@ -80,16 +81,11 @@ class ConfigCandidatosProvider with ChangeNotifier {
 
     if (pathDestino != null) {
       try {
-        final db = await DatabaseService.instance.database;
-        await db.insert(
-          'candidatos',
-          {
-            'numero': numeroCandidato, // Se guarda el N°
-            'nombre': nombre,
-            'imagen': pathDestino,
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+        await _candidatoRepo.insert(CandidatoEntity(
+          numero: numeroCandidato,
+          nombre: nombre,
+          imagen: pathDestino,
+        ));
 
         // Limpiar para el siguiente
         _imagenSeleccionada = null;
@@ -121,12 +117,10 @@ class ConfigCandidatosProvider with ChangeNotifier {
   Future<void> eliminarCandidato(
       CandidatoParaMostrar candidato, BuildContext context) async {
     try {
-      final db = await DatabaseService.instance.database;
-
       // Un candidato que ya recibio votos no se puede borrar. El voto apunta
       // a candidatos.codigo justamente para que esto sea una garantia de la
       // base de datos, y no una convencion que el operador tenga que
-      // recordar: permitirlo dejaria el total de votos emitidos sin Lists que
+      // recordar: permitirlo dejaria el total de votos emitidos sin listas que
       // lo respalden.
       final int? codigo = candidato.codigo;
       if (codigo == null) {
@@ -136,16 +130,8 @@ class ConfigCandidatosProvider with ChangeNotifier {
         return;
       }
 
-      // Un candidato que ya recibio votos no se puede borrar. El voto apunta
-      // a candidatos.codigo justamente para que esto sea una garantia de la
-      // base de datos, y no una convencion que el operador tenga que
-      // recordar: permitirlo dejaria el total de votos emitidos sin listas que
-      // lo respalden.
-      final int votosRecibidos = Sqflite.firstIntValue(await db.rawQuery(
-            'SELECT COUNT(*) FROM votos WHERE codigo_candidato = ?',
-            [codigo],
-          )) ??
-          0;
+      final int votosRecibidos =
+          await _votoRepo.countByCodigoCandidato(codigo);
 
       if (votosRecibidos > 0) {
         if (!context.mounted) return;
@@ -155,8 +141,7 @@ class ConfigCandidatosProvider with ChangeNotifier {
         return;
       }
 
-      await db.delete('candidatos',
-          where: 'codigo = ?', whereArgs: [codigo]);
+      await _candidatoRepo.delete(codigo);
 
       if (await candidato.imagen.exists()) {
         await candidato.imagen.delete();
