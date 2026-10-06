@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
-import 'package:elecciones_jp/shared/services/database_service.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:elecciones_jp/data/repositories/mantenimiento_repository_impl.dart';
 
 class BorrarDatosProvider with ChangeNotifier {
   bool _puedeBorrarCentro = false;
@@ -18,29 +17,20 @@ class BorrarDatosProvider with ChangeNotifier {
   bool get puedeBorrarResultados => _puedeBorrarResultados;
   bool get puedeBorrarTodo => _puedeBorrarTodo;
 
+  final MantenimientoRepositoryImpl _mantenimientoRepo =
+      MantenimientoRepositoryImpl();
+
   BorrarDatosProvider() {
     _verificarDatosExistentes();
   }
 
   Future<void> _verificarDatosExistentes() async {
     try {
-      final db = await DatabaseService.instance.database;
-
-      final int? centroCount = Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM centro'));
-      _puedeBorrarCentro = (centroCount ?? 0) > 0;
-
-      final int? candidatosCount = Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM candidatos'));
-      _puedeBorrarCandidatos = (candidatosCount ?? 0) > 0;
-
-      final int? electoresCount = Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM votantes'));
-      _puedeBorrarElectores = (electoresCount ?? 0) > 0;
-
-      final int? resultadosCount = Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM votos'));
-      _puedeBorrarResultados = (resultadosCount ?? 0) > 0;
+      final counts = await _mantenimientoRepo.counts();
+      _puedeBorrarCentro = (counts['centro'] ?? 0) > 0;
+      _puedeBorrarCandidatos = (counts['candidatos'] ?? 0) > 0;
+      _puedeBorrarElectores = (counts['votantes'] ?? 0) > 0;
+      _puedeBorrarResultados = (counts['votos'] ?? 0) > 0;
 
       _puedeBorrarTodo = _puedeBorrarCentro ||
           _puedeBorrarCandidatos ||
@@ -77,8 +67,7 @@ class BorrarDatosProvider with ChangeNotifier {
 
   Future<bool> _borrarCentroEnBD() async {
     try {
-      final db = await DatabaseService.instance.database;
-      await db.delete('centro');
+      await _mantenimientoRepo.borrarCentro();
       return true;
     } catch (e) {
       debugPrint("Error al borrar centro: $e");
@@ -92,24 +81,13 @@ class BorrarDatosProvider with ChangeNotifier {
 
   Future<bool> _borrarCandidatosEnBD() async {
     try {
-      final db = await DatabaseService.instance.database;
-
-      // Los votos apuntan a candidatos.codigo con ON DELETE RESTRICT, asi que
-      // borrar candidatos que ya recibieron votos debe rechazarse. Se avisa
-      // con claridad en vez de dejar que la base devuelva un error generico.
-      final int conVotos = Sqflite.firstIntValue(await db.rawQuery(
-          'SELECT COUNT(DISTINCT codigo_candidato) FROM votos WHERE codigo_candidato IS NOT NULL')) ??
-          0;
-
-      if (conVotos > 0) {
-        debugPrint(
-            "No se pueden borrar los candidatos: $conVotos ya recibieron votos.");
-        return false;
+      // Los votos apuntan a candidatos.codigo con ON DELETE RESTRICT; el
+      // repositorio lo comprueba y devuelve false si hay votos asociados.
+      final borrados = await _mantenimientoRepo.borrarCandidatos();
+      if (borrados) {
+        await _eliminarImagenes();
       }
-
-      await db.delete('candidatos');
-      await _eliminarImagenes();
-      return true;
+      return borrados;
     } catch (e) {
       debugPrint("Error al borrar candidatos: $e");
       return false;
@@ -122,8 +100,7 @@ class BorrarDatosProvider with ChangeNotifier {
 
   Future<bool> _borrarElectoresEnBD() async {
     try {
-      final db = await DatabaseService.instance.database;
-      await db.delete('votantes');
+      await _mantenimientoRepo.borrarElectores();
       return true;
     } catch (e) {
       debugPrint("Error al borrar electores: $e");
@@ -137,17 +114,7 @@ class BorrarDatosProvider with ChangeNotifier {
 
   Future<bool> _borrarResultadosEnBD() async {
     try {
-      final db = await DatabaseService.instance.database;
-      final batch = db.batch();
-
-      // La bitacora `votos` es la fuente de verdad de los resultados.
-      batch.delete('votos');
-      batch.update('votantes', {'voto': 0}, where: 'voto = 1');
-      // El contador legacy se deja en cero para no resucitar datos si
-      // alguien vuelve a una version anterior de la app.
-      batch.update('candidatos', {'votos': 0}, where: 'votos > 0');
-
-      await batch.commit(noResult: true);
+      await _mantenimientoRepo.borrarResultados();
       return true;
     } catch (e) {
       debugPrint("Error al borrar resultados: $e");
@@ -177,13 +144,7 @@ class BorrarDatosProvider with ChangeNotifier {
 
   Future<bool> _borrarTodoEnBD() async {
     try {
-      final db = await DatabaseService.instance.database;
-      final batch = db.batch();
-      batch.delete('votos');
-      batch.delete('candidatos');
-      batch.delete('votantes');
-      batch.delete('centro');
-      await batch.commit(noResult: true);
+      await _mantenimientoRepo.borrarTodo();
       return true;
     } catch (e) {
       debugPrint("Error al borrar todo: $e");
