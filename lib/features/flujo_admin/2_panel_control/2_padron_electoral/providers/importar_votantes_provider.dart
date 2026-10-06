@@ -3,10 +3,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart';
 import 'dart:io';
 import 'package:elecciones_jp/shared/models/votante.dart';
-import 'package:elecciones_jp/shared/services/database_service.dart';
 import 'package:elecciones_jp/shared/utils/rne.dart';
 import 'package:flutter/foundation.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:elecciones_jp/data/repositories/votante_repository_impl.dart';
+import 'package:elecciones_jp/domain/entities/votante_entity.dart';
+import 'package:elecciones_jp/domain/usecases/importar_votantes_use_case.dart';
 
 class ImportarVotantesProvider with ChangeNotifier {
   List<Votante> _votantes = [];
@@ -17,6 +18,9 @@ int _totalFilasExcel = 0;
   int _votantesValidos = 0;
   int _votantesGuardados = 0;
   int _votantesSinDocumento = 0;
+
+  final ImportarVotantesUseCase _importar =
+      ImportarVotantesUseCase(VotanteRepositoryImpl());
 
   String get rutaArchivo => _rutaArchivo;
   bool get archivoCargado => _archivoCargado;
@@ -130,17 +134,12 @@ void limpiarImportacion() {
   }
 
   Future<int> _guardarVotantes() async {
-    final db = await DatabaseService.instance.database;
-    final batch = db.batch();
+    final List<VotanteEntity> entidades = [];
 
     for (final votante in _votantes) {
       final String nombreCompleto =
           '${votante.nombres} ${votante.apellidos}'.trim();
 
-      // Sin un documento valido el elector no puede votar, pero antes se
-      // guardaba igual con rne nulo: era una fila que inflaba el padron y
-      // descuadraba la participacion y los votos pendientes para siempre.
-      // Ahora se descarta y se informa.
       final String? rne = Rne.normalizar(votante.dni);
       if (rne == null) {
         _votantesSinDocumento++;
@@ -149,17 +148,15 @@ void limpiarImportacion() {
 
       if (nombreCompleto.isEmpty) continue;
 
-      // El RNE ya viene normalizado, de modo que el indice unico descarta
-      // al elector repetido dentro del mismo Excel y tambien entre cargas.
-      batch.insert(
-        'votantes',
-        {'rne': rne, 'nombre': nombreCompleto, 'voto': 0},
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+      entidades.add(VotanteEntity(
+        id: 0,
+        rne: rne,
+        nombre: nombreCompleto,
+        voto: false,
+      ));
     }
 
-    final results = await batch.commit();
-    return results.where((r) => (r as int? ?? 0) > 0).length;
+    return _importar.execute(entidades);
   }
 
   void _mostrarAlerta(BuildContext context, String titulo, String contenido,

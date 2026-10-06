@@ -64,4 +64,21 @@ class VotanteRepositoryImpl implements VotanteRepository {
     }
     await batch.commit(noResult: true);
   }
+
+  @override
+  Future<int> insertMany(List<VotanteEntity> votantes) async {
+    final db = await _db;
+    final batch = db.batch();
+
+    for (final votante in votantes) {
+      batch.insert(
+        'votantes',
+        VotanteMapper.toMap(votante)..remove('id'),
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
+
+    final results = await batch.commit();
+    return results.where((r) => (r as int? ?? 0) > 0).length;
+  }
 }

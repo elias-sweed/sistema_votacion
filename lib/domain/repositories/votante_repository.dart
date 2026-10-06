@@ -7,4 +7,5 @@ abstract class VotanteRepository {
   Future<void> update(VotanteEntity votante);
   Future<void> delete(int id);
   Future<void> deleteMany(List<int> ids);
+  Future<int> insertMany(List<VotanteEntity> votantes);
 }
