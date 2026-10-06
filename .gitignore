@@ -12,6 +12,10 @@ coverage/
 .flutter-plugins
 .flutter-plugins-dependencies
 
+# FVM: la carpeta de la SDK es pesada y se regenera con `fvm install`.
+# .fvmrc SI se versiona: es lo que fija la versión de Flutter del equipo.
+.fvm/
+
 # Archivos de Símbolos y Ofuscación
 app.*.symbols
 app.*.map.json
