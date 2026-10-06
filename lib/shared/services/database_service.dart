@@ -1,6 +1,10 @@
 import 'dart:io';
 
 import 'package:elecciones_jp/shared/utils/rne.dart';
+import 'package:elecciones_jp/core/database/tables/admin_table.dart';
+import 'package:elecciones_jp/core/database/tables/candidatos_table.dart';
+import 'package:elecciones_jp/core/database/tables/votantes_table.dart';
+import 'package:elecciones_jp/core/database/tables/votos_table.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -150,7 +154,7 @@ class DatabaseService {
 
   Future<void> _normalizarVotos(Database db) async {
     final List<Map<String, dynamic>> votos =
-        await db.query('votos', orderBy: 'id');
+        await db.query(VotosTable.tableName, orderBy: 'id');
     if (votos.isEmpty) return;
 
     final Set<String> yaAsignados = <String>{};
@@ -185,12 +189,12 @@ class DatabaseService {
     // una fila que todavia debe transformarse, y las actualizaciones que
     // siguen no chocan con el indice unico.
     for (final Object? id in aEliminar) {
-      await db.delete('votos', where: 'id = ?', whereArgs: [id]);
+      await db.delete(VotosTable.tableName, where: 'id = ?', whereArgs: [id]);
     }
 
     for (final Map<String, dynamic> voto in aConservar) {
       if (voto['original'] == voto['rne']) continue;
-      await db.update('votos', {'rne': voto['rne']},
+      await db.update(VotosTable.tableName, {'rne': voto['rne']},
           where: 'id = ?', whereArgs: [voto['id']]);
     }
 
@@ -202,10 +206,10 @@ class DatabaseService {
 
   Future<void> _normalizarVotantes(Database db) async {
     final List<Map<String, dynamic>> votantes =
-        await db.query('votantes', orderBy: 'voto DESC, id ASC');
+        await db.query(VotantesTable.tableName, orderBy: 'voto DESC, id ASC');
     if (votantes.isEmpty) return;
 
-    await db.update('votantes', {'rne': null}, where: 'rne IS NOT NULL');
+    await db.update(VotantesTable.tableName, {'rne': null}, where: 'rne IS NOT NULL');
 
     final Set<String> yaAsignados = <String>{};
     int normalizados = 0;
@@ -221,7 +225,7 @@ class DatabaseService {
         continue;
       }
 
-      await db.update('votantes', {'rne': normalizado},
+      await db.update(VotantesTable.tableName, {'rne': normalizado},
           where: 'id = ?', whereArgs: [votante['id']]);
       normalizados++;
     }
@@ -241,40 +245,40 @@ class DatabaseService {
   /// emitidos aunque no sumen en ninguna lista.
   Future<void> _migrarVotosACodigoCandidato(Database db) async {
     final List<Map<String, dynamic>> info =
-        await db.rawQuery('PRAGMA table_info(votos)');
-    if (info.any((c) => c['name'] == 'codigo_candidato')) return;
+        await db.rawQuery('PRAGMA table_info(${VotosTable.tableName})');
+    if (info.any((c) => c['name'] == VotosTable.codigoCandidato)) return;
 
-    await db.execute('DROP INDEX IF EXISTS idx_votos_rne_unico');
-    await db.execute('ALTER TABLE votos RENAME TO votos_v3');
+    await db.execute('DROP INDEX IF EXISTS ${VotosTable.indexRneUnico}');
+    await db.execute('ALTER TABLE ${VotosTable.tableName} RENAME TO ${VotosTable.tableName}_v3');
 
     await db.execute('''
-    CREATE TABLE IF NOT EXISTS votos (
+    CREATE TABLE IF NOT EXISTS ${VotosTable.tableName} (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      rne TEXT NOT NULL,
-      codigo_candidato INTEGER,
-      fecha TEXT NOT NULL,
-      FOREIGN KEY (codigo_candidato) REFERENCES candidatos (codigo)
+      ${VotosTable.rne} TEXT NOT NULL,
+      ${VotosTable.codigoCandidato} INTEGER,
+      ${VotosTable.fecha} TEXT NOT NULL,
+      FOREIGN KEY (${VotosTable.codigoCandidato}) REFERENCES ${CandidatosTable.tableName} (${CandidatosTable.codigo})
         ON DELETE RESTRICT
     )
     ''');
 
     await db.execute('''
-      INSERT INTO votos (id, rne, codigo_candidato, fecha)
+      INSERT INTO ${VotosTable.tableName} (id, ${VotosTable.rne}, ${VotosTable.codigoCandidato}, ${VotosTable.fecha})
       SELECT v3.id,
-             v3.rne,
-             (SELECT c.codigo FROM candidatos c WHERE c.numero = v3.numero_candidato),
-             v3.fecha
-      FROM votos_v3 v3
+             v3.${VotosTable.rne},
+             (SELECT c.${CandidatosTable.codigo} FROM ${CandidatosTable.tableName} c WHERE c.${CandidatosTable.numero} = v3.numero_candidato),
+             v3.${VotosTable.fecha}
+      FROM ${VotosTable.tableName}_v3 v3
       ORDER BY v3.id
     ''');
 
-    await db.execute('DROP TABLE votos_v3');
+    await db.execute('DROP TABLE ${VotosTable.tableName}_v3');
 
     await db.execute(
-        'CREATE UNIQUE INDEX IF NOT EXISTS idx_votos_rne_unico ON votos (rne)');
+        'CREATE UNIQUE INDEX IF NOT EXISTS ${VotosTable.indexRneUnico} ON ${VotosTable.tableName} (${VotosTable.rne})');
 
     final int? sinCandidato = Sqflite.firstIntValue(await db.rawQuery(
-        'SELECT COUNT(*) FROM votos WHERE codigo_candidato IS NULL'));
+        'SELECT COUNT(*) FROM ${VotosTable.tableName} WHERE ${VotosTable.codigoCandidato} IS NULL'));
     if ((sinCandidato ?? 0) > 0) {
       debugPrint(
           'BD: $sinCandidato votos quedaron sin candidato asociado y no se imputan a ninguna lista.');
@@ -287,7 +291,7 @@ class DatabaseService {
   /// EXISTS` no la modifica: sin esto, las columnas del hash nunca se
   /// crearian y las credenciales seguirian en texto plano.
   Future<void> _migrarEsquemaAdmin(Database db) async {
-    List<Map<String, dynamic>> info = await db.rawQuery('PRAGMA table_info(admin)');
+    List<Map<String, dynamic>> info = await db.rawQuery('PRAGMA table_info(${AdminTable.tableName})');
 
     // v2 declaraba `password TEXT NOT NULL`, lo que impide vaciar la
     // columna para eliminar la contraseña en claro. Se reconstruye la tabla
@@ -304,7 +308,7 @@ class DatabaseService {
         SELECT id, username, password FROM admin_v2
       ''');
       await db.execute('DROP TABLE admin_v2');
-      info = await db.rawQuery('PRAGMA table_info(admin)');
+      info = await db.rawQuery('PRAGMA table_info(${AdminTable.tableName})');
     }
 
     final Set<String> existentes =
@@ -353,18 +357,18 @@ class DatabaseService {
   /// impide ademas eliminar un candidato que ya recibio votos.
   Future<void> _crearTablaVotos(Database db) async {
     await db.execute('''
-    CREATE TABLE IF NOT EXISTS votos (
+    CREATE TABLE IF NOT EXISTS ${VotosTable.tableName} (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      rne TEXT NOT NULL,
-      codigo_candidato INTEGER,
-      fecha TEXT NOT NULL,
-      FOREIGN KEY (codigo_candidato) REFERENCES candidatos (codigo)
+      ${VotosTable.rne} TEXT NOT NULL,
+      ${VotosTable.codigoCandidato} INTEGER,
+      ${VotosTable.fecha} TEXT NOT NULL,
+      FOREIGN KEY (${VotosTable.codigoCandidato}) REFERENCES ${CandidatosTable.tableName} (${CandidatosTable.codigo})
         ON DELETE RESTRICT
     )
     ''');
 
     await db.execute('''
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_votos_rne_unico ON votos (rne)
+    CREATE UNIQUE INDEX IF NOT EXISTS ${VotosTable.indexRneUnico} ON ${VotosTable.tableName} (${VotosTable.rne})
     ''');
   }
 
@@ -376,24 +380,24 @@ class DatabaseService {
   /// con el prefijo `__legado_`. Los votos nuevos si quedan auditables.
   Future<void> _migrarContadoresLegacy(Database db) async {
     final List<Map<String, dynamic>> existentes =
-        await db.rawQuery('SELECT COUNT(*) AS total FROM votos');
+        await db.rawQuery('SELECT COUNT(*) AS total FROM ${VotosTable.tableName}');
     final int total = Sqflite.firstIntValue(existentes) ?? 0;
     if (total > 0) return;
 
     final List<Map<String, dynamic>> candidatos =
-        await db.query('candidatos', columns: ['codigo', 'numero', 'votos']);
+        await db.query(CandidatosTable.tableName, columns: [CandidatosTable.codigo, CandidatosTable.numero, CandidatosTable.votos]);
 
     final String fechaMigracion = DateTime.now().toIso8601String();
     final Batch batch = db.batch();
     int secuencia = 0;
 
     for (final Map<String, dynamic> candidato in candidatos) {
-      final int votos = (candidato['votos'] as int?) ?? 0;
+      final int votos = (candidato[CandidatosTable.votos] as int?) ?? 0;
       for (int i = 0; i < votos; i++) {
-        batch.insert('votos', {
-          'rne': '$_prefijoLegado${candidato['codigo']}_$secuencia',
-          'codigo_candidato': candidato['codigo'],
-          'fecha': fechaMigracion,
+        batch.insert(VotosTable.tableName, {
+          VotosTable.rne: '$_prefijoLegado${candidato[CandidatosTable.codigo]}_$secuencia',
+          VotosTable.codigoCandidato: candidato[CandidatosTable.codigo],
+          VotosTable.fecha: fechaMigracion,
         });
         secuencia++;
       }
