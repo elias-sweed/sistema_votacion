@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:elecciones_jp/shared/models/votante_admin.dart';
 import 'package:elecciones_jp/data/repositories/votante_repository_impl.dart';
 import 'package:elecciones_jp/domain/entities/votante_entity.dart';
 import 'package:elecciones_jp/shared/utils/rne.dart';
@@ -7,8 +6,8 @@ import 'package:elecciones_jp/shared/utils/rne.dart';
 enum FiltroVoto { todos, pendientes, emitidos }
 
 class AdminVotantesProvider with ChangeNotifier {
-  List<VotanteAdmin> _votantes = [];
-  List<VotanteAdmin> _votantesFiltrados = [];
+  List<VotanteEntity> _votantes = [];
+  List<VotanteEntity> _votantesFiltrados = [];
   bool _isLoading = true;
   String _terminoBusqueda = "";
   bool _filtroIncompletos = false;
@@ -20,7 +19,7 @@ class AdminVotantesProvider with ChangeNotifier {
   Set<int> get votantesSeleccionados => _votantesSeleccionados;
   bool get modoSeleccion => _modoSeleccion;
 
-  List<VotanteAdmin> get votantesFiltrados => _votantesFiltrados;
+  List<VotanteEntity> get votantesFiltrados => _votantesFiltrados;
   bool get isLoading => _isLoading;
   bool get filtroIncompletos => _filtroIncompletos;
   FiltroVoto get filtroVoto => _filtroVoto;
@@ -31,16 +30,8 @@ class AdminVotantesProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    try {
-      final entidades = await _votantesRepo.findAll();
-      _votantes = entidades
-          .map((e) => VotanteAdmin(
-                id: e.id,
-                rne: e.rne ?? '',
-                nombre: e.nombre,
-                voto: e.voto,
-              ))
-          .toList();
+try {
+      _votantes = await _votantesRepo.findAll();
       _filtrarVotantes();
     } catch (e) {
       debugPrint("Error cargando votantes: $e");
@@ -69,12 +60,12 @@ class AdminVotantesProvider with ChangeNotifier {
   }
 
   void _filtrarVotantes() {
-    List<VotanteAdmin> temp = List.from(_votantes);
+    List<VotanteEntity> temp = List.from(_votantes);
 
     if (_terminoBusqueda.isNotEmpty) {
       temp = temp.where((votante) {
         return votante.nombre.toLowerCase().contains(_terminoBusqueda) ||
-            votante.rne.toLowerCase().contains(_terminoBusqueda);
+            (votante.rne ?? '').toLowerCase().contains(_terminoBusqueda);
       }).toList();
     }
 
@@ -87,7 +78,9 @@ class AdminVotantesProvider with ChangeNotifier {
     // ---------------------------------------------------------------
 
     if (_filtroIncompletos) {
-      temp = temp.where((v) => v.rne.isEmpty || v.nombre.trim().isEmpty).toList();
+      temp = temp
+          .where((v) => (v.rne ?? '').isEmpty || v.nombre.trim().isEmpty)
+          .toList();
     }
     
     _votantesFiltrados = temp;
@@ -117,10 +110,16 @@ class AdminVotantesProvider with ChangeNotifier {
         voto: existing.voto,
       ));
 
+      // La entidad es inmutable: la fila editada se sustituye en la lista en
+      // lugar de mutar sus campos.
       final index = _votantes.indexWhere((v) => v.id == id);
       if (index != -1) {
-        _votantes[index].rne = rneNormalizado ?? '';
-        _votantes[index].nombre = nombre.trim();
+        _votantes[index] = VotanteEntity(
+          id: id,
+          rne: rneNormalizado,
+          nombre: nombre.trim(),
+          voto: existing.voto,
+        );
       }
       _filtrarVotantes();
       notifyListeners();
@@ -134,7 +133,7 @@ class AdminVotantesProvider with ChangeNotifier {
   }
 
   Future<void> eliminarVotante(
-      BuildContext context, VotanteAdmin votante) async {
+      BuildContext context, VotanteEntity votante) async {
     bool confirmar = await _mostrarDialogoConfirmacion(context, "Eliminar Votante",
         "¿Estás seguro de que quieres eliminar a ${votante.nombre}?\nEsta acción no se puede deshacer.");
     
@@ -207,8 +206,8 @@ class AdminVotantesProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void mostrarDialogoEditar(BuildContext context, VotanteAdmin votante) {
-    final rneController = TextEditingController(text: votante.rne);
+  void mostrarDialogoEditar(BuildContext context, VotanteEntity votante) {
+    final rneController = TextEditingController(text: votante.rne ?? '');
     final nombreController = TextEditingController(text: votante.nombre);
 
     showDialog(

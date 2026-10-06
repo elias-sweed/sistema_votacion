@@ -96,7 +96,7 @@ class _AdminVotantesScreenState extends State<AdminVotantesScreen> {
                           final votante = provider.votantesFiltrados[index];
                           final bool isSelected = provider.votantesSeleccionados
                               .contains(votante.id);
-                          final bool isIncompleto = votante.rne.trim().isEmpty ||
+                          final bool isIncompleto = (votante.rne ?? '').trim().isEmpty ||
                               votante.nombre.trim().isEmpty;
 
                           return Card(
@@ -152,7 +152,7 @@ class _AdminVotantesScreenState extends State<AdminVotantesScreen> {
                                 ),
                               ),
                               subtitle: Text(
-                                votante.rne.isEmpty
+                                (votante.rne ?? '').isEmpty
                                     ? "(DNI vacío)"
                                     : "DNI: ${votante.rne}",
                                 style: TextStyle(
