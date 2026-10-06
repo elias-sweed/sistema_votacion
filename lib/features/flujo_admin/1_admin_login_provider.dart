@@ -2,9 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
-import 'package:elecciones_jp/shared/services/database_service.dart';
+import 'package:elecciones_jp/data/repositories/admin_repository_impl.dart';
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
 
 class AdminLoginProvider with ChangeNotifier {
   static const int _iteraciones = 120000;
@@ -19,6 +18,8 @@ class AdminLoginProvider with ChangeNotifier {
   bool get adminExists => _adminExists;
   bool get isAuthenticated => _isAuthenticated;
   String get errorMessage => _errorMessage;
+
+  final AdminRepositoryImpl _adminRepo = AdminRepositoryImpl();
 
   final Pbkdf2 _kdf = Pbkdf2(
     macAlgorithm: Hmac.sha256(),
@@ -60,11 +61,8 @@ class AdminLoginProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final db = await DatabaseService.instance.database;
-      final result = await db.rawQuery("SELECT COUNT(*) as count FROM admin");
-
-      final count = Sqflite.firstIntValue(result);
-      _adminExists = (count ?? 0) > 0;
+      final int count = await _adminRepo.count();
+      _adminExists = count > 0;
     } catch (e) {
       _errorMessage = "Error al verificar admin: ${e.toString()}";
     }
@@ -85,22 +83,17 @@ class AdminLoginProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final db = await DatabaseService.instance.database;
       final String salt = _generarSalt();
       final String hash = await _derivarHash(password, salt);
 
-      await db.insert(
-        'admin',
-        {
-          'username': username,
-          'password': null,
-          'password_hash': hash,
-          'password_salt': salt,
-          'password_iteraciones': _iteraciones,
-          'creado_en': DateTime.now().toIso8601String(),
-        },
-        conflictAlgorithm: ConflictAlgorithm.fail,
-      );
+      await _adminRepo.insert({
+        'username': username,
+        'password': null,
+        'password_hash': hash,
+        'password_salt': salt,
+        'password_iteraciones': _iteraciones,
+        'creado_en': DateTime.now().toIso8601String(),
+      });
 
       _adminExists = true;
       _isAuthenticated = true;
@@ -127,14 +120,9 @@ class AdminLoginProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final db = await DatabaseService.instance.database;
-      final List<Map<String, dynamic>> result = await db.query(
-        'admin',
-        where: 'username = ?',
-        whereArgs: [username],
-      );
+      final Map<String, dynamic>? admin = await _adminRepo.findByUsername(username);
 
-      if (result.isEmpty) {
+      if (admin == null) {
         _isLoading = false;
         _isAuthenticated = false;
         _errorMessage = "Usuario o contraseña incorrectos";
@@ -142,7 +130,6 @@ class AdminLoginProvider with ChangeNotifier {
         return false;
       }
 
-      final Map<String, dynamic> admin = result.first;
       final String? hashAlmacenado = admin['password_hash'] as String?;
       final String? saltAlmacenado = admin['password_salt'] as String?;
       final String? passwordPlano = admin['password'] as String?;
@@ -157,7 +144,7 @@ class AdminLoginProvider with ChangeNotifier {
         // Se valida y se migra al hash en el mismo paso.
         valido = _comparacionSegura(passwordPlano, password);
         if (valido) {
-          await _migrarPasswordPlaintext(db, admin['id'] as int?, password);
+          await _migrarPasswordPlaintext(admin['id'] as int?, password);
         }
       }
 
@@ -177,21 +164,17 @@ class AdminLoginProvider with ChangeNotifier {
   /// Reemplaza la contraseña en texto plano por su derivacion PBKDF2 y
   /// borra el valor plano de la base de datos.
   Future<void> _migrarPasswordPlaintext(
-      Database db, int? id, String password) async {
+      int? id, String password) async {
+    if (id == null) return;
     try {
       final String salt = _generarSalt();
       final String hash = await _derivarHash(password, salt);
-      await db.update(
-        'admin',
-        {
-          'password': null,
-          'password_hash': hash,
-          'password_salt': salt,
-          'password_iteraciones': _iteraciones,
-        },
-        where: 'id = ?',
-        whereArgs: [id],
-      );
+      await _adminRepo.updatePassword(id, {
+        'password': null,
+        'password_hash': hash,
+        'password_salt': salt,
+        'password_iteraciones': _iteraciones,
+      });
     } catch (_) {
       // Si la migracion falla, el acceso ya fue validado: no se interrumpe.
     }
