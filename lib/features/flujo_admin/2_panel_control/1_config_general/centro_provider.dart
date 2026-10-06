@@ -3,8 +3,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
-import 'package:elecciones_jp/shared/services/database_service.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:elecciones_jp/data/repositories/centro_repository_impl.dart';
+import 'package:elecciones_jp/domain/entities/centro_entity.dart';
 
 class CentroProvider with ChangeNotifier {
   final TextEditingController nombreController = TextEditingController();
@@ -18,6 +18,7 @@ class CentroProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get huboCambios => _huboCambios;
   final ImagePicker _picker = ImagePicker();
+  final CentroRepositoryImpl _centroRepo = CentroRepositoryImpl();
 
   CentroProvider() {
     _cargarDatosCentro();
@@ -28,16 +29,14 @@ class CentroProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final db = await DatabaseService.instance.database;
-      final List<Map<String, dynamic>> results =
-          await db.query('centro', limit: 1);
+      final centro = await _centroRepo.findOne();
 
-      if (results.isNotEmpty) {
-        final centro = results.first;
-        nombreController.text = centro['nombre'] as String;
-        _rutaImagenOriginalDB = centro['logoPath'] as String;
-        _imagenOriginal = File(_rutaImagenOriginalDB);
-        _imagenSeleccionada = File(_rutaImagenOriginalDB);
+      if (centro != null) {
+        nombreController.text = centro.nombre ?? "Centro de Votación";
+        _rutaImagenOriginalDB = centro.logoPath ?? "";
+        _imagenOriginal =
+            _rutaImagenOriginalDB.isEmpty ? null : File(_rutaImagenOriginalDB);
+        _imagenSeleccionada = _imagenOriginal;
       } else {
         nombreController.text = "Centro de Votación";
         _rutaImagenOriginalDB = "";
@@ -86,19 +85,12 @@ class CentroProvider with ChangeNotifier {
       rutaImagenAGuardar = newImage.path;
     }
 
-    final Map<String, dynamic> centroData = {
-      'id': 1,
-      'nombre': nombre,
-      'logoPath': rutaImagenAGuardar,
-    };
-
     try {
-      final db = await DatabaseService.instance.database;
-      await db.insert(
-        'centro',
-        centroData,
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await _centroRepo.update(CentroEntity(
+        id: 1,
+        nombre: nombre,
+        logoPath: rutaImagenAGuardar,
+      ));
 
       if (_imagenSeleccionada != _imagenOriginal &&
           _rutaImagenOriginalDB.isNotEmpty &&
