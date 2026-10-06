@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'config_candidatos_provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:elecciones_jp/shared/models/candidato.dart';
+import 'dart:io';
+import 'package:elecciones_jp/domain/entities/candidato_entity.dart';
 
 class ConfigCandidatosScreen extends StatefulWidget {
   const ConfigCandidatosScreen({super.key});
@@ -171,7 +172,7 @@ class _ConfigCandidatosScreenState extends State<ConfigCandidatosScreen> {
   }
 
   Widget _buildCandidatoCard(BuildContext context,
-      CandidatoParaMostrar candidato, ConfigCandidatosProvider provider) {
+      CandidatoEntity candidato, ConfigCandidatosProvider provider) {
     final theme = Theme.of(context);
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0),
@@ -179,7 +180,7 @@ class _ConfigCandidatosScreenState extends State<ConfigCandidatosScreen> {
       child: ListTile(
         leading: CircleAvatar(
           radius: 25,
-          backgroundImage: FileImage(candidato.imagen),
+          backgroundImage: FileImage(File(candidato.imagen)),
           onBackgroundImageError: (e, s) =>
               const Icon(Icons.error), // Fallback por si la imagen se borra
         ),

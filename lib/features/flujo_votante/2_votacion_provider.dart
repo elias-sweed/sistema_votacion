@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:elecciones_jp/shared/models/candidato.dart';
+import 'package:elecciones_jp/domain/entities/candidato_entity.dart';
 import 'package:elecciones_jp/data/repositories/candidato_repository_impl.dart';
 import 'package:elecciones_jp/data/repositories/voto_repository_impl.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -8,8 +8,8 @@ import 'package:audioplayers/audioplayers.dart';
 class VotacionProvider with ChangeNotifier {
   final String rneVotante;
   final String nombreVotante;
-  List<Candidato> _candidatos = [];
-  Candidato? _candidatoSeleccionado;
+  List<CandidatoEntity> _candidatos = [];
+  CandidatoEntity? _candidatoSeleccionado;
   bool _votoConfirmado = false;
   Timer? _timer;
   
@@ -23,8 +23,8 @@ class VotacionProvider with ChangeNotifier {
   final CandidatoRepositoryImpl _candidatoRepo = CandidatoRepositoryImpl();
   final VotoRepositoryImpl _votoRepo = VotoRepositoryImpl();
 
-  List<Candidato> get candidatos => _candidatos;
-  Candidato? get candidatoSeleccionado => _candidatoSeleccionado;
+  List<CandidatoEntity> get candidatos => _candidatos;
+  CandidatoEntity? get candidatoSeleccionado => _candidatoSeleccionado;
   bool get votoConfirmado => _votoConfirmado;
   int get segundosRestantes => _segundosRestantes;
   bool get isLoading => _isLoading;
@@ -45,16 +45,7 @@ class VotacionProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      final entidades = await _candidatoRepo.findAllWithVotes();
-      _candidatos = entidades
-          .map((e) => Candidato(
-                codigo: e.codigo,
-                numero: e.numero,
-                nombre: e.nombre,
-                imagen: e.imagen,
-                votos: e.votos,
-              ))
-          .toList();
+      _candidatos = await _candidatoRepo.findAllWithVotes();
     } catch (e) {
       debugPrint("Error al cargar candidatos: $e");
     }
@@ -62,7 +53,7 @@ class VotacionProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void seleccionarCandidato(Candidato candidato) {
+  void seleccionarCandidato(CandidatoEntity candidato) {
     _candidatoSeleccionado = candidato;
     notifyListeners();
   }
@@ -166,3 +157,4 @@ class VotacionProvider with ChangeNotifier {
     );
   }
 }
+

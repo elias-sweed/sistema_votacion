@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:elecciones_jp/features/flujo_votante/2_votacion_provider.dart';
-import 'package:elecciones_jp/shared/models/candidato.dart';
+import 'package:elecciones_jp/domain/entities/candidato_entity.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 class VotacionScreen extends StatelessWidget {
@@ -109,7 +109,7 @@ class VotacionScreen extends StatelessWidget {
 
   Widget _buildSideBySideLayout(BuildContext context, VotacionProvider provider) {
     
-    Widget buildCard(Candidato candidato) {
+    Widget buildCard(CandidatoEntity candidato) {
       final isSelected = provider.candidatoSeleccionado == candidato;
       return _buildCandidatoCard(
         context,
@@ -122,7 +122,7 @@ class VotacionScreen extends StatelessWidget {
     final candidatosReales =
         provider.candidatos.where((c) => c.numero != 0).toList();
     
-    Candidato? votoEnBlanco;
+    CandidatoEntity? votoEnBlanco;
     try {
       votoEnBlanco = provider.candidatos.firstWhere((c) => c.numero == 0);
     } catch (e) {
@@ -199,7 +199,7 @@ class VotacionScreen extends StatelessWidget {
 
   Widget _buildCandidatoCard(
     BuildContext context,
-    Candidato candidato,
+    CandidatoEntity candidato,
     bool isSelected,
     VoidCallback onSelect,
   ) {
@@ -283,3 +283,4 @@ class VotacionScreen extends StatelessWidget {
     );
   }
 }
+

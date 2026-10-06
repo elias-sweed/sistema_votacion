@@ -3,17 +3,16 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
-import 'package:elecciones_jp/shared/models/candidato.dart';
 import 'package:elecciones_jp/data/repositories/candidato_repository_impl.dart';
 import 'package:elecciones_jp/data/repositories/voto_repository_impl.dart';
 import 'package:elecciones_jp/domain/entities/candidato_entity.dart';
 
 class ConfigCandidatosProvider with ChangeNotifier {
-  final List<CandidatoParaMostrar> _listaCandidatos = [];
+  final List<CandidatoEntity> _listaCandidatos = [];
   File? _imagenSeleccionada;
   int _numeroSiguiente = 1;
 
-  List<CandidatoParaMostrar> get listaCandidatos => _listaCandidatos;
+  List<CandidatoEntity> get listaCandidatos => _listaCandidatos;
   File? get imagenSeleccionada => _imagenSeleccionada;
   int get numeroSiguiente => _numeroSiguiente;
 
@@ -33,12 +32,7 @@ class ConfigCandidatosProvider with ChangeNotifier {
 
     _listaCandidatos.clear();
     for (final candidato in candidatos) {
-      _listaCandidatos.add(CandidatoParaMostrar(
-        codigo: candidato.codigo,
-        numero: candidato.numero,
-        nombre: candidato.nombre,
-        imagen: File(candidato.imagen),
-      ));
+      _listaCandidatos.add(candidato);
     }
     // Si hay candidatos, el siguiente número es el último + 1
     if (_listaCandidatos.isNotEmpty) {
@@ -115,7 +109,7 @@ class ConfigCandidatosProvider with ChangeNotifier {
   }
 
   Future<void> eliminarCandidato(
-      CandidatoParaMostrar candidato, BuildContext context) async {
+      CandidatoEntity candidato, BuildContext context) async {
     try {
       // Un candidato que ya recibio votos no se puede borrar. El voto apunta
       // a candidatos.codigo justamente para que esto sea una garantia de la
@@ -143,8 +137,9 @@ class ConfigCandidatosProvider with ChangeNotifier {
 
       await _candidatoRepo.delete(codigo);
 
-      if (await candidato.imagen.exists()) {
-        await candidato.imagen.delete();
+      final File imagen = File(candidato.imagen);
+      if (await imagen.exists()) {
+        await imagen.delete();
       }
 
       await _mostrarCandidatos();
