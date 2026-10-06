@@ -3,7 +3,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
-import 'package:elecciones_jp/shared/services/database_service.dart';
+import 'package:elecciones_jp/data/repositories/candidato_repository_impl.dart';
+import 'package:elecciones_jp/domain/entities/candidato_entity.dart';
 
 class ConfigVotoBlancoProvider with ChangeNotifier {
   File? _imagenSeleccionada;
@@ -18,6 +19,8 @@ class ConfigVotoBlancoProvider with ChangeNotifier {
   bool _isLoading = true;
   bool get isLoading => _isLoading;
 
+  final CandidatoRepositoryImpl _candidatoRepo = CandidatoRepositoryImpl();
+
   ConfigVotoBlancoProvider() {
     _cargarImagenActual();
   }
@@ -28,18 +31,9 @@ class ConfigVotoBlancoProvider with ChangeNotifier {
     String rutaImagenActual;
 
     try {
-      final db = await DatabaseService.instance.database;
-      final List<Map<String, dynamic>> results = await db.query(
-        'candidatos',
-        where: 'nombre = ?',
-        whereArgs: [_nombreFijo],
-      );
-
-      if (results.isNotEmpty) {
-        rutaImagenActual = results.first['imagen'] as String;
-      } else {
-        rutaImagenActual = 'assets/imagenes/blanco_placeholder.png';
-      }
+      final candidato = await _candidatoRepo.findByName(_nombreFijo);
+      rutaImagenActual =
+          candidato?.imagen ?? 'assets/imagenes/blanco_placeholder.png';
 
       _imagenOriginal = File(rutaImagenActual);
       _imagenSeleccionada = File(rutaImagenActual);
@@ -97,36 +91,31 @@ class ConfigVotoBlancoProvider with ChangeNotifier {
 
     if (rutaImagenCopiada != null) {
       try {
-        final db = await DatabaseService.instance.database;
-        final List<Map<String, dynamic>> results = await db.query(
-          'candidatos',
-          where: 'nombre = ?',
-          whereArgs: [_nombreFijo],
-        );
+        final candidato = await _candidatoRepo.findByName(_nombreFijo);
 
-        if (results.isNotEmpty) {
-          String rutaAntigua = results.first['imagen'] as String;
-          await db.update(
-            'candidatos',
-            {'imagen': rutaImagenCopiada},
-            where: 'nombre = ?',
-            whereArgs: [_nombreFijo],
-          );
-          if (rutaAntigua != 'assets/imagenes/blanco_placeholder.png' &&
-              rutaAntigua != rutaImagenCopiada) {
-            final File imgAntigua = File(rutaAntigua);
+        if (candidato != null) {
+          await _candidatoRepo.update(CandidatoEntity(
+            codigo: candidato.codigo,
+            numero: candidato.numero,
+            nombre: candidato.nombre,
+            imagen: rutaImagenCopiada,
+            votos: candidato.votos,
+          ));
+
+          if (candidato.imagen != 'assets/imagenes/blanco_placeholder.png' &&
+              candidato.imagen != rutaImagenCopiada) {
+            final File imgAntigua = File(candidato.imagen);
             if (await imgAntigua.exists()) {
               await imgAntigua.delete();
             }
           }
         } else {
-          Map<String, dynamic> row = {
-            'numero': _numeroFijo,
-            'nombre': _nombreFijo,
-            'imagen': rutaImagenCopiada,
-            'votos': 0
-          };
-          await db.insert('candidatos', row);
+          await _candidatoRepo.insert(CandidatoEntity(
+            numero: _numeroFijo,
+            nombre: _nombreFijo,
+            imagen: rutaImagenCopiada,
+            votos: 0,
+          ));
         }
 
         if (!context.mounted) return;

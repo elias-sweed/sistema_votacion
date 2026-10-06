@@ -15,6 +15,19 @@ class CandidatoRepositoryImpl implements CandidatoRepository {
   }
 
   @override
+  Future<CandidatoEntity?> findByName(String nombre) async {
+    final db = await _db;
+    final maps = await db.query(
+      'candidatos',
+      where: 'nombre = ?',
+      whereArgs: [nombre],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return CandidatoMapper.fromMap(maps.first);
+  }
+
+  @override
   Future<List<CandidatoEntity>> findAllWithVotes() async {
     final db = await _db;
     final maps = await db.rawQuery('''
