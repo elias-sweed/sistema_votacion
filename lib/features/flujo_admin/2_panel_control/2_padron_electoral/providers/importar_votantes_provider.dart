@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart';
 import 'dart:io';
-import 'package:elecciones_jp/shared/models/votante.dart';
+import 'package:elecciones_jp/data/models/votante_excel_row.dart';
 import 'package:elecciones_jp/shared/utils/rne.dart';
 import 'package:flutter/foundation.dart';
 import 'package:elecciones_jp/data/repositories/votante_repository_impl.dart';
@@ -10,7 +10,7 @@ import 'package:elecciones_jp/domain/entities/votante_entity.dart';
 import 'package:elecciones_jp/domain/usecases/importar_votantes_use_case.dart';
 
 class ImportarVotantesProvider with ChangeNotifier {
-  List<Votante> _votantes = [];
+  List<VotanteExcelRow> _votantes = [];
   String _rutaArchivo = "";
   bool _archivoCargado = false;
   bool _isLoading = false;
@@ -181,7 +181,7 @@ void limpiarImportacion() {
 }
 
 Map<String, dynamic> _parseExcelInBackground(Excel excel) {
-  final List<Votante> tempVotantes = [];
+  final List<VotanteExcelRow> tempVotantes = [];
   var sheet = excel.tables[excel.tables.keys.first];
   if (sheet == null) {
     return {'sheet': null, 'votantes': []};
@@ -197,7 +197,7 @@ Map<String, dynamic> _parseExcelInBackground(Excel excel) {
     final String nombreCompleto = '$nombres $apellidos'.trim();
 
     if (dni.isNotEmpty || nombreCompleto.isNotEmpty) {
-      tempVotantes.add(Votante(
+      tempVotantes.add(VotanteExcelRow(
         dni: dni,
         nombres: nombres,
         apellidos: apellidos,
