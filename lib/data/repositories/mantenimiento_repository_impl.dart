@@ -1,5 +1,5 @@
 import 'package:elecciones_jp/domain/repositories/mantenimiento_repository.dart';
-import 'package:elecciones_jp/shared/services/database_service.dart';
+import 'package:elecciones_jp/core/database/database_service.dart';
 import 'package:sqflite/sqflite.dart';
 
 class MantenimientoRepositoryImpl implements MantenimientoRepository {

@@ -1,7 +1,7 @@
 import 'package:elecciones_jp/data/models/mappers/centro_mapper.dart';
 import 'package:elecciones_jp/domain/entities/centro_entity.dart';
 import 'package:elecciones_jp/domain/repositories/centro_repository.dart';
-import 'package:elecciones_jp/shared/services/database_service.dart';
+import 'package:elecciones_jp/core/database/database_service.dart';
 import 'package:sqflite/sqflite.dart';
 
 class CentroRepositoryImpl implements CentroRepository {

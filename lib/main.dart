@@ -9,7 +9,7 @@ import 'package:elecciones_jp/features/flujo_votante/1_votante_login_provider.da
 import 'package:elecciones_jp/features/flujo_admin/2_panel_control/3_cedula_votacion/config_voto_blanco_provider.dart';
 import 'package:elecciones_jp/features/flujo_admin/2_panel_control/4_mantenimiento/borrar_datos_provider.dart';
 import 'package:elecciones_jp/features/flujo_votante/3_resultados_provider.dart';
-import 'package:elecciones_jp/shared/services/database_service.dart';
+import 'package:elecciones_jp/core/database/database_service.dart';
 import 'package:elecciones_jp/features/flujo_admin/2_panel_control/2_padron_electoral/providers/admin_votantes_provider.dart';
 import 'package:elecciones_jp/features/flujo_admin/1_admin_login_provider.dart';
 // --- FIN DE LA REFACTORIZACIÓN ---

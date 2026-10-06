@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:elecciones_jp/features/flujo_admin/1_admin_login_provider.dart';
-import 'package:elecciones_jp/shared/services/database_service.dart';
+import 'package:elecciones_jp/core/database/database_service.dart';
 import 'package:elecciones_jp/shared/utils/rne.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
