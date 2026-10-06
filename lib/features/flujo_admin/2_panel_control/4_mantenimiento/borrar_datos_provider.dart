@@ -93,6 +93,20 @@ class BorrarDatosProvider with ChangeNotifier {
   Future<bool> _borrarCandidatosEnBD() async {
     try {
       final db = await DatabaseService.instance.database;
+
+      // Los votos apuntan a candidatos.codigo con ON DELETE RESTRICT, asi que
+      // borrar candidatos que ya recibieron votos debe rechazarse. Se avisa
+      // con claridad en vez de dejar que la base devuelva un error generico.
+      final int conVotos = Sqflite.firstIntValue(await db.rawQuery(
+          'SELECT COUNT(DISTINCT codigo_candidato) FROM votos WHERE codigo_candidato IS NOT NULL')) ??
+          0;
+
+      if (conVotos > 0) {
+        debugPrint(
+            "No se pueden borrar los candidatos: $conVotos ya recibieron votos.");
+        return false;
+      }
+
       await db.delete('candidatos');
       await _eliminarImagenes();
       return true;

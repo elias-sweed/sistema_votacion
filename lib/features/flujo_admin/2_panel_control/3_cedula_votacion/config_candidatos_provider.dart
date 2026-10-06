@@ -33,6 +33,7 @@ class ConfigCandidatosProvider with ChangeNotifier {
     _listaCandidatos.clear();
     for (var map in maps) {
       _listaCandidatos.add(CandidatoParaMostrar(
+        codigo: map['codigo'],
         numero: map['numero'],
         nombre: map['nombre'],
         imagen: File(map['imagen']),
@@ -121,8 +122,41 @@ class ConfigCandidatosProvider with ChangeNotifier {
       CandidatoParaMostrar candidato, BuildContext context) async {
     try {
       final db = await DatabaseService.instance.database;
-      await db
-          .delete('candidatos', where: 'numero = ?', whereArgs: [candidato.numero]);
+
+      // Un candidato que ya recibio votos no se puede borrar. El voto apunta
+      // a candidatos.codigo justamente para que esto sea una garantia de la
+      // base de datos, y no una convencion que el operador tenga que
+      // recordar: permitirlo dejaria el total de votos emitidos sin Lists que
+      // lo respalden.
+      final int? codigo = candidato.codigo;
+      if (codigo == null) {
+        if (!context.mounted) return;
+        _mostrarAlerta(context, "Error",
+            "No se pudo identificar el candidato en la base de datos.");
+        return;
+      }
+
+      // Un candidato que ya recibio votos no se puede borrar. El voto apunta
+      // a candidatos.codigo justamente para que esto sea una garantia de la
+      // base de datos, y no una convencion que el operador tenga que
+      // recordar: permitirlo dejaria el total de votos emitidos sin listas que
+      // lo respalden.
+      final int votosRecibidos = Sqflite.firstIntValue(await db.rawQuery(
+            'SELECT COUNT(*) FROM votos WHERE codigo_candidato = ?',
+            [codigo],
+          )) ??
+          0;
+
+      if (votosRecibidos > 0) {
+        if (!context.mounted) return;
+        _mostrarAlerta(context, "No se puede eliminar",
+            '"${candidato.nombre}" ya recibió $votosRecibidos votos. '
+                'Un candidato con votos emitidos no puede eliminarse.');
+        return;
+      }
+
+      await db.delete('candidatos',
+          where: 'codigo = ?', whereArgs: [codigo]);
 
       if (await candidato.imagen.exists()) {
         await candidato.imagen.delete();

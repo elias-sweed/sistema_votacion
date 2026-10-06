@@ -4,6 +4,7 @@ import 'package:excel/excel.dart';
 import 'dart:io';
 import 'package:elecciones_jp/shared/models/votante.dart';
 import 'package:elecciones_jp/shared/services/database_service.dart';
+import 'package:elecciones_jp/shared/utils/rne.dart';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -12,9 +13,10 @@ class ImportarVotantesProvider with ChangeNotifier {
   String _rutaArchivo = "";
   bool _archivoCargado = false;
   bool _isLoading = false;
-  int _totalFilasExcel = 0;
+int _totalFilasExcel = 0;
   int _votantesValidos = 0;
   int _votantesGuardados = 0;
+  int _votantesSinDocumento = 0;
 
   String get rutaArchivo => _rutaArchivo;
   bool get archivoCargado => _archivoCargado;
@@ -22,6 +24,7 @@ class ImportarVotantesProvider with ChangeNotifier {
   int get totalFilasExcel => _totalFilasExcel;
   int get votantesValidos => _votantesValidos;
   int get votantesGuardados => _votantesGuardados;
+  int get votantesSinDocumento => _votantesSinDocumento;
 
   void _resetState() {
     _votantes.clear();
@@ -31,6 +34,7 @@ class ImportarVotantesProvider with ChangeNotifier {
     _totalFilasExcel = 0;
     _votantesValidos = 0;
     _votantesGuardados = 0;
+    _votantesSinDocumento = 0;
     notifyListeners();
   }
 
@@ -84,10 +88,24 @@ class ImportarVotantesProvider with ChangeNotifier {
       _votantesGuardados = await _guardarVotantes();
 
       if (!context.mounted) return;
+      final int duplicados = _votantesValidos -
+          _votantesGuardados -
+          _votantesSinDocumento;
+
+      String detalle = "Se guardaron $_votantesGuardados votantes nuevos.";
+      if (duplicados > 0) {
+        detalle += "\n\n$duplicados votantes duplicados fueron ignorados.";
+      }
+      if (_votantesSinDocumento > 0) {
+        detalle +=
+            "\n\n$_votantesSinDocumento filas fueron descartadas por no tener un documento valido"
+                " (no podran votar).";
+      }
+
       _mostrarAlerta(
         context,
         "Importación Completa",
-        "Se guardaron $_votantesGuardados votantes nuevos.\n\n${(_votantesValidos - _votantesGuardados)} votantes duplicados fueron ignorados.",
+        detalle,
         onAceptar: () {
           Navigator.of(context).pop();
           Navigator.of(context).pop(true);
@@ -119,17 +137,25 @@ void limpiarImportacion() {
       final String nombreCompleto =
           '${votante.nombres} ${votante.apellidos}'.trim();
 
-      if (votante.dni.isNotEmpty || nombreCompleto.isNotEmpty) {
-        batch.insert(
-          'votantes',
-          {
-            'rne': votante.dni.isEmpty ? null : votante.dni,
-            'nombre': nombreCompleto,
-            'voto': 0
-          },
-          conflictAlgorithm: ConflictAlgorithm.ignore,
-        );
+      // Sin un documento valido el elector no puede votar, pero antes se
+      // guardaba igual con rne nulo: era una fila que inflaba el padron y
+      // descuadraba la participacion y los votos pendientes para siempre.
+      // Ahora se descarta y se informa.
+      final String? rne = Rne.normalizar(votante.dni);
+      if (rne == null) {
+        _votantesSinDocumento++;
+        continue;
       }
+
+      if (nombreCompleto.isEmpty) continue;
+
+      // El RNE ya viene normalizado, de modo que el indice unico descarta
+      // al elector repetido dentro del mismo Excel y tambien entre cargas.
+      batch.insert(
+        'votantes',
+        {'rne': rne, 'nombre': nombreCompleto, 'voto': 0},
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
     }
 
     final results = await batch.commit();

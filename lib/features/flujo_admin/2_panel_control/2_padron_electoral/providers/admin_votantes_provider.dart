@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:elecciones_jp/shared/models/votante_admin.dart';
 import 'package:elecciones_jp/shared/services/database_service.dart';
+import 'package:elecciones_jp/shared/utils/rne.dart';
 import 'package:sqflite/sqflite.dart';
 
 enum FiltroVoto { todos, pendientes, emitidos }
@@ -92,18 +93,25 @@ class AdminVotantesProvider with ChangeNotifier {
       return;
     }
 
+    final String? rneNormalizado = rne.trim().isEmpty ? null : Rne.normalizar(rne);
+    if (rne.trim().isNotEmpty && rneNormalizado == null) {
+      if (!context.mounted) return;
+      _mostrarAlerta(context, "Error", "El DNI/RNE no tiene un formato válido.");
+      return;
+    }
+
     try {
       final db = await DatabaseService.instance.database;
       await db.update(
         'votantes',
-        {'rne': rne.trim().isEmpty ? null : rne.trim(), 'nombre': nombre.trim()},
+        {'rne': rneNormalizado, 'nombre': nombre.trim()},
         where: 'id = ?',
         whereArgs: [id],
       );
 
       final index = _votantes.indexWhere((v) => v.id == id);
       if (index != -1) {
-        _votantes[index].rne = rne.trim();
+        _votantes[index].rne = rneNormalizado ?? '';
         _votantes[index].nombre = nombre.trim();
       }
       _filtrarVotantes();

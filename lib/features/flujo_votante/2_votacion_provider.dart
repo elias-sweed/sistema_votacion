@@ -51,7 +51,7 @@ class VotacionProvider with ChangeNotifier {
       final List<Map<String, dynamic>> maps = await db.rawQuery('''
         SELECT c.codigo, c.numero, c.nombre, c.imagen,
                (SELECT COUNT(*) FROM votos v
-                 WHERE v.numero_candidato = c.numero) AS votos
+                 WHERE v.codigo_candidato = c.codigo) AS votos
         FROM candidatos c
         ORDER BY c.numero
       ''');
@@ -98,7 +98,7 @@ class VotacionProvider with ChangeNotifier {
       await db.transaction((txn) async {
         await txn.insert('votos', {
           'rne': rne,
-          'numero_candidato': _candidatoSeleccionado!.numero,
+          'codigo_candidato': _candidatoSeleccionado!.codigo,
           'fecha': DateTime.now().toIso8601String(),
         });
 

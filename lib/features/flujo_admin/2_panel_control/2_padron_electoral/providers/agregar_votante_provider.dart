@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:elecciones_jp/shared/services/database_service.dart';
+import 'package:elecciones_jp/shared/utils/rne.dart';
 import 'package:sqflite/sqflite.dart';
 
 class AgregarVotanteProvider with ChangeNotifier {
@@ -39,11 +40,22 @@ class AgregarVotanteProvider with ChangeNotifier {
     final String dni = dniController.text.trim();
     final String nombre = nombreController.text.trim().toUpperCase();
 
+    final String? rneNormalizado = Rne.normalizar(dni);
+    if (rneNormalizado == null) {
+      if (!context.mounted) return;
+      _mostrarAlerta(
+        context,
+        "Error al guardar",
+        "El DNI ingresado no tiene un formato válido.",
+      );
+      return;
+    }
+
     try {
       final db = await DatabaseService.instance.database;
       await db.insert(
         'votantes',
-        {'rne': dni, 'nombre': nombre},
+        {'rne': rneNormalizado, 'nombre': nombre},
         conflictAlgorithm: ConflictAlgorithm.fail,
       );
 
@@ -63,11 +75,11 @@ class AgregarVotanteProvider with ChangeNotifier {
     } catch (e) {
       if (!context.mounted) return;
       if (e is DatabaseException && e.isUniqueConstraintError()) {
-        _mostrarAlerta(
-          context,
-          "Error al guardar",
-          "No se puede agregar el nuevo votante $nombre.\n\nYa existe un votante con el registro $dni",
-        );
+      _mostrarAlerta(
+        context,
+        "Error al guardar",
+        "No se puede agregar el nuevo votante $nombre.\n\nYa existe un votante con el registro $rneNormalizado",
+      );
       } else {
         _mostrarAlerta(
           context,

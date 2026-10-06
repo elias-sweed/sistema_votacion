@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:elecciones_jp/shared/utils/rne.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -11,7 +12,11 @@ class DatabaseService {
   DatabaseService._init();
 
   static const String _nombreArchivo = 'elecciones.db';
-  static const int _version = 3;
+  static const int _version = 4;
+
+  /// Marca de los votos sinteticos que preservan los totales anteriores a la
+  /// bitacora, donde cada elector solo era un contador.
+  static const String _prefijoLegado = '__legado_';
 
   /// Directorio desde el que se intenta recuperar una base de la version 2.
   /// Los tests lo sustituyen por una carpeta temporal para no tocar la base
@@ -125,6 +130,155 @@ class DatabaseService {
       await _crearTablaVotos(db);
       await _migrarContadoresLegacy(db);
     }
+
+    if (oldVersion < 4) {
+      await _normalizarRnesExistentes(db);
+      await _migrarVotosACodigoCandidato(db);
+    }
+  }
+
+  /// Normaliza el RNE de todo lo ya guardado.
+  ///
+  /// Mientras el padron guarde el RNE tal como venía del Excel, "0123" y
+  /// "123" son dos electores distintos y el indice unico sobre `votos.rne`
+  /// no los detecta: el mismo documento podría votar dos veces. Ademas
+  /// corrige los dobles votos que ya se hayan colado por esa vía.
+  Future<void> _normalizarRnesExistentes(Database db) async {
+    await _normalizarVotos(db);
+    await _normalizarVotantes(db);
+  }
+
+  Future<void> _normalizarVotos(Database db) async {
+    final List<Map<String, dynamic>> votos =
+        await db.query('votos', orderBy: 'id');
+    if (votos.isEmpty) return;
+
+    final Set<String> yaAsignados = <String>{};
+    // Se conservan los primeros y se anotan los que hay que eliminar. No se
+    // puede dejar rne a null porque la columna es NOT NULL.
+    final List<Map<String, dynamic>> aConservar = [];
+    final List<Object?> aEliminar = [];
+
+    for (final Map<String, dynamic> voto in votos) {
+      final String original = voto['rne'] as String? ?? '';
+
+      // Las filas sinteticas de la migracion v3 no son un documento real: son
+      // el marcador `__legado_` que preserva los totales que solo existian
+      // como contador. No se normalizan ni se descartan.
+      if (original.startsWith(_prefijoLegado)) {
+        yaAsignados.add(original);
+        aConservar.add({'id': voto['id'], 'original': original, 'rne': original});
+        continue;
+      }
+
+      final String normalizado = Rne.normalizar(original) ?? '';
+      if (normalizado.isEmpty || !yaAsignados.add(normalizado)) {
+        // RNE inutilizable, o segundo voto del mismo elector: se descarta
+        // para que la bitacora no conserve un doble voto.
+        aEliminar.add(voto['id']);
+        continue;
+      }
+      aConservar.add({'id': voto['id'], 'original': original, 'rne': normalizado});
+    }
+
+    // Los duplicados salen primero: asi ningun RNE canonico esta ocupado por
+    // una fila que todavia debe transformarse, y las actualizaciones que
+    // siguen no chocan con el indice unico.
+    for (final Object? id in aEliminar) {
+      await db.delete('votos', where: 'id = ?', whereArgs: [id]);
+    }
+
+    for (final Map<String, dynamic> voto in aConservar) {
+      if (voto['original'] == voto['rne']) continue;
+      await db.update('votos', {'rne': voto['rne']},
+          where: 'id = ?', whereArgs: [voto['id']]);
+    }
+
+    if (aEliminar.isNotEmpty) {
+      debugPrint(
+          'BD: se descartaron ${aEliminar.length} votos con RNE inutilizable o duplicado.');
+    }
+  }
+
+  Future<void> _normalizarVotantes(Database db) async {
+    final List<Map<String, dynamic>> votantes =
+        await db.query('votantes', orderBy: 'voto DESC, id ASC');
+    if (votantes.isEmpty) return;
+
+    await db.update('votantes', {'rne': null}, where: 'rne IS NOT NULL');
+
+    final Set<String> yaAsignados = <String>{};
+    int normalizados = 0;
+    int sinDocumento = 0;
+
+    for (final Map<String, dynamic> votante in votantes) {
+      final String normalizado = Rne.normalizar(votante['rne'] as String?) ?? '';
+
+      if (normalizado.isEmpty || !yaAsignados.add(normalizado)) {
+        // Sin documento valido, o duplicado del mismo elector. Se deja con
+        // rne nulo: no podra votar y tampoco contara en el padron.
+        sinDocumento++;
+        continue;
+      }
+
+      await db.update('votantes', {'rne': normalizado},
+          where: 'id = ?', whereArgs: [votante['id']]);
+      normalizados++;
+    }
+
+    if (sinDocumento > 0) {
+      debugPrint(
+          'BD: $normalizados votantes normalizados; $sinDocumento quedaron '
+          'sin RNE utilizable y no computan en el padron.');
+    }
+  }
+
+  /// Reconstruye `votos` para que apunte a `candidatos.codigo`.
+  ///
+  /// Se traduce el `numero_candidato` de la version 3 al codigo del
+  /// candidato. Los votos cuyo candidato ya no existe quedan con el codigo
+  /// nulo: son votos reales pero no imputables a nadie, y se cuentan como
+  /// emitidos aunque no sumen en ninguna lista.
+  Future<void> _migrarVotosACodigoCandidato(Database db) async {
+    final List<Map<String, dynamic>> info =
+        await db.rawQuery('PRAGMA table_info(votos)');
+    if (info.any((c) => c['name'] == 'codigo_candidato')) return;
+
+    await db.execute('DROP INDEX IF EXISTS idx_votos_rne_unico');
+    await db.execute('ALTER TABLE votos RENAME TO votos_v3');
+
+    await db.execute('''
+    CREATE TABLE IF NOT EXISTS votos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rne TEXT NOT NULL,
+      codigo_candidato INTEGER,
+      fecha TEXT NOT NULL,
+      FOREIGN KEY (codigo_candidato) REFERENCES candidatos (codigo)
+        ON DELETE RESTRICT
+    )
+    ''');
+
+    await db.execute('''
+      INSERT INTO votos (id, rne, codigo_candidato, fecha)
+      SELECT v3.id,
+             v3.rne,
+             (SELECT c.codigo FROM candidatos c WHERE c.numero = v3.numero_candidato),
+             v3.fecha
+      FROM votos_v3 v3
+      ORDER BY v3.id
+    ''');
+
+    await db.execute('DROP TABLE votos_v3');
+
+    await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_votos_rne_unico ON votos (rne)');
+
+    final int? sinCandidato = Sqflite.firstIntValue(await db.rawQuery(
+        'SELECT COUNT(*) FROM votos WHERE codigo_candidato IS NULL'));
+    if ((sinCandidato ?? 0) > 0) {
+      debugPrint(
+          'BD: $sinCandidato votos quedaron sin candidato asociado y no se imputan a ninguna lista.');
+    }
   }
 
   /// Ajusta la tabla `admin` de una instalacion existente al esquema v3.
@@ -191,13 +345,21 @@ class DatabaseService {
   /// Cada fila es un voto emitido. El indice unico sobre `rne` es lo que
   /// impide el doble voto a nivel de base de datos, y permite auditar
   /// quien voto a quien.
+  ///
+  /// El voto apunta a `candidatos.codigo` y no a `numero`: `numero` es un
+  /// valor de presentacion que el admin puede reutilizar al borrar y volver
+  /// a crear un candidato, y un voto no puede mudarse de candidato solo
+  /// porque el numero se recycle. La clave foranea con `ON DELETE RESTRICT`
+  /// impide ademas eliminar un candidato que ya recibio votos.
   Future<void> _crearTablaVotos(Database db) async {
     await db.execute('''
     CREATE TABLE IF NOT EXISTS votos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       rne TEXT NOT NULL,
-      numero_candidato INTEGER NOT NULL,
-      fecha TEXT NOT NULL
+      codigo_candidato INTEGER,
+      fecha TEXT NOT NULL,
+      FOREIGN KEY (codigo_candidato) REFERENCES candidatos (codigo)
+        ON DELETE RESTRICT
     )
     ''');
 
@@ -229,8 +391,8 @@ class DatabaseService {
       final int votos = (candidato['votos'] as int?) ?? 0;
       for (int i = 0; i < votos; i++) {
         batch.insert('votos', {
-          'rne': '__legado_${candidato['codigo']}_$secuencia',
-          'numero_candidato': candidato['numero'],
+          'rne': '$_prefijoLegado${candidato['codigo']}_$secuencia',
+          'codigo_candidato': candidato['codigo'],
           'fecha': fechaMigracion,
         });
         secuencia++;

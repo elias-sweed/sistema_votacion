@@ -26,8 +26,11 @@ class VerResultadosProvider with ChangeNotifier {
     try {
       final db = await DatabaseService.instance.database;
 
-      final int? totalVotantes = Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM votantes'));
+      // Solo se cuentan los electores con documento utilizable. Las filas sin
+      // RNE valido no pueden votar y antes inflaban este total, dejando la
+      // participacion y los votos pendientes descuadrados para siempre.
+      final int? totalVotantes = Sqflite.firstIntValue(await db.rawQuery(
+          'SELECT COUNT(*) FROM votantes WHERE rne IS NOT NULL'));
       _padronTotal = totalVotantes ?? 0;
 
       // La bitacora `votos` es la unica fuente de verdad: cada fila es un
@@ -46,11 +49,13 @@ class VerResultadosProvider with ChangeNotifier {
       _votosPendientes = _padronTotal - _votosEmitidos;
       if (_votosPendientes < 0) _votosPendientes = 0;
 
-      // Totales por candidato contados sobre `votos`.
+      // Totales por candidato contados sobre `votos`, unidos por
+      // `candidatos.codigo` para que un voto no pueda mudarse de lista si el
+      // numero de presentacion se reutiliza.
       final List<Map<String, dynamic>> mapsCandidatos = await db.rawQuery('''
         SELECT c.nombre,
                (SELECT COUNT(*) FROM votos v
-                 WHERE v.numero_candidato = c.numero) AS votos
+                 WHERE v.codigo_candidato = c.codigo) AS votos
         FROM candidatos c
         ORDER BY votos DESC, c.numero ASC
       ''');

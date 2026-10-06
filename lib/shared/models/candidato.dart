@@ -17,11 +17,13 @@ class Candidato {
 }
 
 class CandidatoParaMostrar {
+  final int? codigo;
   final int numero;
   final String nombre;
   final File imagen;
 
   CandidatoParaMostrar({
+    this.codigo,
     required this.numero,
     required this.nombre,
     required this.imagen,

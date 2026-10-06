@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:elecciones_jp/features/flujo_votante/2_votacion_screen.dart';
 import 'package:elecciones_jp/shared/services/database_service.dart';
+import 'package:elecciones_jp/shared/utils/rne.dart';
 import 'dart:io';
 
 class VotanteLoginProvider with ChangeNotifier {
@@ -75,10 +76,24 @@ class VotanteLoginProvider with ChangeNotifier {
 
     try {
       final db = await DatabaseService.instance.database;
+
+      // El padron guarda el RNE en forma canonica, asi que lo que teclea el
+      // elector se normaliza igual. Sin esto, "0123" y "123" buscarian filas
+      // distintas y el mismo documento podria votar dos veces.
+      final String? rneNormalizado = Rne.normalizar(rne);
+      if (rneNormalizado == null) {
+        _mensajeEstado = "El DNI no tiene un formato valido.";
+        _autenticacionOk = false;
+        _puedeVotar = false;
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
       final List<Map<String, dynamic>> votantes = await db.query(
         'votantes',
         where: 'rne = ?',
-        whereArgs: [rne],
+        whereArgs: [rneNormalizado],
       );
 
       if (votantes.isNotEmpty) {
@@ -90,7 +105,7 @@ class VotanteLoginProvider with ChangeNotifier {
         // anteriores a v3, donde solo existia la marca.
         final List<Map<String, dynamic>> votosEmitidos = await db.rawQuery(
           'SELECT COUNT(*) AS total FROM votos WHERE rne = ?',
-          [rne],
+          [rneNormalizado],
         );
         final int totalVotos = (votosEmitidos.first['total'] as int?) ?? 0;
 
@@ -124,10 +139,16 @@ class VotanteLoginProvider with ChangeNotifier {
     if (!_autenticacionOk) return;
     final String nombre = _nombreVotante;
 
+    // Se pasa la forma canonica: es la que queda registrada en la bitacora
+    // de votos y la que el indice unico puede comparar.
+    final String? rneNormalizado = Rne.normalizar(rne);
+    if (rneNormalizado == null) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => VotacionScreen(rne: rne, nombreAlumno: nombre),
+        builder: (context) =>
+            VotacionScreen(rne: rneNormalizado, nombreAlumno: nombre),
       ),
     ).then((_) {
       limpiarCampos();
