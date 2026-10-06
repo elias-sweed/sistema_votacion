@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:elecciones_jp/features/flujo_votante/2_votacion_screen.dart';
 import 'package:elecciones_jp/shared/services/database_service.dart';
 import 'package:elecciones_jp/shared/utils/rne.dart';
+import 'package:elecciones_jp/data/repositories/votante_repository_impl.dart';
+import 'package:elecciones_jp/data/repositories/voto_repository_impl.dart';
+import 'package:elecciones_jp/domain/usecases/verificar_votante_use_case.dart';
 import 'dart:io';
 
 class VotanteLoginProvider with ChangeNotifier {
@@ -10,6 +13,9 @@ class VotanteLoginProvider with ChangeNotifier {
   bool _puedeVotar = false;
   bool _autenticacionOk = false;
   bool _isLoading = false;
+
+  final VerificarVotanteUseCase _verificarVotante =
+      VerificarVotanteUseCase(VotanteRepositoryImpl(), VotoRepositoryImpl());
 
   String _centroNombre = "Sistema de Votación";
   ImageProvider? _logoCentro;
@@ -75,56 +81,11 @@ class VotanteLoginProvider with ChangeNotifier {
     await Future.delayed(const Duration(milliseconds: 300));
 
     try {
-      final db = await DatabaseService.instance.database;
-
-      // El padron guarda el RNE en forma canonica, asi que lo que teclea el
-      // elector se normaliza igual. Sin esto, "0123" y "123" buscarian filas
-      // distintas y el mismo documento podria votar dos veces.
-      final String? rneNormalizado = Rne.normalizar(rne);
-      if (rneNormalizado == null) {
-        _mensajeEstado = "El DNI no tiene un formato valido.";
-        _autenticacionOk = false;
-        _puedeVotar = false;
-        _isLoading = false;
-        notifyListeners();
-        return;
-      }
-
-      final List<Map<String, dynamic>> votantes = await db.query(
-        'votantes',
-        where: 'rne = ?',
-        whereArgs: [rneNormalizado],
-      );
-
-      if (votantes.isNotEmpty) {
-        final votante = votantes.first;
-        _nombreVotante = votante['nombre'] as String;
-
-        // Un elector esta habilitado si no hay ni marca previa en `votantes`
-        // ni fila en la bitacora `votos`. La union cubre las instalaciones
-        // anteriores a v3, donde solo existia la marca.
-        final List<Map<String, dynamic>> votosEmitidos = await db.rawQuery(
-          'SELECT COUNT(*) AS total FROM votos WHERE rne = ?',
-          [rneNormalizado],
-        );
-        final int totalVotos = (votosEmitidos.first['total'] as int?) ?? 0;
-
-        final haVotado = (votante['voto'] as int) == 1 || totalVotos > 0;
-
-        if (haVotado) {
-          _mensajeEstado = "Este votante ya ha emitido su voto.";
-          _autenticacionOk = false;
-          _puedeVotar = false;
-        } else {
-          _mensajeEstado = "Votante habilitado.";
-          _autenticacionOk = true;
-          _puedeVotar = true;
-        }
-      } else {
-        _mensajeEstado = "DNI no encontrado en el padrón.";
-        _autenticacionOk = false;
-        _puedeVotar = false;
-      }
+      final resultado = await _verificarVotante.execute(rne);
+      _mensajeEstado = resultado.mensaje;
+      _nombreVotante = resultado.nombreVotante;
+      _autenticacionOk = resultado.encontrado && resultado.habilitado;
+      _puedeVotar = resultado.habilitado;
     } catch (e) {
       _mensajeEstado = "Error al consultar la base de datos.";
       _autenticacionOk = false;
