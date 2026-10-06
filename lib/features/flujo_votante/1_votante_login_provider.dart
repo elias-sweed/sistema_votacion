@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:elecciones_jp/features/flujo_votante/2_votacion_screen.dart';
-import 'package:elecciones_jp/shared/services/database_service.dart';
 import 'package:elecciones_jp/shared/utils/rne.dart';
+import 'package:elecciones_jp/data/repositories/centro_repository_impl.dart';
 import 'package:elecciones_jp/data/repositories/votante_repository_impl.dart';
 import 'package:elecciones_jp/data/repositories/voto_repository_impl.dart';
 import 'package:elecciones_jp/domain/usecases/verificar_votante_use_case.dart';
@@ -16,6 +16,8 @@ class VotanteLoginProvider with ChangeNotifier {
 
   final VerificarVotanteUseCase _verificarVotante =
       VerificarVotanteUseCase(VotanteRepositoryImpl(), VotoRepositoryImpl());
+
+  final CentroRepositoryImpl _centroRepo = CentroRepositoryImpl();
 
   String _centroNombre = "Sistema de Votación";
   ImageProvider? _logoCentro;
@@ -35,14 +37,11 @@ class VotanteLoginProvider with ChangeNotifier {
 
   Future<void> refrescarDatosCentro() async {
     try {
-      final db = await DatabaseService.instance.database;
-      final centroData = await db.query('centro', limit: 1);
+      final centro = await _centroRepo.findOne();
 
-      if (centroData.isNotEmpty) {
-        final centro = centroData.first;
-        _centroNombre =
-            (centro['nombre'] as String?) ?? "Sistema de Votación";
-        final logoPath = centro['logoPath'] as String?;
+      if (centro != null) {
+        _centroNombre = centro.nombre ?? "Sistema de Votación";
+        final logoPath = centro.logoPath;
 
         if (logoPath != null && logoPath.isNotEmpty) {
           final logoFile = File(logoPath);
