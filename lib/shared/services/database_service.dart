@@ -1,13 +1,10 @@
-import 'dart:io';
-
 import 'package:elecciones_jp/shared/utils/rne.dart';
+import 'package:elecciones_jp/core/database/database_paths.dart';
 import 'package:elecciones_jp/core/database/tables/admin_table.dart';
 import 'package:elecciones_jp/core/database/tables/candidatos_table.dart';
 import 'package:elecciones_jp/core/database/tables/votantes_table.dart';
 import 'package:elecciones_jp/core/database/tables/votos_table.dart';
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseService {
@@ -22,11 +19,10 @@ class DatabaseService {
   /// bitacora, donde cada elector solo era un contador.
   static const String _prefijoLegado = '__legado_';
 
-  /// Directorio desde el que se intenta recuperar una base de la version 2.
-  /// Los tests lo sustituyen por una carpeta temporal para no tocar la base
-  /// real del proyecto.
   @visibleForTesting
-  static String? debugLegacyDirectory;
+  static String? get debugLegacyDirectory => DatabasePaths.debugLegacyDirectory;
+  static set debugLegacyDirectory(String? value) =>
+      DatabasePaths.debugLegacyDirectory = value;
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -34,51 +30,8 @@ class DatabaseService {
     return _database!;
   }
 
-  /// Ruta estable de la base de datos.
-  ///
-  /// Antes se usaba `getDatabasesPath()` de sqflite, que en escritorio
-  /// resuelve a `.dart_tool/sqflite_common_ffi/databases` relativo al
-  /// directorio de trabajo. Eso hacia que un `flutter clean` borrara el
-  /// padron y todos los votos, y que ejecutar la app desde otro
-  /// directorio creara una base vacia. Ahora vive en el directorio de
-  /// soporte de la aplicacion.
-  Future<String> _resolverRuta(String filePath) async {
-    final Directory dirSoporte = await getApplicationSupportDirectory();
-    final String rutaNueva = p.join(dirSoporte.path, filePath);
-
-    if (await File(rutaNueva).exists()) {
-      return rutaNueva;
-    }
-
-    await dirSoporte.create(recursive: true);
-
-    // Migracion desde la ubicacion anterior (.dart_tool/...).
-    final String rutaLegacy = p.join(await _directorioLegacy(), filePath);
-    final File archivoLegacy = File(rutaLegacy);
-    try {
-      if (await archivoLegacy.exists()) {
-        await archivoLegacy.copy(rutaNueva);
-      }
-    } catch (_) {
-      // Si no se puede leer la ruta anterior, se crea la base nueva.
-    }
-
-    return rutaNueva;
-  }
-
-  Future<String> _directorioLegacy() async {
-    final String? override = debugLegacyDirectory;
-    if (override != null) return override;
-    try {
-      return await getDatabasesPath();
-    } catch (_) {
-      return p.join(Directory.current.path, '.dart_tool',
-          'sqflite_common_ffi', 'databases');
-    }
-  }
-
   Future<Database> _initDB(String filePath) async {
-    final String ruta = await _resolverRuta(filePath);
+    final String ruta = await DatabasePaths.resolverRuta(filePath);
     return openDatabase(
       ruta,
       version: _version,
