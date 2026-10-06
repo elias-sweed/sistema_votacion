@@ -78,7 +78,7 @@ class AdminVotantesProvider with ChangeNotifier {
       }).toList();
     }
 
-    // --- LÓGICA DE FILTRO DE VOTO CORREGIDA (bool en vez de int) ---
+    // --- LÃ“GICA DE FILTRO DE VOTO CORREGIDA (bool en vez de int) ---
     if (_filtroVoto == FiltroVoto.pendientes) {
       temp = temp.where((v) => v.voto == false).toList();
     } else if (_filtroVoto == FiltroVoto.emitidos) {
@@ -100,7 +100,8 @@ class AdminVotantesProvider with ChangeNotifier {
       return;
     }
 
-    final String? rneNormalizado = rne.trim().isEmpty ? null : Rne.normalizar(rne);
+    final String? rneNormalizado =
+        rne.trim().isEmpty ? null : Rne.normalizar(rne);
     if (rne.trim().isNotEmpty && rneNormalizado == null) {
       if (!context.mounted) return;
       _mostrarAlerta(context, "Error", "El DNI/RNE no tiene un formato válido.");
@@ -108,13 +109,13 @@ class AdminVotantesProvider with ChangeNotifier {
     }
 
     try {
-      final db = await DatabaseService.instance.database;
-      await db.update(
-        'votantes',
-        {'rne': rneNormalizado, 'nombre': nombre.trim()},
-        where: 'id = ?',
-        whereArgs: [id],
-      );
+      final existing = _votantes.firstWhere((v) => v.id == id);
+      await _votantesRepo.update(VotanteEntity(
+        id: id,
+        rne: rneNormalizado,
+        nombre: nombre.trim(),
+        voto: existing.voto,
+      ));
 
       final index = _votantes.indexWhere((v) => v.id == id);
       if (index != -1) {
@@ -126,13 +127,9 @@ class AdminVotantesProvider with ChangeNotifier {
 
       if (!context.mounted) return;
       Navigator.of(context).pop();
-    } on DatabaseException catch (e) {
+    } catch (e) {
       if (!context.mounted) return;
-      if (e.isUniqueConstraintError()) {
-        _mostrarAlerta(context, "Error", "El DNI/RNE '$rne' ya existe.");
-      } else {
-        _mostrarAlerta(context, "Error", "No se pudo guardar: $e");
-      }
+      _mostrarAlerta(context, "Error", "No se pudo guardar: $e");
     }
   }
 
@@ -144,12 +141,7 @@ class AdminVotantesProvider with ChangeNotifier {
     if (!confirmar || !context.mounted) return;
 
     try {
-      final db = await DatabaseService.instance.database;
-      await db.delete(
-        'votantes',
-        where: 'id = ?',
-        whereArgs: [votante.id],
-      );
+      await _votantesRepo.delete(votante.id);
 
       _votantes.removeWhere((v) => v.id == votante.id);
       _filtrarVotantes();
@@ -158,35 +150,6 @@ class AdminVotantesProvider with ChangeNotifier {
       if (!context.mounted) return;
       _mostrarAlerta(context, "Error", "No se pudo eliminar: $e");
     }
-  }
-
-  void toggleSeleccion(int id) {
-    if (_votantesSeleccionados.contains(id)) {
-      _votantesSeleccionados.remove(id);
-    } else {
-      _votantesSeleccionados.add(id);
-    }
-    
-    if (_votantesSeleccionados.isEmpty) {
-      _modoSeleccion = false;
-    } else if (!_modoSeleccion) {
-      _modoSeleccion = true;
-    }
-    
-    notifyListeners();
-  }
-
-  void cancelarSeleccion() {
-    _votantesSeleccionados.clear();
-    _modoSeleccion = false;
-    notifyListeners();
-  }
-
-  void seleccionarTodos() {
-    _votantesSeleccionados.clear();
-    _votantesSeleccionados.addAll(_votantesFiltrados.map((v) => v.id));
-    _modoSeleccion = true;
-    notifyListeners();
   }
 
   Future<void> eliminarSeleccionados(BuildContext context) async {
@@ -202,14 +165,7 @@ class AdminVotantesProvider with ChangeNotifier {
     if (!confirmar || !context.mounted) return;
 
     try {
-      final db = await DatabaseService.instance.database;
-      final batch = db.batch();
-      
-      for (final id in _votantesSeleccionados) {
-        batch.delete('votantes', where: 'id = ?', whereArgs: [id]);
-      }
-      
-      await batch.commit(noResult: true);
+      await _votantesRepo.deleteMany(_votantesSeleccionados.toList());
 
       _votantes.removeWhere((v) => _votantesSeleccionados.contains(v.id));
       _votantesSeleccionados.clear();
@@ -220,6 +176,35 @@ class AdminVotantesProvider with ChangeNotifier {
       if (!context.mounted) return;
       _mostrarAlerta(context, "Error", "No se pudo eliminar: $e");
     }
+  }
+
+  void toggleSeleccion(int id) {
+    if (_votantesSeleccionados.contains(id)) {
+      _votantesSeleccionados.remove(id);
+    } else {
+      _votantesSeleccionados.add(id);
+    }
+
+    if (_votantesSeleccionados.isEmpty) {
+      _modoSeleccion = false;
+    } else if (!_modoSeleccion) {
+      _modoSeleccion = true;
+    }
+
+    notifyListeners();
+  }
+
+  void cancelarSeleccion() {
+    _votantesSeleccionados.clear();
+    _modoSeleccion = false;
+    notifyListeners();
+  }
+
+  void seleccionarTodos() {
+    _votantesSeleccionados.clear();
+    _votantesSeleccionados.addAll(_votantesFiltrados.map((v) => v.id));
+    _modoSeleccion = true;
+    notifyListeners();
   }
 
   void mostrarDialogoEditar(BuildContext context, VotanteAdmin votante) {
@@ -238,7 +223,7 @@ class AdminVotantesProvider with ChangeNotifier {
                 controller: rneController,
                 decoration: const InputDecoration(
                   labelText: "DNI",
-                  hintText: "(Puede estar vacío)",
+                  hintText: "(Puede estar vacÃ­o)",
                 ),
                 keyboardType: TextInputType.number,
               ),
