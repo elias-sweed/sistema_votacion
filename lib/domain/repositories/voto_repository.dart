@@ -13,3 +13,5 @@ abstract class VotoRepository {
   Future<void> insert(VotoEntity voto);
 }
 
+
+

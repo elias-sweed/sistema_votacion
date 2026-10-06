@@ -1,4 +1,4 @@
-import 'package:elecciones_jp/shared/utils/rne.dart';
+import 'package:elecciones_jp/domain/value_objects/rne.dart';
 import 'package:elecciones_jp/core/database/tables/votantes_table.dart';
 import 'package:elecciones_jp/core/database/tables/votos_table.dart';
 import 'package:flutter/foundation.dart';
@@ -98,4 +98,6 @@ class RneNormalizerMigration {
   }
 
 }
+
+
 

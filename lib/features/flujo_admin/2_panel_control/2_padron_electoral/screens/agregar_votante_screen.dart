@@ -86,3 +86,5 @@ class AgregarVotanteScreen extends StatelessWidget {
   }
 }
 
+
+

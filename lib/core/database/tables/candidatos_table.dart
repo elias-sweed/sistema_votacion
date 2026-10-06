@@ -8,3 +8,5 @@ class CandidatosTable {
   static const String votos = 'votos';
 }
 
+
+

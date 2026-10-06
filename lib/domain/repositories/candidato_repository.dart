@@ -9,3 +9,5 @@ abstract class CandidatoRepository {
   Future<void> delete(int codigo);
 }
 
+
+

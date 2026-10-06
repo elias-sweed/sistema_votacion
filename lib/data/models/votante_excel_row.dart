@@ -14,3 +14,5 @@ class VotanteExcelRow {
     required this.apellidos,
   });
 }
+
+

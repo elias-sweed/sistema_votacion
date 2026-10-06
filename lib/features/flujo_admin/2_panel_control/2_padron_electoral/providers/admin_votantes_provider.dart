@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:elecciones_jp/data/repositories/votante_repository_impl.dart';
 import 'package:elecciones_jp/domain/entities/votante_entity.dart';
-import 'package:elecciones_jp/shared/utils/rne.dart';
+import 'package:elecciones_jp/domain/value_objects/rne.dart';
 
 enum FiltroVoto { todos, pendientes, emitidos }
 
@@ -302,4 +302,6 @@ try {
     return result ?? false;
   }
 }
+
+
 

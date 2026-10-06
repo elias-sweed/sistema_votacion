@@ -8,3 +8,5 @@ class VotosTable {
   static const String indexRneUnico = 'idx_votos_rne_unico';
 }
 
+
+

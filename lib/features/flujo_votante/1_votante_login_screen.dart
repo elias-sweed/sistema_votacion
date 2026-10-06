@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:elecciones_jp/features/flujo_votante/1_votante_login_provider.dart';
 import 'package:elecciones_jp/features/flujo_admin/1_admin_login_screen.dart';
-import 'package:elecciones_jp/shared/providers/theme_provider.dart';
+import 'package:elecciones_jp/presentation/providers/theme_provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 class VotanteLoginScreen extends StatefulWidget {
@@ -248,4 +248,6 @@ class _VotanteLoginScreenState extends State<VotanteLoginScreen> {
     ).animate().fadeIn(duration: 300.ms);
   }
 }
+
+
 

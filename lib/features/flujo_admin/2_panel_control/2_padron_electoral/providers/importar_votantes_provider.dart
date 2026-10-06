@@ -3,7 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart';
 import 'dart:io';
 import 'package:elecciones_jp/data/models/votante_excel_row.dart';
-import 'package:elecciones_jp/shared/utils/rne.dart';
+import 'package:elecciones_jp/domain/value_objects/rne.dart';
 import 'package:flutter/foundation.dart';
 import 'package:elecciones_jp/data/repositories/votante_repository_impl.dart';
 import 'package:elecciones_jp/domain/entities/votante_entity.dart';
@@ -206,4 +206,6 @@ Map<String, dynamic> _parseExcelInBackground(Excel excel) {
   }
   return {'sheet': sheet, 'votantes': tempVotantes};
 }
+
+
 

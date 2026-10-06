@@ -1,7 +1,7 @@
 import 'package:elecciones_jp/domain/entities/votante_entity.dart';
 import 'package:elecciones_jp/domain/repositories/votante_repository.dart';
 import 'package:elecciones_jp/domain/repositories/voto_repository.dart';
-import 'package:elecciones_jp/shared/utils/rne.dart';
+import 'package:elecciones_jp/domain/value_objects/rne.dart';
 
 class VerificarVotanteResult {
   final bool encontrado;
@@ -59,4 +59,6 @@ class VerificarVotanteUseCase {
     );
   }
 }
+
+
 

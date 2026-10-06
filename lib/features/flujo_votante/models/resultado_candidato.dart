@@ -18,3 +18,5 @@ class ResultadoCandidato {
     required this.porcentaje,
   });
 }
+
+

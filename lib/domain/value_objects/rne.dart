@@ -38,3 +38,5 @@ class Rne {
   static bool esValido(String? valor) => normalizar(valor) != null;
 }
 
+
+

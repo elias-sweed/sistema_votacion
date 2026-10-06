@@ -11,3 +11,5 @@ abstract class VotanteRepository {
   Future<int> insertMany(List<VotanteEntity> votantes);
 }
 
+
+

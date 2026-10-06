@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:elecciones_jp/features/flujo_votante/2_votacion_screen.dart';
-import 'package:elecciones_jp/shared/utils/rne.dart';
+import 'package:elecciones_jp/domain/value_objects/rne.dart';
 import 'package:elecciones_jp/data/repositories/centro_repository_impl.dart';
 import 'package:elecciones_jp/data/repositories/votante_repository_impl.dart';
 import 'package:elecciones_jp/data/repositories/voto_repository_impl.dart';
@@ -159,4 +159,6 @@ class VotanteLoginProvider with ChangeNotifier {
     );
   }
 }
+
+
 

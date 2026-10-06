@@ -7,3 +7,5 @@ class VotantesTable {
   static const String voto = 'voto';
 }
 
+
+

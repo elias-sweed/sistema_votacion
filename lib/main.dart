@@ -13,7 +13,7 @@ import 'package:elecciones_jp/core/database/database_service.dart';
 import 'package:elecciones_jp/features/flujo_admin/2_panel_control/2_padron_electoral/providers/admin_votantes_provider.dart';
 import 'package:elecciones_jp/features/flujo_admin/1_admin_login_provider.dart';
 // --- FIN DE LA REFACTORIZACIÓN ---
-import 'package:elecciones_jp/shared/providers/theme_provider.dart';
+import 'package:elecciones_jp/presentation/providers/theme_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'dart:io';
 import 'package:intl/date_symbol_data_local.dart';
@@ -215,4 +215,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
+
 
