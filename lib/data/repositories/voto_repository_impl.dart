@@ -38,6 +38,13 @@ class VotoRepositoryImpl implements VotoRepository {
   }
 
   @override
+  Future<int> countAll() async {
+    final db = await _db;
+    final maps = await db.rawQuery('SELECT COUNT(*) AS total FROM votos');
+    return (maps.first['total'] as int?) ?? 0;
+  }
+
+  @override
   Future<void> registrarVoto({
     required String rne,
     required int? codigoCandidato,

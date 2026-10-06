@@ -31,6 +31,15 @@ class VotanteRepositoryImpl implements VotanteRepository {
   }
 
   @override
+  Future<int> countValid() async {
+    final db = await _db;
+    final maps = await db.rawQuery(
+      'SELECT COUNT(*) AS total FROM votantes WHERE rne IS NOT NULL',
+    );
+    return (maps.first['total'] as int?) ?? 0;
+  }
+
+  @override
   Future<void> insert(VotanteEntity votante) async {
     final db = await _db;
     final map = VotanteMapper.toMap(votante)..remove('id');

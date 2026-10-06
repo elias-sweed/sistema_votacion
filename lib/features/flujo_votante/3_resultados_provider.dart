@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:elecciones_jp/shared/models/resultado_candidato.dart';
-import 'package:elecciones_jp/shared/services/database_service.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:elecciones_jp/data/repositories/candidato_repository_impl.dart';
+import 'package:elecciones_jp/data/repositories/votante_repository_impl.dart';
+import 'package:elecciones_jp/data/repositories/voto_repository_impl.dart';
 
 class VerResultadosProvider with ChangeNotifier {
   bool _isLoading = true;
@@ -18,27 +19,18 @@ class VerResultadosProvider with ChangeNotifier {
   double get participacion => _participacion;
   List<ResultadoCandidato> get resultados => _resultados;
 
+  final CandidatoRepositoryImpl _candidatoRepo = CandidatoRepositoryImpl();
+  final VotanteRepositoryImpl _votanteRepo = VotanteRepositoryImpl();
+  final VotoRepositoryImpl _votoRepo = VotoRepositoryImpl();
+
   Future<void> cargarResultados() async {
     _isLoading = true;
     _resultados = [];
     notifyListeners();
 
     try {
-      final db = await DatabaseService.instance.database;
-
-      // Solo se cuentan los electores con documento utilizable. Las filas sin
-      // RNE valido no pueden votar y antes inflaban este total, dejando la
-      // participacion y los votos pendientes descuadrados para siempre.
-      final int? totalVotantes = Sqflite.firstIntValue(await db.rawQuery(
-          'SELECT COUNT(*) FROM votantes WHERE rne IS NOT NULL'));
-      _padronTotal = totalVotantes ?? 0;
-
-      // La bitacora `votos` es la unica fuente de verdad: cada fila es un
-      // voto emitido. Antes se usaba el contador legacy `candidatos.votos`,
-      // que sufria perdidas por lectura-modificacion-escritura concurrente.
-      final int? totalEmitidos = Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM votos'));
-      _votosEmitidos = totalEmitidos ?? 0;
+      _padronTotal = await _votanteRepo.countValid();
+      _votosEmitidos = await _votoRepo.countAll();
 
       if (_padronTotal > 0) {
         _participacion = (_votosEmitidos / _padronTotal);
@@ -49,31 +41,25 @@ class VerResultadosProvider with ChangeNotifier {
       _votosPendientes = _padronTotal - _votosEmitidos;
       if (_votosPendientes < 0) _votosPendientes = 0;
 
-      // Totales por candidato contados sobre `votos`, unidos por
-      // `candidatos.codigo` para que un voto no pueda mudarse de lista si el
-      // numero de presentacion se reutiliza.
-      final List<Map<String, dynamic>> mapsCandidatos = await db.rawQuery('''
-        SELECT c.nombre,
-               (SELECT COUNT(*) FROM votos v
-                 WHERE v.codigo_candidato = c.codigo) AS votos
-        FROM candidatos c
-        ORDER BY votos DESC, c.numero ASC
-      ''');
+      final candidatos = await _candidatoRepo.findAllWithVotes();
+      candidatos.sort((a, b) {
+        final voteCompare = b.votos.compareTo(a.votos);
+        if (voteCompare != 0) return voteCompare;
+        return a.numero.compareTo(b.numero);
+      });
 
       final List<ResultadoCandidato> tempResultados = [];
       int contador = 0;
 
-      for (var map in mapsCandidatos) {
+      for (final candidato in candidatos) {
         contador++;
-        final int votosCandidato = (map['votos'] as int?) ?? 0;
-        final String nombreCandidato = map['nombre'] as String;
+        final int votosCandidato = candidato.votos;
+        final String nombreCandidato = candidato.nombre;
 
         double progreso = 0.0;
         double porciento = 0.0;
 
         if (_votosEmitidos > 0) {
-          // Se limita a 1.0 para que una barra nunca supere el 100% si
-          // quedaran totales legacy inconsistentes con el padron.
           progreso = (votosCandidato / _votosEmitidos).clamp(0.0, 1.0);
           porciento = progreso * 100;
         }
@@ -86,7 +72,6 @@ class VerResultadosProvider with ChangeNotifier {
           progreso: progreso,
           votos: votosCandidato.toString(),
           porcentaje: porcientoFormateado,
-          // El color se asigna en la pantalla, no aquí.
         ));
       }
       _resultados = tempResultados;
