@@ -196,3 +196,4 @@ class _ConfigCandidatosScreenState extends State<ConfigCandidatosScreen> {
     );
   }
 }
+

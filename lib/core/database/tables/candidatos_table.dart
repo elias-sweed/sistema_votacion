@@ -7,3 +7,4 @@ class CandidatosTable {
   static const String imagen = 'imagen';
   static const String votos = 'votos';
 }
+

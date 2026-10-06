@@ -11,3 +11,4 @@ class VotoEntity {
     required this.fecha,
   });
 }
+

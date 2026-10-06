@@ -206,3 +206,4 @@ Map<String, dynamic> _parseExcelInBackground(Excel excel) {
   }
   return {'sheet': sheet, 'votantes': tempVotantes};
 }
+

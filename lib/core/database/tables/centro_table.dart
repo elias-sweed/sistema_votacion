@@ -5,3 +5,4 @@ class CentroTable {
   static const String nombre = 'nombre';
   static const String logoPath = 'logoPath';
 }
+

@@ -6,3 +6,4 @@ abstract class MantenimientoRepository {
   Future<void> borrarResultados();
   Future<void> borrarTodo();
 }
+

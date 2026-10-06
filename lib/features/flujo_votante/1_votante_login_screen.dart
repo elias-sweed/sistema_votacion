@@ -248,3 +248,4 @@ class _VotanteLoginScreenState extends State<VotanteLoginScreen> {
     ).animate().fadeIn(duration: 300.ms);
   }
 }
+

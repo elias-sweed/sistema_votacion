@@ -7,3 +7,4 @@ class VotosTable {
   static const String fecha = 'fecha';
   static const String indexRneUnico = 'idx_votos_rne_unico';
 }
+

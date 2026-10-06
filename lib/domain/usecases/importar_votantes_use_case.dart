@@ -10,3 +10,4 @@ class ImportarVotantesUseCase {
     return _votantes.insertMany(votantes);
   }
 }
+

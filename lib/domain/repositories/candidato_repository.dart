@@ -8,3 +8,4 @@ abstract class CandidatoRepository {
   Future<void> update(CandidatoEntity candidato);
   Future<void> delete(int codigo);
 }
+

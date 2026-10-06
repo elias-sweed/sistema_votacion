@@ -9,3 +9,4 @@ class AdminTable {
   static const String passwordIteraciones = 'password_iteraciones';
   static const String creadoEn = 'creado_en';
 }
+

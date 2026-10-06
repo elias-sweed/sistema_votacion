@@ -4,3 +4,4 @@ abstract class CentroRepository {
   Future<CentroEntity?> findOne();
   Future<void> update(CentroEntity centro);
 }
+

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:elecciones_jp/features/flujo_votante/3_resultados_provider.dart';
-import 'package:elecciones_jp/shared/models/resultado_candidato.dart';
+import 'package:elecciones_jp/features/flujo_votante/models/resultado_candidato.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 // --- NUEVOS IMPORTS ---
@@ -573,3 +573,4 @@ extension IterableX<E> on Iterable<E> {
     return map((e) => f(index++, e));
   }
 }
+

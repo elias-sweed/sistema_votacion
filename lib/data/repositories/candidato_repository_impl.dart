@@ -65,3 +65,4 @@ class CandidatoRepositoryImpl implements CandidatoRepository {
     await db.delete('candidatos', where: 'codigo = ?', whereArgs: [codigo]);
   }
 }
+

@@ -91,3 +91,4 @@ class VotanteRepositoryImpl implements VotanteRepository {
     return results.where((r) => (r as int? ?? 0) > 0).length;
   }
 }
+

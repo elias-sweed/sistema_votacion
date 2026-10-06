@@ -30,3 +30,4 @@ class CentroRepositoryImpl implements CentroRepository {
     }
   }
 }
+

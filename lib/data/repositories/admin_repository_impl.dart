@@ -37,3 +37,4 @@ class AdminRepositoryImpl implements AdminRepository {
     await db.update('admin', data, where: 'id = ?', whereArgs: [id]);
   }
 }
+

@@ -10,3 +10,4 @@ abstract class VotanteRepository {
   Future<void> deleteMany(List<int> ids);
   Future<int> insertMany(List<VotanteEntity> votantes);
 }
+

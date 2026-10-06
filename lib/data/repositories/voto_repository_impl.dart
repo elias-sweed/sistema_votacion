@@ -74,3 +74,4 @@ class VotoRepositoryImpl implements VotoRepository {
     await db.insert('votos', map);
   }
 }
+

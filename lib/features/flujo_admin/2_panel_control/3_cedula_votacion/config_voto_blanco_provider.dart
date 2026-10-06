@@ -165,3 +165,4 @@ class ConfigVotoBlancoProvider with ChangeNotifier {
     );
   }
 }
+

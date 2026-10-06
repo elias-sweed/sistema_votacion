@@ -11,3 +11,4 @@ class VotanteEntity {
     required this.voto,
   });
 }
+

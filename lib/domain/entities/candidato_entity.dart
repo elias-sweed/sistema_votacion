@@ -13,3 +13,4 @@ class CandidatoEntity {
     this.votos = 0,
   });
 }
+

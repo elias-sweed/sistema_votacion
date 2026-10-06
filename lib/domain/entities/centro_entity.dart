@@ -9,3 +9,4 @@ class CentroEntity {
     required this.logoPath,
   });
 }
+

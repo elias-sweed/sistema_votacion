@@ -82,3 +82,4 @@ class ConfigurarProvider with ChangeNotifier {
     );
   }
 }
+

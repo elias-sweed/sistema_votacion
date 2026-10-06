@@ -147,3 +147,4 @@ class _ConfigVotoBlancoScreenState extends State<ConfigVotoBlancoScreen> {
     );
   }
 }
+

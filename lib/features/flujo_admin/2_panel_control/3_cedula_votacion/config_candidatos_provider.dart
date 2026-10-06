@@ -178,3 +178,4 @@ class ConfigCandidatosProvider with ChangeNotifier {
     );
   }
 }
+

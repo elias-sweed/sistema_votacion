@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:elecciones_jp/shared/models/resultado_candidato.dart';
+import 'package:elecciones_jp/features/flujo_votante/models/resultado_candidato.dart';
 import 'package:elecciones_jp/data/repositories/candidato_repository_impl.dart';
 import 'package:elecciones_jp/data/repositories/votante_repository_impl.dart';
 import 'package:elecciones_jp/data/repositories/voto_repository_impl.dart';
@@ -83,3 +83,4 @@ class VerResultadosProvider with ChangeNotifier {
     notifyListeners();
   }
 }
+

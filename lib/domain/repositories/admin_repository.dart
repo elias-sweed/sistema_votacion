@@ -4,3 +4,4 @@ abstract class AdminRepository {
   Future<void> insert(Map<String, dynamic> data);
   Future<void> updatePassword(int id, Map<String, dynamic> data);
 }
+
