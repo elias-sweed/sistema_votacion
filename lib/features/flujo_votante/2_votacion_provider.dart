@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:elecciones_jp/shared/models/candidato.dart';
-import 'package:elecciones_jp/shared/services/database_service.dart';
-// *** CAMBIO 1: Importar el paquete de audio ***
+import 'package:elecciones_jp/data/repositories/candidato_repository_impl.dart';
+import 'package:elecciones_jp/data/repositories/voto_repository_impl.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:sqflite/sqflite.dart';
 
 class VotacionProvider with ChangeNotifier {
   final String rneVotante;
@@ -21,6 +20,8 @@ class VotacionProvider with ChangeNotifier {
 
   // *** CAMBIO 3: Crear la instancia del reproductor de audio ***
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final CandidatoRepositoryImpl _candidatoRepo = CandidatoRepositoryImpl();
+  final VotoRepositoryImpl _votoRepo = VotoRepositoryImpl();
 
   List<Candidato> get candidatos => _candidatos;
   Candidato? get candidatoSeleccionado => _candidatoSeleccionado;
@@ -44,27 +45,16 @@ class VotacionProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      final db = await DatabaseService.instance.database;
-
-      // El total se deriva de la bitacora de votos, no del contador legacy
-      // `candidatos.votos`, para que ambos coincidan siempre.
-      final List<Map<String, dynamic>> maps = await db.rawQuery('''
-        SELECT c.codigo, c.numero, c.nombre, c.imagen,
-               (SELECT COUNT(*) FROM votos v
-                 WHERE v.codigo_candidato = c.codigo) AS votos
-        FROM candidatos c
-        ORDER BY c.numero
-      ''');
-
-      _candidatos = maps.map((map) {
-        return Candidato(
-          codigo: map['codigo'],
-          numero: map['numero'],
-          nombre: map['nombre'],
-          imagen: map['imagen'],
-          votos: map['votos'],
-        );
-      }).toList();
+      final entidades = await _candidatoRepo.findAllWithVotes();
+      _candidatos = entidades
+          .map((e) => Candidato(
+                codigo: e.codigo,
+                numero: e.numero,
+                nombre: e.nombre,
+                imagen: e.imagen,
+                votos: e.votos,
+              ))
+          .toList();
     } catch (e) {
       debugPrint("Error al cargar candidatos: $e");
     }
@@ -87,28 +77,11 @@ class VotacionProvider with ChangeNotifier {
     if (!confirmado) return;
 
     try {
-      final db = await DatabaseService.instance.database;
-
-      // Voto atomico: el registro en `votos` y la marca en `votantes` se
-      // escriben en la misma transaccion, o no se escribe ninguno.
-      //
-      // El indice unico sobre votos.rne es la garantia real de un solo voto
-      // por elector: si dos terminals emiten a la vez, el segundo INSERT
-      // falla y la transaccion se revierte.
-      await db.transaction((txn) async {
-        await txn.insert('votos', {
-          'rne': rne,
-          'codigo_candidato': _candidatoSeleccionado!.codigo,
-          'fecha': DateTime.now().toIso8601String(),
-        });
-
-        await txn.update(
-          'votantes',
-          {'voto': 1},
-          where: 'rne = ?',
-          whereArgs: [rne],
-        );
-      });
+      await _votoRepo.registrarVoto(
+        rne: rne,
+        codigoCandidato: _candidatoSeleccionado!.codigo,
+        fecha: DateTime.now(),
+      );
 
       // *** CAMBIO 5: Reproducir el sonido ***
       try {
@@ -120,19 +93,14 @@ class VotacionProvider with ChangeNotifier {
       _votoConfirmado = true;
       _iniciarTimer();
       notifyListeners();
-
-    } on DatabaseException catch (e) {
-      // Indice unico violado: este elector ya tiene un voto registrado.
-      if (e.isUniqueConstraintError()) {
+    } catch (e) {
+      if (e.toString().contains('UNIQUE')) {
         _votoConfirmado = false;
         if (!context.mounted) return;
         _mostrarAlerta(context, "Voto ya registrado",
             "Este votante ya emitió su voto.");
         return;
       }
-      if (!context.mounted) return;
-      _mostrarAlerta(context, "Error", "Error al registrar el voto: $e");
-    } catch (e) {
       if (!context.mounted) return;
       _mostrarAlerta(context, "Error", "Error al registrar el voto: $e");
     }
@@ -146,7 +114,7 @@ class VotacionProvider with ChangeNotifier {
         return AlertDialog(
           title: const Text('Confirmar Voto'),
           content: Text(
-              '¿Estás seguro de votar por "${_candidatoSeleccionado?.nombre}"?'),
+              'Â¿EstÃ¡s seguro de votar por "${_candidatoSeleccionado?.nombre}"?'),
           actions: <Widget>[
             TextButton(
               onPressed: () {

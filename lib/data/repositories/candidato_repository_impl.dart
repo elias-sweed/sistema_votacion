@@ -15,6 +15,19 @@ class CandidatoRepositoryImpl implements CandidatoRepository {
   }
 
   @override
+  Future<List<CandidatoEntity>> findAllWithVotes() async {
+    final db = await _db;
+    final maps = await db.rawQuery('''
+      SELECT c.codigo, c.numero, c.nombre, c.imagen,
+             (SELECT COUNT(*) FROM votos v
+               WHERE v.codigo_candidato = c.codigo) AS votos
+      FROM candidatos c
+      ORDER BY c.numero
+    ''');
+    return maps.map(CandidatoMapper.fromMap).toList();
+  }
+
+  @override
   Future<void> insert(CandidatoEntity candidato) async {
     final db = await _db;
     final map = CandidatoMapper.toMap(candidato)..remove('codigo');

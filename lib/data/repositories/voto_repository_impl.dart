@@ -38,6 +38,29 @@ class VotoRepositoryImpl implements VotoRepository {
   }
 
   @override
+  Future<void> registrarVoto({
+    required String rne,
+    required int? codigoCandidato,
+    required DateTime fecha,
+  }) async {
+    final db = await _db;
+    await db.transaction((txn) async {
+      await txn.insert('votos', {
+        'rne': rne,
+        'codigo_candidato': codigoCandidato,
+        'fecha': fecha.toIso8601String(),
+      });
+
+      await txn.update(
+        'votantes',
+        {'voto': 1},
+        where: 'rne = ?',
+        whereArgs: [rne],
+      );
+    });
+  }
+
+  @override
   Future<void> insert(VotoEntity voto) async {
     final db = await _db;
     final map = VotoMapper.toMap(voto)..remove('id');
