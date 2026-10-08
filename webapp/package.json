@@ -11,7 +11,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.76.1",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.13",
