@@ -46,7 +46,7 @@ export default function PanelPage() {
   ]
 
   return (
-    <main className="min-h-screen text-white p-8 pb-40">
+    <main className="min-h-screen text-white px-5 py-8 pb-40 sm:px-8">
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
           <MaskedHeading
@@ -83,7 +83,7 @@ export default function PanelPage() {
             baseItemSize={52}
             magnification={72}
             panelHeight={70}
-            accentColor="#0ea5e9"
+            accentColor="#e8c47a"
             badgeColor="#ef4444"
             position="bottom"
             distance={200}

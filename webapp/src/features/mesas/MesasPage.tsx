@@ -87,38 +87,43 @@ export default function MesasPage() {
 
   return (
     <section className="space-y-6">
-      <h2 className="text-xl font-bold text-white">Mesas / Salones</h2>
+      <div className="flex items-center gap-3">
+        <span className="h-px w-8 bg-gradient-to-r from-amber-300/80 to-transparent" />
+        <h2 className="text-xl font-bold text-white">Mesas / Salones</h2>
+      </div>
 
-      <form onSubmit={agregar} className="flex flex-col sm:flex-row gap-3">
-        <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre de la mesa (ej: 3ro Primaria A)"
-          className="flex-1 rounded-lg bg-slate-800 border border-slate-700 px-4 py-2 text-white" />
-        <button disabled={guardando}
-          className="rounded-lg bg-sky-600 px-6 py-2 font-semibold text-white disabled:opacity-50 hover:bg-sky-500 transition">
-          {guardando ? 'Guardando…' : 'Agregar'}
-        </button>
-      </form>
+      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4">
+        <form onSubmit={agregar} className="flex flex-col sm:flex-row gap-3">
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre de la mesa (ej: 3ro Primaria A)"
+            className="flex-1 rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400/15" />
+          <button disabled={guardando}
+            className="rounded-xl bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 px-6 py-2.5 font-bold text-black shadow-[0_10px_30px_-12px_rgba(234,179,8,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
+            {guardando ? 'Guardando…' : 'Agregar'}
+          </button>
+        </form>
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
-      {exito && <p className="text-emerald-400 text-sm">{exito}</p>}
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+        {exito && <p className="text-emerald-400 text-sm">{exito}</p>}
+      </div>
 
       {cargando && <p className="text-slate-400">Cargando mesas…</p>}
       {!cargando && mesas.length === 0 && (
         <p className="text-slate-500">Aún no hay mesas. Agrega la primera.</p>
       )}
 
-      <ul className="divide-y divide-slate-800">
+      <ul className="divide-y divide-white/10 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl">
         {mesas.map((m) => (
-          <li key={m.id} className="flex items-center justify-between py-3">
+          <li key={m.id} className="flex items-center justify-between px-5 py-3">
             {editandoId === m.id ? (
               <form onSubmit={(e) => { e.preventDefault(); guardarEdicion(m); }} className="flex flex-col sm:flex-row gap-2 flex-1">
                 <input value={editNombre} onChange={(e) => setEditNombre(e.target.value)}
-                  className="flex-1 rounded-lg bg-slate-800 border border-slate-700 px-4 py-2 text-white" />
+                  className="flex-1 rounded-xl border border-white/10 bg-black/25 px-4 py-2 text-white backdrop-blur-md transition focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400/15" />
                 <button type="submit"
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 transition">
+                  className="rounded-lg bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 px-4 py-2 text-sm font-bold text-black transition hover:brightness-110">
                   Guardar
                 </button>
                 <button type="button" onClick={cancelarEdicion}
-                  className="rounded-lg bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600 transition">
+                  className="rounded-lg border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white backdrop-blur-md transition hover:bg-white/[0.1]">
                   Cancelar
                 </button>
               </form>
@@ -127,11 +132,11 @@ export default function MesasPage() {
                 <span className={m.activo ? 'text-white' : 'text-slate-500 line-through'} flex-1>{m.nombre}</span>
                 <div className="flex gap-2">
                   <button onClick={() => iniciarEdicion(m)}
-                    className="text-sm rounded-lg bg-slate-800 px-3 py-1 hover:bg-slate-700 transition">
+                    className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1 text-sm text-white backdrop-blur-md transition hover:bg-white/[0.1]">
                     Editar
                   </button>
                   <button onClick={() => alternarActivo(m)}
-                    className="text-sm rounded-lg bg-slate-800 px-3 py-1 hover:bg-slate-700 transition">
+                    className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1 text-sm text-white backdrop-blur-md transition hover:bg-white/[0.1]">
                     {m.activo ? 'Desactivar' : 'Activar'}
                   </button>
                 </div>

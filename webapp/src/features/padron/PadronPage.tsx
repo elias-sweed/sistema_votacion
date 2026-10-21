@@ -250,29 +250,32 @@ export default function PadronPage() {
     <section className="space-y-6">
       {/* Header con estadísticas */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <h2 className="text-xl font-bold text-white">Padrón Electoral</h2>
+        <div className="flex items-center gap-3">
+          <span className="h-px w-8 bg-gradient-to-r from-amber-300/80 to-transparent" />
+          <h2 className="text-xl font-bold text-white">Padrón Electoral</h2>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-          <div className="bg-slate-800 rounded-lg p-3">
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl shadow-[0_20px_60px_-44px_rgba(0,0,0,0.95)]">
             <p className="text-slate-400">Total</p>
             <p className="text-2xl font-bold text-white">{estadisticas?.total_votantes ?? 0}</p>
           </div>
-          <div className="bg-slate-800 rounded-lg p-3">
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl shadow-[0_20px_60px_-44px_rgba(0,0,0,0.95)]">
             <p className="text-slate-400">Votaron</p>
             <p className="text-2xl font-bold text-emerald-400">{estadisticas?.total_votaron ?? 0}</p>
           </div>
-          <div className="bg-slate-800 rounded-lg p-3">
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl shadow-[0_20px_60px_-44px_rgba(0,0,0,0.95)]">
             <p className="text-slate-400">Pendientes</p>
             <p className="text-2xl font-bold text-amber-400">{estadisticas?.total_pendientes ?? 0}</p>
           </div>
-          <div className="bg-slate-800 rounded-lg p-3">
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl shadow-[0_20px_60px_-44px_rgba(0,0,0,0.95)]">
             <p className="text-slate-400">Participación</p>
-            <p className="text-2xl font-bold text-sky-400">{estadisticas?.participacion_pct ?? 0}%</p>
+            <p className="text-2xl font-bold text-amber-300">{estadisticas?.participacion_pct ?? 0}%</p>
           </div>
         </div>
       </div>
 
       {/* Filtros y búsqueda */}
-      <div className="bg-slate-800 rounded-xl p-4 space-y-4">
+      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 space-y-4 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1">
             <label className="block text-xs text-slate-400 mb-1">Buscar por DNI o nombre</label>
@@ -281,7 +284,7 @@ export default function PadronPage() {
               value={busqueda}
               onChange={(e) => { setBusqueda(e.target.value); setPagina(1); }}
               placeholder="Buscar…"
-              className="w-full rounded-lg bg-slate-900 border border-slate-700 px-4 py-2 text-white"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400/15"
             />
           </div>
           <div className="sm:w-48">
@@ -289,7 +292,7 @@ export default function PadronPage() {
             <select
               value={mesaFiltro}
               onChange={(e) => { setMesaFiltro(e.target.value); setPagina(1); }}
-              className="w-full rounded-lg bg-slate-900 border border-slate-700 px-4 py-2 text-white"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400/15"
             >
               <option value="">Todas las mesas</option>
               {mesas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
@@ -300,7 +303,7 @@ export default function PadronPage() {
               type="checkbox"
               checked={soloPendientes}
               onChange={(e) => { setSoloPendientes(e.target.checked); setPagina(1); }}
-              className="rounded border-slate-600 text-sky-600 focus:ring-sky-500"
+              className="rounded border-white/20 bg-black/25 text-amber-400 focus:ring-amber-400/40"
             />
             Solo pendientes
           </label>
@@ -308,13 +311,13 @@ export default function PadronPage() {
       </div>
 
       {/* Importación */}
-      <div className="bg-slate-800 rounded-xl p-4 space-y-4 border border-slate-700">
+      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 space-y-4 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
         <h3 className="text-lg font-semibold text-white">Importar Padrón (CSV)</h3>
 
         {pasoImportacion === 'archivo' && (
           <div>
             <p className="text-sm text-slate-400 mb-3">
-              Formato CSV requerido: columnas <code className="text-sky-300">dni,nombre,mesa_id</code>.
+              Formato CSV requerido: columnas <code className="text-amber-300">dni,nombre,mesa_id</code>.
               El archivo debe tener encabezados. Máx. recomendado: 500 filas.
             </p>
             <input
@@ -322,7 +325,7 @@ export default function PadronPage() {
               type="file"
               accept=".csv"
               onChange={manejarArchivo}
-              className="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-sky-600 file:text-white hover:file:bg-sky-500"
+              className="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-400 file:text-black file:font-semibold hover:file:bg-amber-300"
             />
           </div>
         )}
@@ -338,9 +341,9 @@ export default function PadronPage() {
                 <span className="text-slate-400">{previewData.length} filas totales</span>
               </p>
             </div>
-            <div className="max-h-64 overflow-auto rounded-lg bg-slate-900 border border-slate-700">
+            <div className="max-h-64 overflow-auto rounded-xl border border-white/10 bg-black/25 backdrop-blur-md">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-slate-800">
+                <thead className="sticky top-0 bg-white/[0.05] backdrop-blur-xl">
                   <tr className="text-left text-xs text-slate-400 uppercase">
                     <th className="p-2">Fila</th>
                     <th className="p-2">DNI</th>
@@ -349,7 +352,7 @@ export default function PadronPage() {
                     <th className="p-2">Estado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-700">
+                <tbody className="divide-y divide-white/10">
                   {previewData.slice(0, 100).map((item, idx) => (
                     <tr key={idx} className={item.valido ? '' : 'bg-red-900/20'}>
                       <td className="p-2 text-slate-400">{item.fila}</td>
@@ -375,11 +378,11 @@ export default function PadronPage() {
             </div>
             <div className="flex gap-2">
               <button onClick={confirmarImportacion} disabled={importando || previewValidos === 0}
-                className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white disabled:opacity-50 hover:bg-emerald-500 transition">
+                className="rounded-xl bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 px-4 py-2 font-bold text-black shadow-[0_10px_30px_-12px_rgba(234,179,8,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
                 {importando ? 'Importando…' : 'Confirmar importación'}
               </button>
               <button onClick={reiniciarImportacion} disabled={importando}
-                className="rounded-lg bg-slate-700 px-4 py-2 text-white hover:bg-slate-600 transition">
+                className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2 text-white backdrop-blur-md transition hover:bg-white/[0.1] disabled:opacity-50">
                 Cancelar
               </button>
             </div>
@@ -407,7 +410,7 @@ export default function PadronPage() {
               </div>
             )}
             <button onClick={reiniciarImportacion}
-              className="rounded-lg bg-slate-700 px-4 py-2 text-white hover:bg-slate-600 transition">
+              className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2 text-white backdrop-blur-md transition hover:bg-white/[0.1]">
               Nueva importación
             </button>
           </div>
@@ -415,10 +418,10 @@ export default function PadronPage() {
       </div>
 
       {/* Tabla de votantes */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+      <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-900 text-left text-xs text-slate-400 uppercase">
+            <thead className="bg-black/30 text-left text-xs text-slate-400 uppercase backdrop-blur-xl">
               <tr>
                 <th className="p-3">DNI</th>
                 <th className="p-3">Nombre</th>
@@ -427,7 +430,7 @@ export default function PadronPage() {
                 <th className="p-3">Registrado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700">
+            <tbody className="divide-y divide-white/10">
               {votantes.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="p-8 text-center text-slate-500">
@@ -457,15 +460,15 @@ export default function PadronPage() {
 
         {/* Paginación */}
         {totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-slate-700 flex items-center justify-between text-sm text-slate-300">
+          <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between text-sm text-slate-300">
             <span>Página {pagina} de {totalPages} · Total: {totalCount}</span>
             <div className="flex gap-2">
               <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
-                className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1 backdrop-blur-md transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50">
                 Anterior
               </button>
               <button onClick={() => setPagina(p => Math.min(totalPages, p + 1))} disabled={pagina >= totalPages}
-                className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1 backdrop-blur-md transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50">
                 Siguiente
               </button>
             </div>

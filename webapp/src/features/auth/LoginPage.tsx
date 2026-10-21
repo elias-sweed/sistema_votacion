@@ -57,33 +57,37 @@ export default function LoginPage() {
     <main className="relative min-h-screen flex items-center justify-center overflow-hidden p-4">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(212,175,55,0.16),transparent_62%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(212,175,55,0.10),transparent_62%)]"
       />
 
       <div className="relative w-full max-w-sm">
         <SpotlightCard
           theme="dark"
-          spotlightColor="#e7c873"
-          intensity={0.2}
-          spotlightSize={300}
-          softness={0.72}
+          spotlightColor="#f0d38a"
+          intensity={0.16}
+          spotlightSize={320}
+          softness={0.75}
           shape="circle"
-          borderGlow={0.9}
-          proximity={90}
+          borderGlow={0.85}
+          proximity={100}
           smoothing={0.28}
-          grain={0.05}
+          grain={0.04}
           ambient={false}
           flare
-          className="w-full backdrop-blur-2xl"
+          className="w-full backdrop-blur-2xl backdrop-saturate-150"
           style={
             {
-              '--spotlight-card-surface': 'rgba(5, 5, 5, 0.62)',
-              '--spotlight-card-border': 'rgba(212, 175, 55, 0.28)',
+              '--spotlight-card-surface': 'rgba(10, 10, 10, 0.42)',
+              '--spotlight-card-border': 'rgba(232, 196, 122, 0.32)',
               '--spotlight-card-shadow':
-                '0 30px 90px -30px rgba(0, 0, 0, 0.95), 0 0 60px -20px rgba(212, 175, 55, 0.22)'
+                '0 30px 90px -30px rgba(0, 0, 0, 0.95), 0 0 70px -24px rgba(212, 175, 55, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06)'
             } as CSSProperties
           }
         >
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-amber-100/40 to-transparent"
+          />
           <form onSubmit={manejarEnvio} className="space-y-5">
             <div className="space-y-2 text-center">
               <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-amber-300/40 bg-amber-400/10 text-amber-200 shadow-[0_0_24px_-6px_rgba(234,179,8,0.5)]">
@@ -108,7 +112,7 @@ export default function LoginPage() {
                 id="email" type="email" value={email} autoComplete="email"
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="tu@correo.com"
-                className="w-full rounded-xl border border-amber-200/15 bg-black/45 px-4 py-3 text-sm text-amber-50 placeholder:text-slate-500 transition focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400/15"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-amber-50 backdrop-blur-md placeholder:text-slate-500 transition selection:bg-amber-300/30 focus:border-amber-300/60 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-amber-400/15"
               />
               {email && !emailValido && <p className="mt-1 text-xs text-amber-400">Correo no válido</p>}
             </div>
@@ -121,7 +125,7 @@ export default function LoginPage() {
                 id="password" type="password" value={password} autoComplete="current-password"
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full rounded-xl border border-amber-200/15 bg-black/45 px-4 py-3 text-sm text-amber-50 placeholder:text-slate-500 transition focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400/15"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-amber-50 backdrop-blur-md placeholder:text-slate-500 transition selection:bg-amber-300/30 focus:border-amber-300/60 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-amber-400/15"
               />
             </div>
 
