@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { Cancel01Icon } from '@hugeicons/core-free-icons';
+import Cancel01Icon from '@hugeicons/core-free-icons/Cancel01Icon';
 
 export type SwipeToastCloseReason = 'timeout' | 'swipe' | 'action' | 'close' | 'escape' | 'programmatic';
 export type SwipeToastFuse = 'bottom' | 'top' | 'none';
