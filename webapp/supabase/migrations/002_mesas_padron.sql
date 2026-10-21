@@ -1,11 +1,13 @@
 -- ============================================================
--- MIGRACIÓN 002: MESAS Y PADRÓN ELECTORAL - FASE 2
+-- MIGRACIÓN 002: MESAS Y PADRÓN ELECTORAL - FASE 2 (CORREGIDA)
 -- ============================================================
 -- Objetivo: Mejorar tablas de mesas y votantes para gestión completa
 -- 1. Campo 'activo' en mesas para desactivación suave
 -- 2. Índices para consultas eficientes
 -- 3. Funciones RPC para estadísticas y importación masiva
 -- 4. Validaciones adicionales
+-- 5. CORRECCIÓN: Verificación de rol admin en funciones SECURITY DEFINER
+-- 6. CORRECCIÓN: SQL dinámico seguro en listar_votantes
 -- ============================================================
 
 -- ------------------------------------------------------------
@@ -36,6 +38,7 @@ create index if not exists idx_votantes_mesa_ha_votado on public.votantes (mesa_
 -- 3. FUNCIÓN: ESTADÍSTICAS DEL PADRÓN
 -- ------------------------------------------------------------
 -- Devuelve totales globales y por mesa para el dashboard admin
+-- SOLO ADMIN: verifica is_app_admin() al inicio
 create or replace function public.obtener_estadisticas_padron()
 returns table (
   total_votantes bigint,
@@ -48,42 +51,48 @@ language plpgsql
 security definer
 set search_path = pg_catalog, public
 as $$
-declare
-  v_total bigint;
-  v_votaron bigint;
-  v_pendientes bigint;
-  v_por_mesa jsonb;
 begin
-  -- Totales globales
-  select count(*) into v_total from public.votantes;
-  select count(*) into v_votaron from public.votantes where ha_votado = true;
-  v_pendientes := v_total - v_votaron;
-
-  -- Por mesa (solo mesas activas)
-  select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) into v_por_mesa
-  from (
-    select
-      m.id as mesa_id,
-      m.nombre as mesa_nombre,
-      count(v.dni) as total,
-      count(v.dni) filter (where v.ha_votado = true) as votaron,
-      count(v.dni) filter (where v.ha_votado = false) as pendientes,
-      case
-        when count(v.dni) > 0
-        then round((count(v.dni) filter (where v.ha_votado = true)::numeric / count(v.dni)) * 100, 2)
-        else 0
-      end as participacion_pct
-    from public.mesas m
-    left join public.votantes v on v.mesa_id = m.id
-    where m.activo = true
-    group by m.id, m.nombre
-    order by m.nombre
-  ) t;
+  -- Verificar que el usuario es admin
+  if not public.is_app_admin() then
+    raise exception 'Acceso denegado: se requiere rol de administrador' using errcode = 'P0008';
+  end if;
 
   return query
-    select v_total, v_votaron, v_pendientes,
-           case when v_total > 0 then round((v_votaron::numeric / v_total) * 100, 2) else 0 end,
-           v_por_mesa;
+    with totales as (
+      select
+        count(*) as total_votantes,
+        count(*) filter (where ha_votado = true) as total_votaron,
+        count(*) filter (where ha_votado = false) as total_pendientes
+      from public.votantes
+    ),
+    por_mesa_agg as (
+      select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) as por_mesa
+      from (
+        select
+          m.id as mesa_id,
+          m.nombre as mesa_nombre,
+          count(v.dni) as total,
+          count(v.dni) filter (where v.ha_votado = true) as votaron,
+          count(v.dni) filter (where v.ha_votado = false) as pendientes,
+          case
+            when count(v.dni) > 0
+            then round((count(v.dni) filter (where v.ha_votado = true)::numeric / count(v.dni)) * 100, 2)
+            else 0
+          end as participacion_pct
+        from public.mesas m
+        left join public.votantes v on v.mesa_id = m.id
+        where m.activo = true
+        group by m.id, m.nombre
+        order by m.nombre
+      ) t
+    )
+    select
+      t.total_votantes,
+      t.total_votaron,
+      t.total_pendientes,
+      case when t.total_votantes > 0 then round((t.total_votaron::numeric / t.total_votantes) * 100, 2) else 0 end,
+      p.por_mesa
+    from totales t, por_mesa_agg p;
 end;
 $$;
 
@@ -91,6 +100,8 @@ $$;
 -- 4. FUNCIÓN: LISTAR VOTANTES CON FILTROS Y PAGINACIÓN
 -- ------------------------------------------------------------
 -- Para la UI de padrón con búsqueda, filtro por mesa, paginación
+-- SOLO ADMIN: verifica is_app_admin() al inicio
+-- USA CONSULTA ESTÁTICA CON CONDICIONALES (sin SQL dinámico)
 create or replace function public.listar_votantes(
   p_mesa_id uuid default null,
   p_busqueda text default null,
@@ -113,37 +124,44 @@ set search_path = pg_catalog, public
 as $$
 declare
   v_total bigint;
-  v_where text;
 begin
-  -- Construir WHERE dinámico
-  v_where := 'where 1=1';
-
-  if p_mesa_id is not null then
-    v_where := v_where || ' and v.mesa_id = ' || quote_literal(p_mesa_id);
+  -- Verificar que el usuario es admin
+  if not public.is_app_admin() then
+    raise exception 'Acceso denegado: se requiere rol de administrador' using errcode = 'P0008';
   end if;
 
-  if p_busqueda is not null and p_busqueda <> '' then
-    v_where := v_where || ' and (v.dni ilike ' || quote_literal('%' || p_busqueda || '%')
-      || ' or v.nombre ilike ' || quote_literal('%' || p_busqueda || '%') || ')';
+  -- Validar límites
+  if p_limit < 1 or p_limit > 200 then
+    raise exception 'Límite inválido (1-200)' using errcode = 'P0009';
+  end if;
+  if p_offset < 0 then
+    raise exception 'Offset inválido' using errcode = 'P0009';
   end if;
 
-  if p_solo_pendientes then
-    v_where := v_where || ' and v.ha_votado = false';
-  end if;
+  -- Contar total (para paginación) - consulta con los mismos filtros
+  select count(*) into v_total
+  from public.votantes v
+  where (p_mesa_id is null or v.mesa_id = p_mesa_id)
+    and (p_busqueda is null or p_busqueda = '' or v.dni ilike '%' || p_busqueda || '%' or v.nombre ilike '%' || p_busqueda || '%')
+    and (not p_solo_pendientes or v.ha_votado = false);
 
-  -- Contar total (para paginación)
-  execute 'select count(*) from public.votantes v ' || v_where into v_total;
-
-  -- Query principal con join a mesas
-  return query execute format(
-    'select v.dni, v.nombre, v.mesa_id, m.nombre as mesa_nombre, v.ha_votado, v.creado_en, %s as total_count
-     from public.votantes v
-     join public.mesas m on m.id = v.mesa_id
-     %s
-     order by v.nombre
-     limit %s offset %s',
-    v_total, v_where, p_limit, p_offset
-  );
+  -- Query principal con join a mesas - usa los mismos filtros
+  return query
+    select
+      v.dni,
+      v.nombre,
+      v.mesa_id,
+      m.nombre as mesa_nombre,
+      v.ha_votado,
+      v.creado_en,
+      v_total as total_count
+    from public.votantes v
+    join public.mesas m on m.id = v.mesa_id
+    where (p_mesa_id is null or v.mesa_id = p_mesa_id)
+      and (p_busqueda is null or p_busqueda = '' or v.dni ilike '%' || p_busqueda || '%' or v.nombre ilike '%' || p_busqueda || '%')
+      and (not p_solo_pendientes or v.ha_votado = false)
+    order by v.nombre
+    limit p_limit offset p_offset;
 end;
 $$;
 
@@ -152,6 +170,7 @@ $$;
 -- ------------------------------------------------------------
 -- Inserta múltiples votantes en una transacción, validando cada uno
 -- Devuelve resumen: insertados, duplicados, errores por fila
+-- SOLO ADMIN: verifica is_app_admin() al inicio
 create or replace function public.importar_votantes(
   p_votantes jsonb  -- array de objetos {dni, nombre, mesa_id}
 )
@@ -177,10 +196,21 @@ declare
   v_fila int := 0;
   v_mesa_existe boolean;
   v_dni_valido boolean;
+  v_dni_existe boolean;
 begin
+  -- Verificar que el usuario es admin
+  if not public.is_app_admin() then
+    raise exception 'Acceso denegado: se requiere rol de administrador' using errcode = 'P0008';
+  end if;
+
   -- Validar que p_votantes es un array
   if not jsonb_typeof(p_votantes) = 'array' then
     raise exception 'El parámetro debe ser un array JSON' using errcode = 'P0010';
+  end if;
+
+  -- Validar tamaño máximo del array (protección contra DoS)
+  if jsonb_array_length(p_votantes) > 1000 then
+    raise exception 'Máximo 1000 votantes por importación' using errcode = 'P0011';
   end if;
 
   -- Iterar sobre cada votante
@@ -215,6 +245,9 @@ begin
       continue;
     end if;
 
+    -- Verificar si el DNI ya existe (para dar feedback claro)
+    v_dni_existe := exists (select 1 from public.votantes where dni = v_dni);
+
     -- Intentar insertar (ON CONFLICT para detectar duplicados)
     begin
       insert into public.votantes (dni, nombre, mesa_id, ha_votado)
@@ -243,6 +276,7 @@ $$;
 -- 6. FUNCIÓN: VALIDAR ARCHIVO CSV ANTES DE IMPORTAR (PREVIEW)
 -- ------------------------------------------------------------
 -- Valida estructura y datos sin insertar, para vista previa
+-- SOLO ADMIN: verifica is_app_admin() al inicio
 create or replace function public.validar_importacion_votantes(
   p_votantes jsonb
 )
@@ -271,8 +305,18 @@ declare
   v_dni_existe boolean;
   v_mesa_nombre text;
 begin
+  -- Verificar que el usuario es admin
+  if not public.is_app_admin() then
+    raise exception 'Acceso denegado: se requiere rol de administrador' using errcode = 'P0008';
+  end if;
+
   if not jsonb_typeof(p_votantes) = 'array' then
     raise exception 'El parámetro debe ser un array JSON' using errcode = 'P0010';
+  end if;
+
+  -- Validar tamaño máximo
+  if jsonb_array_length(p_votantes) > 1000 then
+    raise exception 'Máximo 1000 votantes por validación' using errcode = 'P0011';
   end if;
 
   for v_item in select * from jsonb_array_elements(p_votantes)
@@ -322,12 +366,14 @@ $$;
 -- ------------------------------------------------------------
 -- 7. PERMISOS PARA NUEVAS FUNCIONES Y TABLAS ACTUALIZADAS
 -- ------------------------------------------------------------
+-- Las funciones son SECURITY DEFINER y verifican is_app_admin() internamente.
+-- Se concede execute a authenticated, pero la función rechazará si no es admin.
 grant execute on function public.obtener_estadisticas_padron() to authenticated;
 grant execute on function public.listar_votantes(uuid, text, boolean, int, int) to authenticated;
 grant execute on function public.importar_votantes(jsonb) to authenticated;
 grant execute on function public.validar_importacion_votantes(jsonb) to authenticated;
 
--- Revocar de anon y public
+-- Revocar de anon y public (defensa en profundidad)
 revoke execute on function public.obtener_estadisticas_padron() from anon, public;
 revoke execute on function public.listar_votantes(uuid, text, boolean, int, int) from anon, public;
 revoke execute on function public.importar_votantes(jsonb) from anon, public;

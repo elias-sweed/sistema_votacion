@@ -476,3 +476,50 @@ Gestión completa de mesas/salones y padrón electoral con importación CSV, val
 - Registro de voto via `emitir_voto_con_limite`
 - Resultados en vivo con Realtime
 - Acta PDF, PWA, Deploy
+
+---
+
+## Q. Resumen FASE 2.1 — Verificación y Seguridad del Padrón Electoral
+
+**Documento completo:** [`webapp/Fase 02.1 - Verificacion y seguridad.md`](Fase%2002.1%20-%20Verificacion%20y%20seguridad.md)
+
+### Objetivo
+Auditar y corregir la Fase 02 antes de la Fase 03, asegurando seguridad real (no solo compilación).
+
+### Archivos Modificados/Nuevos
+| Archivo | Tipo | Cambio |
+|---------|------|--------|
+| `webapp/supabase/migrations/002_mesas_padron.sql` | **MODIFICADO** | Verificación `is_app_admin()` en 4 RPCs, SQL estático en `listar_votantes`, límites array (1000), validación paginación |
+| `webapp/supabase/migrations/003_fix_is_app_admin.sql` | **NUEVO** | `is_app_admin()` permite `service_role` (tests, Edge Functions, backend) |
+| `webapp/tests/fase2.test.js` | Revisado | Compatible con `is_app_admin()` corregido |
+
+### Vulnerabilidades Corregidas
+
+| # | Severidad | Problema | Corrección |
+|---|-----------|----------|------------|
+| 1 | **CRÍTICO** | 4 RPCs `SECURITY DEFINER` sin verificación admin — bypass RLS, cualquier `authenticated` accedía a DNI, nombres, estadísticas | `if not public.is_app_admin() then raise exception 'P0008'` en cada RPC |
+| 2 | **ALTO** | `listar_votantes` usaba SQL dinámico con concatenación (`EXECUTE` + `FORMAT`) | Consulta estática con `WHERE` condicionales |
+| 3 | **MEDIO** | Sin límite en `importar_votantes`/`validar_importacion_votantes` — DoS potencial | Límite 1000 items (`P0011`) |
+| 4 | **MEDIO** | Sin validación `p_limit`/`p_offset` en `listar_votantes` | Validación 1-200 y offset ≥ 0 (`P0009`) |
+| 5 | **REQUERIDO** | `is_app_admin()` no reconocía `service_role` — bloqueaba tests y backend | Migración 003: `current_user = 'service_role'` |
+
+### Verificación de Seguridad
+| Área | Estado |
+|------|--------|
+| RLS en mesas/votantes | ✅ `authenticated` + `is_app_admin()` |
+| RPCs padrón solo admin | ✅ Verificación interna `is_app_admin()` |
+| `anon` bloqueado en tablas y RPCs | ✅ Revoke + verificación interna |
+| Datos sensibles (DNI, nombres, `ha_votado`) | ✅ No expuestos a anon ni authenticated sin admin |
+| SQL dinámico eliminado | ✅ Consulta estática parametrizada |
+
+### Pruebas
+| Check | Resultado |
+|-------|-----------|
+| `npm run build` | ✅ Compilación exitosa |
+| `npx tsc --noEmit` | ✅ Sin errores TypeScript |
+| Tests DB (`fase2.test.js`, `security.test.js`) | ⏳ Pendiente (requiere Docker) |
+
+### Próximos Pasos
+1. Instalar Docker Desktop
+2. Ejecutar tests completos contra Supabase local
+3. Proceder a Fase 3 (Kiosco `/votar`, voto, resultados, acta)
