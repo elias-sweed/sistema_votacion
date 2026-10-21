@@ -11,7 +11,7 @@ function iniciales(texto: string) {
 
 function Placeholder({ nombre }: { nombre: string }) {
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-300 via-yellow-600 to-[#0a0a0a]">
+    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500 via-blue-800 to-[#050a1a]">
       <span className="text-5xl font-bold text-white/90">{iniciales(nombre) || '?'}</span>
     </div>
   )
@@ -66,7 +66,7 @@ export default function CandidatosPage() {
   return (
     <section className="space-y-6">
       <div className="flex items-center gap-3">
-        <span className="h-px w-8 bg-gradient-to-r from-amber-300/80 to-transparent" />
+        <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
         <h2 className="text-xl font-bold text-white">Candidatos</h2>
       </div>
 
@@ -74,11 +74,11 @@ export default function CandidatosPage() {
         <div className="flex flex-col lg:flex-row gap-8">
           <form onSubmit={agregar} className="flex-1 flex flex-col gap-3">
             <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del candidato"
-              className="rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400/15" />
+              className="rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15" />
             <input value={fotoUrl} onChange={(e) => setFotoUrl(e.target.value)} placeholder="URL de foto (opcional)"
-              className="rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400/15" />
+              className="rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15" />
             <button disabled={guardando}
-              className="rounded-xl bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 px-6 py-2.5 font-bold text-black shadow-[0_10px_30px_-12px_rgba(234,179,8,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
+              className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
               {guardando ? 'Guardando…' : 'Agregar'}
             </button>
 
@@ -140,9 +140,9 @@ export default function CandidatosPage() {
               shadow={0.6}
               radius={16}
               backContent={
-                <div className="flex h-full flex-col justify-between border border-white/10 bg-slate-950/80 p-5 backdrop-blur-xl">
+                <div className="flex h-full flex-col justify-between border border-white/10 bg-[#07101f]/80 p-5 backdrop-blur-xl">
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-amber-300/80">Candidato</p>
+                    <p className="text-xs uppercase tracking-wide text-blue-300/80">Candidato</p>
                     <h3 className="mt-1 text-lg font-semibold text-white">{c.nombre}</h3>
                   </div>
                   <div className="space-y-3">

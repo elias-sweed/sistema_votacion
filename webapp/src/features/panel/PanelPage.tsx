@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
+import Home01Icon from '@hugeicons/core-free-icons/Home01Icon'
 import IdCardIcon from '@hugeicons/core-free-icons/IdCardIcon'
 import Logout01Icon from '@hugeicons/core-free-icons/Logout01Icon'
 import Table01Icon from '@hugeicons/core-free-icons/Table01Icon'
@@ -8,17 +9,31 @@ import { supabase } from '../../lib/supabase'
 import Dock, { type DockItemData } from '../../components/ui/Dock'
 import MaskedHeading from '../../components/ui/MaskedHeading'
 import CandidatosPage from '../candidatos/CandidatosPage'
+import DashboardPage from '../dashboard/DashboardPage'
 import MesasPage from '../mesas/MesasPage'
 import PadronPage from '../padron/PadronPage'
 
-type Vista = 'candidatos' | 'mesas' | 'padron'
+type Vista = 'inicio' | 'candidatos' | 'mesas' | 'padron'
+
+const SUBTITULOS: Record<Vista, string> = {
+  inicio: 'Estado general del proceso electoral.',
+  candidatos: 'Gestiona los candidatos y su estado.',
+  mesas: 'Administra las mesas y salones.',
+  padron: 'Importa y supervisa el padrón electoral.'
+}
 
 const glyph = (icon: typeof UserGroupIcon) => <HugeiconsIcon icon={icon} size="1em" strokeWidth={1.8} />
 
 export default function PanelPage() {
-  const [vista, setVista] = useState<Vista>('candidatos')
+  const [vista, setVista] = useState<Vista>('inicio')
 
   const items: DockItemData[] = [
+    {
+      icon: glyph(Home01Icon),
+      label: 'Inicio',
+      active: vista === 'inicio',
+      onClick: () => setVista('inicio')
+    },
     {
       icon: glyph(UserGroupIcon),
       label: 'Candidatos',
@@ -68,9 +83,10 @@ export default function PanelPage() {
             lineHeight={1}
             textScale={0.075}
           />
-          <p className="mt-2 text-sm text-slate-400">Gestiona candidatos, mesas y padrón electoral.</p>
+          <p className="mt-2 text-sm text-slate-400">{SUBTITULOS[vista]}</p>
         </div>
 
+        {vista === 'inicio' && <DashboardPage onNavigate={setVista} />}
         {vista === 'candidatos' && <CandidatosPage />}
         {vista === 'mesas' && <MesasPage />}
         {vista === 'padron' && <PadronPage />}
@@ -83,7 +99,7 @@ export default function PanelPage() {
             baseItemSize={52}
             magnification={72}
             panelHeight={70}
-            accentColor="#e8c47a"
+            accentColor="#3b82f6"
             badgeColor="#ef4444"
             position="bottom"
             distance={200}

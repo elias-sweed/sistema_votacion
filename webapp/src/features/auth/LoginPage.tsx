@@ -57,13 +57,13 @@ export default function LoginPage() {
     <main className="relative min-h-screen flex items-center justify-center overflow-hidden p-4">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(212,175,55,0.10),transparent_62%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(37,99,235,0.14),transparent_62%)]"
       />
 
       <div className="relative w-full max-w-sm">
         <SpotlightCard
           theme="dark"
-          spotlightColor="#f0d38a"
+          spotlightColor="#60a5fa"
           intensity={0.16}
           spotlightSize={320}
           softness={0.75}
@@ -77,61 +77,61 @@ export default function LoginPage() {
           className="w-full backdrop-blur-2xl backdrop-saturate-150"
           style={
             {
-              '--spotlight-card-surface': 'rgba(10, 10, 10, 0.42)',
-              '--spotlight-card-border': 'rgba(232, 196, 122, 0.32)',
+              '--spotlight-card-surface': 'rgba(8, 14, 30, 0.45)',
+              '--spotlight-card-border': 'rgba(96, 165, 250, 0.34)',
               '--spotlight-card-shadow':
-                '0 30px 90px -30px rgba(0, 0, 0, 0.95), 0 0 70px -24px rgba(212, 175, 55, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06)'
+                '0 30px 90px -30px rgba(0, 0, 0, 0.95), 0 0 70px -24px rgba(37, 99, 235, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.06)'
             } as CSSProperties
           }
         >
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-amber-100/40 to-transparent"
+            className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-blue-200/40 to-transparent"
           />
           <form onSubmit={manejarEnvio} className="space-y-5">
             <div className="space-y-2 text-center">
-              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-amber-300/40 bg-amber-400/10 text-amber-200 shadow-[0_0_24px_-6px_rgba(234,179,8,0.5)]">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-blue-400/40 bg-blue-500/10 text-blue-200 shadow-[0_0_24px_-6px_rgba(37,99,235,0.55)]">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
                   <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z" strokeLinejoin="round" />
                   <path d="M9.5 12l1.8 1.8 3.4-3.6" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-              <h1 className="bg-gradient-to-r from-amber-100 via-yellow-300 to-amber-500 bg-clip-text text-2xl font-semibold tracking-tight text-transparent">
+              <h1 className="bg-gradient-to-r from-blue-100 via-sky-300 to-blue-600 bg-clip-text text-2xl font-semibold tracking-tight text-transparent">
                 Ingreso Admin
               </h1>
-              <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/50">Acceso restringido</p>
+              <p className="text-[10px] uppercase tracking-[0.3em] text-blue-200/50">Acceso restringido</p>
             </div>
 
-            <div className="h-px w-full bg-gradient-to-r from-transparent via-amber-300/25 to-transparent" />
+            <div className="h-px w-full bg-gradient-to-r from-transparent via-blue-400/25 to-transparent" />
 
             <div>
-              <label className="mb-1 block text-[10px] uppercase tracking-[0.2em] text-amber-100/50" htmlFor="email">
+              <label className="mb-1 block text-[10px] uppercase tracking-[0.2em] text-blue-100/50" htmlFor="email">
                 Correo
               </label>
               <input
                 id="email" type="email" value={email} autoComplete="email"
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="tu@correo.com"
-                className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-amber-50 backdrop-blur-md placeholder:text-slate-500 transition selection:bg-amber-300/30 focus:border-amber-300/60 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-amber-400/15"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-blue-50 backdrop-blur-md placeholder:text-slate-500 transition selection:bg-blue-400/30 focus:border-blue-400/60 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-blue-500/15"
               />
-              {email && !emailValido && <p className="mt-1 text-xs text-amber-400">Correo no válido</p>}
+              {email && !emailValido && <p className="mt-1 text-xs text-sky-300">Correo no válido</p>}
             </div>
 
             <div>
-              <label className="mb-1 block text-[10px] uppercase tracking-[0.2em] text-amber-100/50" htmlFor="password">
+              <label className="mb-1 block text-[10px] uppercase tracking-[0.2em] text-blue-100/50" htmlFor="password">
                 Contraseña
               </label>
               <input
                 id="password" type="password" value={password} autoComplete="current-password"
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-amber-50 backdrop-blur-md placeholder:text-slate-500 transition selection:bg-amber-300/30 focus:border-amber-300/60 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-amber-400/15"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-blue-50 backdrop-blur-md placeholder:text-slate-500 transition selection:bg-blue-400/30 focus:border-blue-400/60 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-blue-500/15"
               />
             </div>
 
             <button
               type="submit" disabled={cargando}
-              className="w-full rounded-xl bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 py-3 text-sm font-bold text-black shadow-[0_10px_30px_-10px_rgba(234,179,8,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 py-3 text-sm font-bold text-white shadow-[0_10px_30px_-10px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {cargando ? 'Ingresando…' : 'Ingresar'}
             </button>

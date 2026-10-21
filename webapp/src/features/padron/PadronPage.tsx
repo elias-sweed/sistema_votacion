@@ -251,7 +251,7 @@ export default function PadronPage() {
       {/* Header con estadísticas */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="h-px w-8 bg-gradient-to-r from-amber-300/80 to-transparent" />
+          <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
           <h2 className="text-xl font-bold text-white">Padrón Electoral</h2>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
@@ -265,11 +265,11 @@ export default function PadronPage() {
           </div>
           <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl shadow-[0_20px_60px_-44px_rgba(0,0,0,0.95)]">
             <p className="text-slate-400">Pendientes</p>
-            <p className="text-2xl font-bold text-amber-400">{estadisticas?.total_pendientes ?? 0}</p>
+            <p className="text-2xl font-bold text-sky-300">{estadisticas?.total_pendientes ?? 0}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl shadow-[0_20px_60px_-44px_rgba(0,0,0,0.95)]">
             <p className="text-slate-400">Participación</p>
-            <p className="text-2xl font-bold text-amber-300">{estadisticas?.participacion_pct ?? 0}%</p>
+            <p className="text-2xl font-bold text-blue-300">{estadisticas?.participacion_pct ?? 0}%</p>
           </div>
         </div>
       </div>
@@ -284,7 +284,7 @@ export default function PadronPage() {
               value={busqueda}
               onChange={(e) => { setBusqueda(e.target.value); setPagina(1); }}
               placeholder="Buscar…"
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400/15"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
             />
           </div>
           <div className="sm:w-48">
@@ -292,7 +292,7 @@ export default function PadronPage() {
             <select
               value={mesaFiltro}
               onChange={(e) => { setMesaFiltro(e.target.value); setPagina(1); }}
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400/15"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
             >
               <option value="">Todas las mesas</option>
               {mesas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
@@ -303,7 +303,7 @@ export default function PadronPage() {
               type="checkbox"
               checked={soloPendientes}
               onChange={(e) => { setSoloPendientes(e.target.checked); setPagina(1); }}
-              className="rounded border-white/20 bg-black/25 text-amber-400 focus:ring-amber-400/40"
+              className="rounded border-white/20 bg-black/25 text-blue-300 focus:ring-blue-500/40"
             />
             Solo pendientes
           </label>
@@ -317,7 +317,7 @@ export default function PadronPage() {
         {pasoImportacion === 'archivo' && (
           <div>
             <p className="text-sm text-slate-400 mb-3">
-              Formato CSV requerido: columnas <code className="text-amber-300">dni,nombre,mesa_id</code>.
+              Formato CSV requerido: columnas <code className="text-blue-300">dni,nombre,mesa_id</code>.
               El archivo debe tener encabezados. Máx. recomendado: 500 filas.
             </p>
             <input
@@ -325,7 +325,7 @@ export default function PadronPage() {
               type="file"
               accept=".csv"
               onChange={manejarArchivo}
-              className="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-400 file:text-black file:font-semibold hover:file:bg-amber-300"
+              className="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-500 file:text-white file:font-semibold hover:file:bg-blue-400"
             />
           </div>
         )}
@@ -378,7 +378,7 @@ export default function PadronPage() {
             </div>
             <div className="flex gap-2">
               <button onClick={confirmarImportacion} disabled={importando || previewValidos === 0}
-                className="rounded-xl bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 px-4 py-2 font-bold text-black shadow-[0_10px_30px_-12px_rgba(234,179,8,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
+                className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
                 {importando ? 'Importando…' : 'Confirmar importación'}
               </button>
               <button onClick={reiniciarImportacion} disabled={importando}
@@ -393,7 +393,7 @@ export default function PadronPage() {
           <div className="space-y-3">
             <div className="flex items-center gap-4 text-sm">
               <span className="text-emerald-400">✓ Insertados: <strong>{resultadoImportacion.insertados}</strong></span>
-              <span className="text-amber-400">⟳ Duplicados: <strong>{resultadoImportacion.duplicados}</strong></span>
+              <span className="text-sky-300">⟳ Duplicados: <strong>{resultadoImportacion.duplicados}</strong></span>
               <span className="text-red-400">✗ Errores: <strong>{resultadoImportacion.errores.length}</strong></span>
             </div>
             {resultadoImportacion.errores.length > 0 && (
@@ -444,7 +444,7 @@ export default function PadronPage() {
                     <td className="p-3">{v.nombre}</td>
                     <td className="p-3 text-slate-300">{v.mesa_nombre}</td>
                     <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded text-xs ${v.ha_votado ? 'bg-emerald-900/30 text-emerald-400' : 'bg-amber-900/30 text-amber-400'}`}>
+                      <span className={`px-2 py-0.5 rounded text-xs ${v.ha_votado ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-900/30 text-blue-300'}`}>
                         {v.ha_votado ? 'Votó' : 'Pendiente'}
                       </span>
                     </td>

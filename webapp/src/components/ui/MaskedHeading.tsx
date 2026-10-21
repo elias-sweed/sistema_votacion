@@ -18,10 +18,10 @@ const SPOT_MASK = `radial-gradient(circle var(--mh-spot-r, 160px) at var(--mh-sp
 ).join(', ')})`;
 
 const MESH_A =
-  'radial-gradient(circle at 18% 28%, #f5d78e 0%, transparent 42%), radial-gradient(circle at 82% 22%, #b8860b 0%, transparent 45%), radial-gradient(circle at 70% 82%, #e8c47a 0%, transparent 42%), radial-gradient(circle at 28% 82%, #8a5a12 0%, transparent 40%), linear-gradient(135deg, #050505 0%, #1a1308 55%, #050505 100%)';
+  'radial-gradient(circle at 18% 28%, #dbeafe 0%, transparent 42%), radial-gradient(circle at 82% 22%, #1e3fd8 0%, transparent 45%), radial-gradient(circle at 70% 82%, #60a5fa 0%, transparent 42%), radial-gradient(circle at 28% 82%, #0b1f5e 0%, transparent 40%), linear-gradient(135deg, #03040b 0%, #08132e 55%, #03040b 100%)';
 
 const MESH_B =
-  'radial-gradient(circle at 78% 68%, #d4af37 0%, transparent 44%), radial-gradient(circle at 22% 70%, #a16207 0%, transparent 46%), radial-gradient(circle at 50% 12%, #fbbf24 0%, transparent 40%)';
+  'radial-gradient(circle at 78% 68%, #3b82f6 0%, transparent 44%), radial-gradient(circle at 22% 70%, #1e40af 0%, transparent 46%), radial-gradient(circle at 50% 12%, #93c5fd 0%, transparent 40%)';
 
 type Reveal = 'rise' | 'scale' | 'blur' | 'wipe' | 'fade' | 'none';
 type Trigger = 'view' | 'mount' | 'hover';

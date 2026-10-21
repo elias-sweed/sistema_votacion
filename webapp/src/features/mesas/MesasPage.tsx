@@ -88,16 +88,16 @@ export default function MesasPage() {
   return (
     <section className="space-y-6">
       <div className="flex items-center gap-3">
-        <span className="h-px w-8 bg-gradient-to-r from-amber-300/80 to-transparent" />
+        <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
         <h2 className="text-xl font-bold text-white">Mesas / Salones</h2>
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4">
         <form onSubmit={agregar} className="flex flex-col sm:flex-row gap-3">
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre de la mesa (ej: 3ro Primaria A)"
-            className="flex-1 rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400/15" />
+            className="flex-1 rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15" />
           <button disabled={guardando}
-            className="rounded-xl bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 px-6 py-2.5 font-bold text-black shadow-[0_10px_30px_-12px_rgba(234,179,8,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
+            className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
             {guardando ? 'Guardando…' : 'Agregar'}
           </button>
         </form>
@@ -117,9 +117,9 @@ export default function MesasPage() {
             {editandoId === m.id ? (
               <form onSubmit={(e) => { e.preventDefault(); guardarEdicion(m); }} className="flex flex-col sm:flex-row gap-2 flex-1">
                 <input value={editNombre} onChange={(e) => setEditNombre(e.target.value)}
-                  className="flex-1 rounded-xl border border-white/10 bg-black/25 px-4 py-2 text-white backdrop-blur-md transition focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-400/15" />
+                  className="flex-1 rounded-xl border border-white/10 bg-black/25 px-4 py-2 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15" />
                 <button type="submit"
-                  className="rounded-lg bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 px-4 py-2 text-sm font-bold text-black transition hover:brightness-110">
+                  className="rounded-lg bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:brightness-110">
                   Guardar
                 </button>
                 <button type="button" onClick={cancelarEdicion}

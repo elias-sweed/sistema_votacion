@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { supabase } from './lib/supabase'
-import LightRaysBackground from './components/ui/LightRaysBackground'
+import GradientASCIIBackground from './components/ui/GradientASCIIBackground'
 import { ToastProvider } from './components/ui/ToastProvider'
 import LoginPage from './features/auth/LoginPage'
 import PanelPage from './features/panel/PanelPage'
@@ -22,7 +22,7 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <LightRaysBackground />
+      <GradientASCIIBackground />
       <div className="relative z-10">
         {cargando ? (
           <main className="min-h-screen flex items-center justify-center text-slate-400">
