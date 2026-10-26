@@ -66,12 +66,31 @@ alter table public.candidatos    enable row level security;
 alter table public.votos         enable row level security;
 alter table public.configuracion enable row level security;
 
--- El rol "authenticated" = el admin (tú). Acceso total.
-create policy "admin_full_mesas"         on public.mesas         for all to authenticated using (true) with check (true);
-create policy "admin_full_votantes"      on public.votantes      for all to authenticated using (true) with check (true);
-create policy "admin_full_candidatos"    on public.candidatos    for all to authenticated using (true) with check (true);
-create policy "admin_full_votos"         on public.votos         for all to authenticated using (true) with check (true);
-create policy "admin_full_configuracion" on public.configuracion for all to authenticated using (true) with check (true);
+-- Solo app_metadata firmado por Supabase identifica a un administrador.
+create or replace function public.is_app_admin()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = pg_catalog, public
+as $$
+  select coalesce((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin', false);
+$$;
+
+grant execute on function public.is_app_admin() to authenticated;
+revoke execute on function public.is_app_admin() from public, anon;
+
+-- authenticated no implica administrador; RLS exige un claim protegido.
+create policy "admin_full_mesas" on public.mesas
+  for all to authenticated using (public.is_app_admin()) with check (public.is_app_admin());
+create policy "admin_full_votantes" on public.votantes
+  for all to authenticated using (public.is_app_admin()) with check (public.is_app_admin());
+create policy "admin_full_candidatos" on public.candidatos
+  for all to authenticated using (public.is_app_admin()) with check (public.is_app_admin());
+create policy "admin_full_votos" on public.votos
+  for all to authenticated using (public.is_app_admin()) with check (public.is_app_admin());
+create policy "admin_full_configuracion" on public.configuracion
+  for all to authenticated using (public.is_app_admin()) with check (public.is_app_admin());
 
 -- El rol "anon" (kioscos de votación) NO tiene políticas directas:
 -- solo puede ejecutar las funciones controladas de abajo.
@@ -88,7 +107,7 @@ create or replace function public.verificar_votante(p_dni text)
 returns table (nombre text, mesa text, puede_votar boolean)
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 begin
   return query
@@ -105,7 +124,7 @@ create or replace function public.emitir_voto(p_dni text, p_candidato_id uuid)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_mesa_id  uuid;
@@ -146,11 +165,20 @@ create or replace view public.resultados as
   group by c.id, c.nombre, c.foto_url
   order by votos desc;
 
+-- Impedir que la vista omita RLS en las tablas base.
+alter view public.resultados set (security_invoker = true);
+
 -- ------------------------------------------------------------
 -- 4. PERMISOS MÍNIMOS (principio de menor privilegio)
 -- ------------------------------------------------------------
 revoke all on public.mesas, public.votantes, public.votos, public.configuracion from anon;
+revoke all on public.mesas, public.votantes, public.candidatos,
+  public.votos, public.configuracion from public, authenticated;
+grant select, insert, update, delete on public.mesas, public.votantes,
+  public.candidatos, public.configuracion to authenticated;
+grant select on public.votos to authenticated;
+revoke execute on function public.verificar_votante(text) from public, anon, authenticated, service_role;
+revoke execute on function public.emitir_voto(text, uuid) from public, anon, authenticated, service_role;
 grant  select on public.candidatos to anon;
-grant  execute on function public.verificar_votante(text) to anon;
-grant  execute on function public.emitir_voto(text, uuid) to anon;
 grant  select on public.resultados to authenticated;
+revoke all on public.resultados from public, anon;

@@ -1,333 +1,353 @@
 #!/usr/bin/env node
-// ============================================================
-// PRUEBAS FASE 2: MESAS Y PADRÓN ELECTORAL
-// ============================================================
-// Ejecutar contra Supabase local (supabase start)
-// Requiere: migraciones 001 y 002 aplicadas
-// Variables en .env.test: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
-// ============================================================
+// Pruebas de la Fase 2 contra Supabase local; usa y limpia solo fixtures propios.
 
 import { createClient } from '@supabase/supabase-js';
-import { config } from 'dotenv';
+import { existsSync } from 'node:fs';
+import { loadEnvFile } from 'node:process';
 import crypto from 'crypto';
 
-config({ path: '.env.test' });
+if (existsSync('.env.test')) loadEnvFile('.env.test');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !ANON_KEY || !SERVICE_ROLE_KEY) {
-  console.error('❌ Faltan variables en .env.test: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY');
+  console.error('Faltan SUPABASE_URL, SUPABASE_ANON_KEY o SUPABASE_SERVICE_ROLE_KEY en .env.test');
   process.exit(1);
 }
 
-const anon = createClient(SUPABASE_URL, ANON_KEY);
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+if (!['localhost', '127.0.0.1', '::1'].includes(new URL(SUPABASE_URL).hostname)) {
+  console.error('Seguridad: las pruebas solo se ejecutan contra Supabase local.');
+  process.exit(1);
+}
 
+const authOptions = { auth: { persistSession: false, autoRefreshToken: false } };
+const anon = createClient(SUPABASE_URL, ANON_KEY, authOptions);
+const backend = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, authOptions);
+const runId = crypto.randomUUID();
+const mesaPrefix = `test-${runId}`;
+const voterNames = ['Ana', 'Carlos', 'Maria', 'Pedro'].map((name, index) => `${name} ${runId}-${index}`);
+let adminUser;
+let member;
+let fixture;
+const createdUserIds = [];
+const allocatedDnis = new Set();
 let passed = 0;
 let failed = 0;
-const results = [];
 
 function assert(condition, name, details = '') {
   if (condition) {
-    console.log(`✅ ${name}`);
+    console.log(`PASS ${name}`);
     passed++;
-    results.push({ name, status: 'PASSED', details });
   } else {
-    console.error(`❌ ${name}${details ? ' - ' + details : ''}`);
+    console.error(`FAIL ${name}${details ? `: ${details}` : ''}`);
     failed++;
-    results.push({ name, status: 'FAILED', details });
   }
 }
 
-function hashDni(dni) {
-  return crypto.createHash('sha256').update(dni).digest('hex');
+async function createPrincipal(role) {
+  const email = `${role}-${runId}@example.test`;
+  const password = `Test-${crypto.randomUUID()}-aA1!`;
+  const { data, error } = await backend.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    app_metadata: role === 'admin' ? { role: 'admin' } : {},
+  });
+  if (error) throw error;
+  createdUserIds.push(data.user.id);
+
+  const client = createClient(SUPABASE_URL, ANON_KEY, authOptions);
+  const { error: signInError } = await client.auth.signInWithPassword({ email, password });
+  if (signInError) throw signInError;
+  return client;
 }
 
-async function setupTestData() {
-  console.log('\n📋 Configurando datos de prueba Fase 2...');
+async function uniqueDni() {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const dni = crypto.randomInt(0, 100000000).toString().padStart(8, '0');
+    const { data, error } = await backend.from('votantes').select('dni').eq('dni', dni).maybeSingle();
+    if (error) throw error;
+    if (!data && !allocatedDnis.has(dni)) {
+      allocatedDnis.add(dni);
+      return dni;
+    }
+  }
+  throw new Error('No se pudo generar un DNI de prueba disponible.');
+}
 
-  // Limpiar tablas (orden por FK)
-  await admin.from('votos').delete().neq('id', 0);
-  await admin.from('votantes').delete().neq('dni', '');
-  await admin.from('candidatos').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await admin.from('mesas').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await admin.from('configuracion').update({ eleccion_abierta: false }).eq('id', 1);
+async function createFixtures() {
+  const baseTotal = await backend.from('votantes').select('dni', { count: 'exact', head: true });
+  const baseVoted = await backend.from('votantes').select('dni', { count: 'exact', head: true }).eq('ha_votado', true);
+  const basePending = await backend.from('votantes').select('dni', { count: 'exact', head: true }).eq('ha_votado', false);
+  for (const result of [baseTotal, baseVoted, basePending]) {
+    if (result.error) throw result.error;
+  }
 
-  // Crear mesas
-  const { data: mesas, error: mesaErr } = await admin
-    .from('mesas')
-    .insert([
-      { nombre: '3ro Primaria A', activo: true },
-      { nombre: '3ro Primaria B', activo: true },
-      { nombre: '4to Primaria A', activo: false }, // Inactiva
-    ])
-    .select();
-  assert(!mesaErr, 'Setup: Crear mesas', mesaErr?.message);
+  const dnis = {};
+  for (const key of [
+    'voted', 'pendingOne', 'pendingTwo', 'pendingThree',
+    'validOne', 'validTwo', 'previewNew', 'invalidMesa', 'emptyName',
+    'importOne', 'importTwo', 'importNew',
+  ]) {
+    dnis[key] = await uniqueDni();
+  }
 
-  // Crear votantes de prueba
-  const votantes = [
-    { dni: '12345678', nombre: 'Ana Pérez', mesa_id: mesas[0].id, ha_votado: false },
-    { dni: '87654321', nombre: 'Carlos López', mesa_id: mesas[0].id, ha_votado: true },
-    { dni: '11111111', nombre: 'María García', mesa_id: mesas[1].id, ha_votado: false },
-    { dni: '22222222', nombre: 'Pedro Ruiz', mesa_id: mesas[1].id, ha_votado: false },
-  ];
-  const { error: votErr } = await admin.from('votantes').insert(votantes);
-  assert(!votErr, 'Setup: Crear votantes', votErr?.message);
+  const { data: mesas, error: mesaError } = await backend.from('mesas').insert([
+    { nombre: `${mesaPrefix}-A`, activo: true },
+    { nombre: `${mesaPrefix}-B`, activo: true },
+    { nombre: `${mesaPrefix}-Inactiva`, activo: false },
+  ]).select();
+  if (mesaError) throw mesaError;
 
-  // Configuración
-  await admin.from('configuracion').update({ eleccion_abierta: true }).eq('id', 1);
-
-  return { mesas };
+  const mesaA = mesas.find(mesa => mesa.nombre.endsWith('-A'));
+  const mesaB = mesas.find(mesa => mesa.nombre.endsWith('-B'));
+  fixture = {
+    dnis,
+    mesas,
+    mesaA,
+    mesaB,
+    baseTotal: baseTotal.count ?? 0,
+    baseVoted: baseVoted.count ?? 0,
+    basePending: basePending.count ?? 0,
+  };
+  const { error: voterError } = await backend.from('votantes').insert([
+    { dni: dnis.voted, nombre: voterNames[0], mesa_id: mesaA.id, ha_votado: true },
+    { dni: dnis.pendingOne, nombre: voterNames[1], mesa_id: mesaA.id, ha_votado: false },
+    { dni: dnis.pendingTwo, nombre: voterNames[2], mesa_id: mesaB.id, ha_votado: false },
+    { dni: dnis.pendingThree, nombre: voterNames[3], mesa_id: mesaB.id, ha_votado: false },
+  ]);
+  if (voterError) throw voterError;
 }
 
 async function testMesasCRUD() {
-  console.log('\n🧪 PRUEBA: Mesas CRUD');
+  const { data: list, error: listError } = await adminUser.from('mesas').select('id, nombre');
+  assert(!listError && list?.filter(mesa => mesa.nombre.startsWith(mesaPrefix)).length === 3,
+    'mesas: solo crea tres fixtures propios', listError?.message);
 
-  // Listar mesas (admin)
-  const { data: list, error: listErr } = await admin.from('mesas').select('*').order('nombre');
-  assert(!listErr, 'Mesas: listar', listErr?.message);
-  assert(list?.length === 3, 'Mesas: 3 mesas creadas');
+  const { data: created, error: createError } = await adminUser.from('mesas')
+    .insert({ nombre: `${mesaPrefix}-Extra-A`, activo: true }).select().single();
+  assert(!createError && created?.activo === true, 'mesas: crea mesa activa', createError?.message);
+  if (created) fixture.extraMesaId = created.id;
 
-  // Crear mesa
-  const { data: newMesa, error: createErr } = await admin.from('mesas')
-    .insert({ nombre: '5to Primaria A', activo: true }).select().single();
-  assert(!createErr, 'Mesas: crear', createErr?.message);
-  assert(newMesa?.activo === true, 'Mesas: nueva mesa activa por defecto');
+  const { error: updateError } = await adminUser.from('mesas')
+    .update({ nombre: `${mesaPrefix}-Extra-B` }).eq('id', fixture.extraMesaId);
+  assert(!updateError, 'mesas: edita fixture propio', updateError?.message);
 
-  // Editar mesa
-  const { error: updateErr } = await admin.from('mesas')
-    .update({ nombre: '5to Primaria B' }).eq('id', newMesa.id);
-  assert(!updateErr, 'Mesas: editar', updateErr?.message);
+  const { error: deactivateError } = await adminUser.from('mesas')
+    .update({ activo: false }).eq('id', fixture.extraMesaId);
+  const { data: deactivated } = await adminUser.from('mesas')
+    .select('id').eq('id', fixture.extraMesaId).eq('activo', true);
+  assert(!deactivateError && deactivated?.length === 0, 'mesas: desactiva fixture propio', deactivateError?.message);
 
-  // Desactivar mesa
-  const { error: deactErr } = await admin.from('mesas')
-    .update({ activo: false }).eq('id', newMesa.id);
-  assert(!deactErr, 'Mesas: desactivar', deactErr?.message);
-
-  // Verificar que mesa inactiva no aparece en select activo
-  const { data: activas } = await admin.from('mesas').select('*').eq('activo', true);
-  assert(!activas?.find(m => m.id === newMesa.id), 'Mesas: inactiva no listada en activas');
-
-  // Volver a activar
-  await admin.from('mesas').update({ activo: true }).eq('id', newMesa.id);
+  const { error: reactivateError } = await adminUser.from('mesas')
+    .update({ activo: true }).eq('id', fixture.extraMesaId);
+  assert(!reactivateError, 'mesas: reactiva fixture propio', reactivateError?.message);
 }
 
-async function testMesasValidacion() {
-  console.log('\n🧪 PRUEBA: Mesas validaciones');
-
-  // Nombre duplicado
-  const { error: dupErr } = await admin.from('mesas')
-    .insert({ nombre: '3ro Primaria A', activo: true });
-  assert(dupErr, 'Mesas: rechaza nombre duplicado', dupErr?.message);
-  assert(dupErr?.code === '23505', 'Mesas: error unique_violation');
+async function testMesasValidation() {
+  const { error } = await adminUser.from('mesas').insert({
+    nombre: `${mesaPrefix}-A`,
+    activo: true,
+  });
+  assert(error?.code === '23505', 'mesas: rechaza nombre duplicado');
 }
 
-async function testEstadisticasPadron() {
-  console.log('\n🧪 PRUEBA: Estadísticas padrón');
+async function testPadronStats() {
+  const { data, error } = await adminUser.rpc('obtener_estadisticas_padron');
+  const stats = data?.[0];
+  assert(!error, 'estadísticas: RPC autorizada para admin', error?.message);
+  assert(stats?.total_votantes === fixture.baseTotal + 4, 'estadísticas: total respeta baseline y fixtures');
+  assert(stats?.total_votaron === fixture.baseVoted + 1, 'estadísticas: total votaron respeta baseline');
+  assert(stats?.total_pendientes === fixture.basePending + 3, 'estadísticas: pendientes respeta baseline');
 
-  const { data, error } = await admin.rpc('obtener_estadisticas_padron');
-  assert(!error, 'Estadisticas: RPC ejecutada', error?.message);
-  assert(data?.[0]?.total_votantes === 4, 'Estadisticas: total 4 votantes');
-  assert(data?.[0]?.total_votaron === 1, 'Estadisticas: 1 votó');
-  assert(data?.[0]?.total_pendientes === 3, 'Estadisticas: 3 pendientes');
-  assert(data?.[0]?.participacion_pct === 25, 'Estadisticas: 25% participación');
-  assert(data?.[0]?.por_mesa?.length === 2, 'Estadisticas: 2 mesas activas');
+  const expectedPercent = stats?.total_votantes
+    ? Math.round((stats.total_votaron / stats.total_votantes) * 10000) / 100
+    : 0;
+  assert(Number(stats?.participacion_pct) === expectedPercent, 'estadísticas: porcentaje calculado');
+  const ownMese = stats?.por_mesa?.filter(mesa => [fixture.mesaA.id, fixture.mesaB.id].includes(mesa.mesa_id));
+  assert(ownMese?.length === 2, 'estadísticas: incluye las dos mesas activas propias');
 }
 
-async function testListarVotantesFiltros() {
-  console.log('\n🧪 PRUEBA: Listar votantes con filtros');
+async function testListVoters() {
+  const { data: all, error: allError } = await adminUser.rpc('listar_votantes', { p_limit: 50, p_offset: 0 });
+  assert(!allError && all?.[0]?.total_count === fixture.baseTotal + 4, 'listado: total global incluye baseline', allError?.message);
 
-  // Sin filtros
-  const { data: all, error: allErr } = await admin.rpc('listar_votantes', {
-    p_limit: 50, p_offset: 0
+  const { data: byTable, error: tableError } = await adminUser.rpc('listar_votantes', {
+    p_mesa_id: fixture.mesaA.id,
+    p_limit: 50,
+    p_offset: 0,
   });
-  assert(!allErr, 'Listar: sin filtros', allErr?.message);
-  assert(all?.length === 4, 'Listar: 4 votantes totales');
+  assert(!tableError && byTable?.length === 2, 'listado: filtra por mesa', tableError?.message);
 
-  // Filtrar por mesa
-  const mesaId = (await admin.from('mesas').select('id').eq('nombre', '3ro Primaria A').single()).data.id;
-  const { data: porMesa, error: mesaErr } = await admin.rpc('listar_votantes', {
-    p_mesa_id: mesaId, p_limit: 50, p_offset: 0
+  const { data: pending, error: pendingError } = await adminUser.rpc('listar_votantes', {
+    p_solo_pendientes: true,
+    p_limit: 50,
+    p_offset: 0,
   });
-  assert(!mesaErr, 'Listar: por mesa', mesaErr?.message);
-  assert(porMesa?.length === 2, 'Listar: 2 votantes en mesa');
+  assert(!pendingError && pending?.[0]?.total_count === fixture.basePending + 3, 'listado: cuenta solo pendientes', pendingError?.message);
 
-  // Solo pendientes
-  const { data: pendientes, error: pendErr } = await admin.rpc('listar_votantes', {
-    p_solo_pendientes: true, p_limit: 50, p_offset: 0
+  const { data: byDni, error: dniError } = await adminUser.rpc('listar_votantes', {
+    p_busqueda: fixture.dnis.pendingOne,
+    p_limit: 50,
+    p_offset: 0,
   });
-  assert(!pendErr, 'Listar: solo pendientes', pendErr?.message);
-  assert(pendientes?.length === 3, 'Listar: 3 pendientes');
+  assert(!dniError && byDni?.length === 1 && byDni[0].nombre === voterNames[1],
+    'listado: busca por DNI sin ambigüedad', dniError?.message);
 
-  // Búsqueda por DNI
-  const { data: search, error: searchErr } = await admin.rpc('listar_votantes', {
-    p_busqueda: '12345678', p_limit: 50, p_offset: 0
+  const { data: byName, error: nameError } = await adminUser.rpc('listar_votantes', {
+    p_busqueda: runId,
+    p_limit: 50,
+    p_offset: 0,
   });
-  assert(!searchErr, 'Listar: búsqueda DNI', searchErr?.message);
-  assert(search?.length === 1, 'Listar: 1 resultado búsqueda');
-  assert(search?.[0]?.nombre === 'Ana Pérez', 'Listar: nombre correcto');
-
-  // Búsqueda por nombre
-  const { data: search2 } = await admin.rpc('listar_votantes', {
-    p_busqueda: 'Carlos', p_limit: 50, p_offset: 0
-  });
-  assert(search2?.length === 1, 'Listar: búsqueda por nombre');
+  assert(!nameError && byName?.length === 4, 'listado: busca nombres de fixtures', nameError?.message);
 }
 
-async function testValidarImportacion() {
-  console.log('\n🧪 PRUEBA: Validar importación (preview)');
-
-  const mesaId = (await admin.from('mesas').select('id').eq('nombre', '3ro Primaria A').single()).data.id;
-
-  // Datos válidos
-  const validos = [
-    { dni: '33333333', nombre: 'Luis Torres', mesa_id: mesaId },
-    { dni: '44444444', nombre: 'Sofia Vargas', mesa_id: mesaId },
-  ];
-
-  const { data, error } = await admin.rpc('validar_importacion_votantes', {
-    p_votantes: validos
+async function testImportValidation() {
+  const { dnis, mesaA } = fixture;
+  const { data: valid, error: validError } = await adminUser.rpc('validar_importacion_votantes', {
+    p_votantes: [
+      { dni: dnis.validOne, nombre: 'Preview uno', mesa_id: mesaA.id },
+      { dni: dnis.validTwo, nombre: 'Preview dos', mesa_id: mesaA.id },
+    ],
   });
-  assert(!error, 'Validar: datos válidos', error?.message);
-  assert(data?.[0]?.validos === 2, 'Validar: 2 válidos');
-  assert(data?.[0]?.invalidos === 0, 'Validar: 0 inválidos');
+  assert(!validError && valid?.[0]?.validos === 2 && valid[0].invalidos === 0,
+    'validación: acepta filas válidas', validError?.message);
 
-  // DNI duplicado
-  const conDuplicado = [
-    { dni: '12345678', nombre: 'Ana Pérez', mesa_id: mesaId }, // Ya existe
-    { dni: '55555555', nombre: 'Nuevo Alumno', mesa_id: mesaId },
-  ];
-  const { data: dupData } = await admin.rpc('validar_importacion_votantes', {
-    p_votantes: conDuplicado
+  const { data: duplicate } = await adminUser.rpc('validar_importacion_votantes', {
+    p_votantes: [
+      { dni: dnis.voted, nombre: voterNames[0], mesa_id: mesaA.id },
+      { dni: dnis.previewNew, nombre: 'Nuevo preview', mesa_id: mesaA.id },
+    ],
   });
-  assert(dupData?.[0]?.validos === 1, 'Validar: 1 válido (el nuevo)');
-  assert(dupData?.[0]?.invalidos === 1, 'Validar: 1 inválido (duplicado)');
+  assert(duplicate?.[0]?.validos === 1 && duplicate[0].invalidos === 1, 'validación: detecta duplicado de fixture');
 
-  // DNI inválido
-  const dniInvalido = [
-    { dni: 'abc', nombre: 'Test', mesa_id: mesaId },
-  ];
-  const { data: invData } = await admin.rpc('validar_importacion_votantes', {
-    p_votantes: dniInvalido
+  const { data: invalidDni } = await adminUser.rpc('validar_importacion_votantes', {
+    p_votantes: [{ dni: 'abc', nombre: 'Fila inválida', mesa_id: mesaA.id }],
   });
-  assert(invData?.[0]?.invalidos === 1, 'Validar: DNI inválido rechazado');
+  assert(invalidDni?.[0]?.invalidos === 1, 'validación: rechaza DNI inválido');
 
-  // Mesa inválida
-  const mesaInvalida = [
-    { dni: '66666666', nombre: 'Test', mesa_id: '00000000-0000-0000-0000-000000000000' },
-  ];
-  const { data: mesaInvData } = await admin.rpc('validar_importacion_votantes', {
-    p_votantes: mesaInvalida
+  const { data: invalidMesa } = await adminUser.rpc('validar_importacion_votantes', {
+    p_votantes: [{ dni: dnis.invalidMesa, nombre: 'Mesa inválida', mesa_id: '00000000-0000-0000-0000-000000000000' }],
   });
-  assert(mesaInvData?.[0]?.invalidos === 1, 'Validar: Mesa inválida rechazada');
+  assert(invalidMesa?.[0]?.invalidos === 1, 'validación: rechaza mesa inválida');
 
-  // Nombre vacío
-  const sinNombre = [
-    { dni: '77777777', nombre: '', mesa_id: mesaId },
-  ];
-  const { data: nomData } = await admin.rpc('validar_importacion_votantes', {
-    p_votantes: sinNombre
+  const { data: emptyName } = await adminUser.rpc('validar_importacion_votantes', {
+    p_votantes: [{ dni: dnis.emptyName, nombre: '', mesa_id: mesaA.id }],
   });
-  assert(nomData?.[0]?.invalidos === 1, 'Validar: Nombre vacío rechazado');
+  assert(emptyName?.[0]?.invalidos === 1, 'validación: rechaza nombre vacío');
 }
 
-async function testImportarVotantes() {
-  console.log('\n🧪 PRUEBA: Importar votantes (bulk insert)');
-
-  const mesaId = (await admin.from('mesas').select('id').eq('nombre', '3ro Primaria A').single()).data.id;
-
-  // Importar nuevos
-  const nuevos = [
-    { dni: '88888888', nombre: 'Importado Uno', mesa_id: mesaId },
-    { dni: '99999999', nombre: 'Importado Dos', mesa_id: mesaId },
+async function testBulkImport() {
+  const { dnis, mesaA } = fixture;
+  const newRows = [
+    { dni: dnis.importOne, nombre: 'Importado uno', mesa_id: mesaA.id },
+    { dni: dnis.importTwo, nombre: 'Importado dos', mesa_id: mesaA.id },
   ];
-  const { data, error } = await admin.rpc('importar_votantes', {
-    p_votantes: nuevos
-  });
-  assert(!error, 'Importar: insertar nuevos', error?.message);
-  assert(data?.[0]?.insertados === 2, 'Importar: 2 insertados');
-  assert(data?.[0]?.duplicados === 0, 'Importar: 0 duplicados');
+  const { data, error } = await adminUser.rpc('importar_votantes', { p_votantes: newRows });
+  assert(!error && data?.[0]?.insertados === 2 && data[0].duplicados === 0, 'importación: inserta filas propias', error?.message);
 
-  // Verificar en BD
-  const { data: check } = await admin.from('votantes').select('dni').in('dni', ['88888888', '99999999']);
-  assert(check?.length === 2, 'Importar: confirmados en BD');
+  const { data: inserted } = await backend.from('votantes').select('dni')
+    .in('dni', [dnis.importOne, dnis.importTwo]);
+  assert(inserted?.length === 2, 'importación: fixtures aparecen en padrón');
 
-  // Intentar duplicados
-  const { data: dupImport } = await admin.rpc('importar_votantes', {
-    p_votantes: nuevos
-  });
-  assert(dupImport?.[0]?.insertados === 0, 'Importar: 0 insertados en reintento');
-  assert(dupImport?.[0]?.duplicados === 2, 'Importar: 2 duplicados detectados');
+  const { data: duplicate } = await adminUser.rpc('importar_votantes', { p_votantes: newRows });
+  assert(duplicate?.[0]?.insertados === 0 && duplicate[0].duplicados === 2, 'importación: detecta reintento duplicado');
 
-  // Mixto: válidos + duplicados + errores
-  const mixto = [
-    { dni: '10101010', nombre: 'Nuevo Tres', mesa_id: mesaId },
-    { dni: '88888888', nombre: 'Importado Uno', mesa_id: mesaId }, // Duplicado
-    { dni: 'invalid', nombre: 'Error DNI', mesa_id: mesaId }, // Error
-  ];
-  const { data: mixData } = await admin.rpc('importar_votantes', {
-    p_votantes: mixto
+  const { data: mixed } = await adminUser.rpc('importar_votantes', {
+    p_votantes: [
+      { dni: dnis.importNew, nombre: 'Importado nuevo', mesa_id: mesaA.id },
+      { dni: dnis.importOne, nombre: 'Duplicado propio', mesa_id: mesaA.id },
+      { dni: 'not-a-dni', nombre: 'Error DNI', mesa_id: mesaA.id },
+    ],
   });
-  assert(mixData?.[0]?.insertados === 1, 'Importar mixto: 1 insertado');
-  assert(mixData?.[0]?.duplicados === 1, 'Importar mixto: 1 duplicado');
-  assert((mixData?.[0]?.errores?.length ?? 0) >= 1, 'Importar mixto: al menos 1 error');
+  assert(mixed?.[0]?.insertados === 1 && mixed[0].duplicados === 1 && mixed[0].errores?.length >= 1,
+    'importación: procesa filas válidas, duplicadas e inválidas');
 }
 
-async function testAnonNoAccesoPadron() {
-  console.log('\n🧪 PRUEBA: anon NO accede a padrón ni mesas');
+async function testAuthorization() {
+  const { error: anonReadError } = await anon.from('votantes').select('dni').limit(1);
+  assert(Boolean(anonReadError), 'anon: sin acceso directo al padrón', anonReadError?.message);
 
-  // Mesas
-  const { error: e1 } = await anon.from('mesas').select('*').limit(1);
-  assert(e1, 'anon: bloqueado SELECT mesas', e1?.message);
+  const protectedCalls = [
+    ['estadísticas', client => client.rpc('obtener_estadisticas_padron')],
+    ['listado', client => client.rpc('listar_votantes', { p_limit: 10 })],
+    ['validación', client => client.rpc('validar_importacion_votantes', { p_votantes: [] })],
+    ['importación', client => client.rpc('importar_votantes', { p_votantes: [] })],
+  ];
+  for (const [name, call] of protectedCalls) {
+    const { error } = await call(anon);
+    assert(Boolean(error), `anon: RPC de ${name} denegada`, error?.message);
+  }
 
-  // Votantes
-  const { error: e2 } = await anon.from('votantes').select('*').limit(1);
-  assert(e2, 'anon: bloqueado SELECT votantes', e2?.message);
+  const { data: memberRows, error: memberReadError } = await member.from('votantes').select('dni').limit(1);
+  assert(!memberReadError && memberRows?.length === 0, 'usuario normal: RLS no devuelve DNI', memberReadError?.message);
 
-  // RPCs de padrón
-  const { error: e3 } = await anon.rpc('obtener_estadisticas_padron');
-  assert(e3, 'anon: bloqueado RPC estadísticas', e3?.message);
+  for (const [name, call] of protectedCalls) {
+    const { error } = await call(member);
+    assert(Boolean(error), `usuario normal: RPC de ${name} denegada`, error?.message);
+  }
 
-  const { error: e4 } = await anon.rpc('listar_votantes', { p_limit: 10 });
-  assert(e4, 'anon: bloqueado RPC listar', e4?.message);
+  const { data: userMetadata, error: metadataError } = await member.auth.updateUser({
+    data: { role: 'admin' },
+  });
+  assert(!metadataError && userMetadata?.user?.user_metadata?.role === 'admin',
+    'usuario normal: puede alterar solo user_metadata', metadataError?.message);
+  await member.auth.refreshSession();
+  const { error: forgedRoleError } = await member.rpc('obtener_estadisticas_padron');
+  assert(Boolean(forgedRoleError), 'user_metadata no permite falsificar app_metadata.role', forgedRoleError?.message);
 
-  const { error: e5 } = await anon.rpc('validar_importacion_votantes', { p_votantes: [] });
-  assert(e5, 'anon: bloqueado RPC validar', e5?.message);
+  const { data: adminRows, error: adminReadError } = await adminUser.from('votantes')
+    .select('dni').eq('dni', fixture.dnis.voted);
+  assert(!adminReadError && adminRows?.length === 1, 'admin autenticado: accede al padrón por RLS', adminReadError?.message);
 
-  const { error: e6 } = await anon.rpc('importar_votantes', { p_votantes: [] });
-  assert(e6, 'anon: bloqueado RPC importar', e6?.message);
+  for (const [name, call] of protectedCalls) {
+    const { error } = await call(adminUser);
+    assert(!error, `admin autenticado: autorizado en RPC de ${name}`, error?.message);
+  }
+}
+
+async function cleanup() {
+  if (fixture) {
+    const dnis = Object.values(fixture.dnis);
+    const { error: voterError } = await backend.from('votantes').delete().in('dni', dnis);
+    if (voterError) console.error(`No se pudieron limpiar fixtures del padrón: ${voterError.message}`);
+
+    const mesaIds = fixture.mesas.map(mesa => mesa.id);
+    if (fixture.extraMesaId) mesaIds.push(fixture.extraMesaId);
+    const { error: mesaError } = await backend.from('mesas').delete().in('id', mesaIds);
+    if (mesaError) console.error(`No se pudieron limpiar fixtures de mesas: ${mesaError.message}`);
+  }
+
+  for (const id of createdUserIds) {
+    const { error } = await backend.auth.admin.deleteUser(id);
+    if (error) console.error(`No se pudo eliminar usuario temporal de prueba: ${error.message}`);
+  }
 }
 
 async function runAllTests() {
-  console.log('🚀 INICIANDO PRUEBAS FASE 2\n');
-
   try {
-    await setupTestData();
+    adminUser = await createPrincipal('admin');
+    member = await createPrincipal('member');
+    await createFixtures();
 
     await testMesasCRUD();
-    await testMesasValidacion();
-    await testEstadisticasPadron();
-    await testListarVotantesFiltros();
-    await testValidarImportacion();
-    await testImportarVotantes();
-    await testAnonNoAccesoPadron();
-
-  } catch (e) {
-    console.error('\n💥 Error fatal en pruebas:', e);
+    await testMesasValidation();
+    await testPadronStats();
+    await testListVoters();
+    await testImportValidation();
+    await testBulkImport();
+    await testAuthorization();
+  } catch (error) {
     failed++;
+    console.error(`ERROR de ejecución de pruebas: ${error.message}`);
+  } finally {
+    await cleanup();
   }
 
-  console.log('\n' + '='.repeat(50));
-  console.log(`📊 RESULTADOS FASE 2: ${passed} aprobadas, ${failed} fallidas`);
-  console.log('='.repeat(50));
-
-  const fs = await import('fs');
-  fs.writeFileSync('test-results-fase2.json', JSON.stringify({ passed, failed, results, timestamp: new Date().toISOString() }, null, 2));
-  console.log('📄 Reporte guardado en test-results-fase2.json');
-
-  process.exit(failed > 0 ? 1 : 0);
+  console.log(`\nResultados reales Fase 2: ${passed} aprobadas, ${failed} fallidas`);
+  process.exitCode = failed > 0 ? 1 : 0;
 }
 
 runAllTests();

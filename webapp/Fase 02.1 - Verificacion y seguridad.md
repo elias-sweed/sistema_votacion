@@ -222,3 +222,11 @@ SELECT proname, proacl FROM pg_proc WHERE proname IN ('obtener_estadisticas_padr
 **Fecha:** 2026-10-21  
 **Fase:** 02.1 — Verificación y Seguridad  
 **Estado:** **IMPLEMENTADA Y COMPILADA** — Tests DB pendientes (requiere Docker)
+
+---
+
+## Nota de corrección posterior — Fase 02.2
+
+Una revisión posterior determinó que los permisos y la verificación de `service_role` descritos arriba no eran suficientes: 001 permitía llamadas directas a las RPC base y daba `EXECUTE` global a `authenticated`; además, `current_user` no representa al invocador dentro de `SECURITY DEFINER`. La vista de resultados también requería aplicar RLS con los privilegios del solicitante.
+
+Estas afirmaciones históricas quedan supersedidas por [Fase 02.2 - Correcciones de seguridad.md](./Fase%2002.2%20-%20Correcciones%20de%20seguridad.md) y `supabase/migrations/004_security_fixes.sql`. Las pruebas de base de datos siguen pendientes hasta ejecutarse contra Supabase local.

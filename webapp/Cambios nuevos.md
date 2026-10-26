@@ -523,3 +523,21 @@ Auditar y corregir la Fase 02 antes de la Fase 03, asegurando seguridad real (no
 1. Instalar Docker Desktop
 2. Ejecutar tests completos contra Supabase local
 3. Proceder a Fase 3 (Kiosco `/votar`, voto, resultados, acta)
+
+---
+
+## R. Correcciones de seguridad FASE 2.2
+
+**Documento:** [`Fase 02.2 - Correcciones de seguridad.md`](Fase%2002.2%20-%20Correcciones%20de%20seguridad.md)
+
+Esta sección complementa el historial anterior: la revisión posterior encontró que los permisos descritos en Fase 1/2.1 no impedían todas las llamadas directas y que `current_user` no era una base válida para reconocer `service_role` dentro de `SECURITY DEFINER`.
+
+| Archivo | Cambio |
+|---------|--------|
+| `supabase/migrations/004_security_fixes.sql` | Migración correctiva para función admin basada en claims firmados, ACL explícitas, wrappers limitados solo a `service_role`, eliminación de `TRUNCATE` por `authenticated` y vista resultados como `security_invoker` |
+| `supabase/schema.sql` | Esquema base actualizado para políticas RLS admin, permisos restringidos y vista con RLS del invocador |
+| `tests/security.test.js` | Pruebas anon/usuario normal/admin, RPC directas, wrappers backend, resultados, padrón, rate limit y voto duplicado/concurrente |
+| `tests/fase2.test.js` | Pruebas de autorización admin/no-admin y restricción explícita a Supabase local |
+| `tests/security_privileges.sql` | Aserciones SQL sobre ACL, `TRUNCATE` y la opción `security_invoker` |
+
+**Validación:** pendiente de ejecutar; no se afirma que las pruebas de base de datos hayan pasado. La migración existente se actualiza aplicando 004 después de 001-003; las instalaciones limpias deben aplicar schema.sql y luego 001-004.
