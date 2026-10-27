@@ -291,3 +291,20 @@ test('una excepción inesperada se convierte en error interno', async (t) => {
   assert.equal(response.status, 500);
   assert.deepEqual(await readJson(response), { error: 'Error interno del servidor' });
 });
+
+test('un error de PostgREST se registra con mensaje y código, no como [object Object]', async (t) => {
+  const logged = [];
+  t.mock.method(console, 'error', (...args) => logged.push(args.join(' ')));
+  const supabase = createFakeSupabase({
+    config: {
+      data: null,
+      error: { message: 'permission denied for table configuracion', code: '42501' },
+    },
+  });
+  const response = await handleProxyRequest(proxyRequest({ action: 'estado' }), { supabase });
+  assert.equal(response.status, 500);
+  assert.equal(logged.length, 1);
+  assert.match(logged[0], /permission denied for table configuracion/);
+  assert.match(logged[0], /42501/);
+  assert.doesNotMatch(logged[0], /\[object Object\]/);
+});

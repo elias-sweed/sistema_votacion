@@ -607,3 +607,45 @@ Auditoría de cierre de la Fase 03. No se añadieron funciones electorales, tabl
 ### Pendiente y bloqueado
 
 `tests/voting.test.js`, `tests/security.test.js`, `tests/fase2.test.js` y `tests/security_privileges.sql` no se ejecutaron: faltan `.env.test`, Docker, Supabase CLI y `psql`. La Edge Function no se ejecutó en Deno. La prueba de navegador usa un mock que reutiliza el handler real, pero **no valida RLS, transacciones, permisos ni rate limiting real**. No se declara el kiosco verificado para producción; véase el documento de Fase 03.1 para riesgos y pasos de reproducción.
+
+---
+
+## U. FASE 04 — Auditoría de integración real con Supabase
+
+**Documento:** [`Fase 04 - Auditoria e integracion Supabase.md`](Fase%2004%20-%20Auditoria%20e%20integracion%20Supabase.md)
+
+Auditoría de la integración entre el kiosco, la Edge Function y PostgreSQL. No se añadieron funciones electorales, tablas, migraciones ni cambios de RLS. No hubo despliegues ni acceso a producción.
+
+### Ejecutado realmente
+
+| Check | Resultado |
+|---|---|
+| `npm run build` | Pasó; aviso informativo de chunk JS de 893.43 kB |
+| `npm run typecheck` (app + Node + handler) | Pasó |
+| `npm run test:offline` | 26/26 pruebas pasaron |
+| `node --check` de los seis scripts | Pasó |
+| `git diff --check` | Pasó (solo avisos LF/CRLF) |
+
+### Corrección aplicada
+
+| Archivo | Cambio |
+|---|---|
+| `supabase/functions/voting-proxy/handler.ts` | `logError` ahora extrae `message`, `details`, `hint` y `code` de errores PostgREST; ya no registra `[object Object]` |
+| `tests/voting-proxy-handler.test.js` | Regresión del log estructurado (26ª prueba) |
+
+### Pruebas bloqueadas
+
+`tests/security.test.js`, `tests/fase2.test.js`, `tests/voting.test.js` y `tests/security_privileges.sql` siguen sin ejecutarse: no hay Docker, Supabase CLI, `psql`, Deno, `.env.test` ni `supabase/config.toml`. La Edge Function no se ejecutó en Deno. **La integración con Supabase no está verificada** y no se declara segura por pruebas estáticas.
+
+### Hallazgos principales
+
+| Severidad | Hallazgo |
+|---|---|
+| **ALTO** | `emitir_voto` falla abierto si falta la fila de `configuracion` (`v_conf` NULL omite la comprobación) |
+| **MEDIO** | El rate limit por IP confía en `x-forwarded-for`; la verificación permite enumerar nombres por DNI si el header es falsificable |
+| **MEDIO** | Un `mesa_id` malformado aborta toda la importación por un cast `::uuid` fuera del bloque de excepción |
+| **MEDIO** | No existe migración base: `supabase db reset` no reconstruye el esquema; `schema.sql` no es idempotente para políticas |
+| **MEDIO** | Hash de DNI sin sal, tabla de rate limiting sin retención y ausencia de auditoría administrativa |
+| **BAJO** | CORS `*`, falta `config.toml`, validación UUID solo v4, `index.ts` fuera del typecheck, header de IP sin validar como `inet` y fragilidad de la suite de integración |
+
+Los hallazgos SQL se documentan con propuesta e impacto, pero **no se aplicaron**. Los pasos manuales para crear un entorno local aislado, aplicar `schema.sql` + migraciones 001–004, servir la Edge Function y ejecutar las suites están en el documento de Fase 04.

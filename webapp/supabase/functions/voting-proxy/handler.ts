@@ -57,9 +57,20 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+function describeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error)) {
+    // Los errores de PostgREST/Postgres son objetos planos. String(objeto)
+    // produce "[object Object]" y oculta el diagnostico en produccion.
+    const fields = [error.message, error.details, error.hint, error.code]
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
+    if (fields.length > 0) return fields.join(" | ");
+  }
+  return String(error);
+}
+
 function logError(context: string, error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`${context}: ${message}`);
+  console.error(`${context}: ${describeError(error)}`);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
