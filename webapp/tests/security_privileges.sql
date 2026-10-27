@@ -10,8 +10,16 @@ begin
 
   if has_function_privilege('anon', 'public.obtener_estadisticas_padron()', 'EXECUTE')
      or not has_function_privilege('authenticated', 'public.obtener_estadisticas_padron()', 'EXECUTE')
+     or has_function_privilege('service_role', 'public.obtener_estadisticas_padron()', 'EXECUTE')
      or has_function_privilege('anon', 'public.listar_votantes(uuid, text, boolean, integer, integer)', 'EXECUTE')
-     or not has_function_privilege('authenticated', 'public.listar_votantes(uuid, text, boolean, integer, integer)', 'EXECUTE') then
+     or not has_function_privilege('authenticated', 'public.listar_votantes(uuid, text, boolean, integer, integer)', 'EXECUTE')
+     or has_function_privilege('service_role', 'public.listar_votantes(uuid, text, boolean, integer, integer)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.importar_votantes(jsonb)', 'EXECUTE')
+     or not has_function_privilege('authenticated', 'public.importar_votantes(jsonb)', 'EXECUTE')
+     or has_function_privilege('service_role', 'public.importar_votantes(jsonb)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.validar_importacion_votantes(jsonb)', 'EXECUTE')
+     or not has_function_privilege('authenticated', 'public.validar_importacion_votantes(jsonb)', 'EXECUTE')
+     or has_function_privilege('service_role', 'public.validar_importacion_votantes(jsonb)', 'EXECUTE') then
     raise exception 'Permisos incorrectos en las RPC administrativas del padron';
   end if;
 

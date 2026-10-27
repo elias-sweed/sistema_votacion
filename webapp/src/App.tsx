@@ -6,10 +6,12 @@ import GradientASCIIBackground from './components/ui/GradientASCIIBackground'
 import { ToastProvider } from './components/ui/ToastProvider'
 import LoginPage from './features/auth/LoginPage'
 import PanelPage from './features/panel/PanelPage'
+import VotingKioskPage from './features/voting/VotingKioskPage'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [cargando, setCargando] = useState(true)
+  const esAdmin = session?.user.app_metadata?.role === 'admin'
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -31,8 +33,9 @@ export default function App() {
         ) : (
           <BrowserRouter>
             <Routes>
-              <Route path="/login" element={session ? <Navigate to="/" replace /> : <LoginPage />} />
-              <Route path="/" element={session ? <PanelPage /> : <Navigate to="/login" replace />} />
+              <Route path="/votar" element={<VotingKioskPage />} />
+              <Route path="/login" element={esAdmin ? <Navigate to="/" replace /> : session ? <Navigate to="/votar" replace /> : <LoginPage />} />
+              <Route path="/" element={esAdmin ? <PanelPage /> : <Navigate to={session ? '/votar' : '/login'} replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>

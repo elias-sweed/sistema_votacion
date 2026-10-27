@@ -541,3 +541,69 @@ Esta sección complementa el historial anterior: la revisión posterior encontr�
 | `tests/security_privileges.sql` | Aserciones SQL sobre ACL, `TRUNCATE` y la opción `security_invoker` |
 
 **Validación:** pendiente de ejecutar; no se afirma que las pruebas de base de datos hayan pasado. La migración existente se actualiza aplicando 004 después de 001-003; las instalaciones limpias deben aplicar schema.sql y luego 001-004.
+
+---
+
+## S. FASE 03 — Kiosco electoral y flujo de votación
+
+**Documento:** [`Fase 03 - Kiosco electoral y votacion.md`](Fase%2003%20-%20Kiosco%20electoral%20y%20votacion.md)
+
+| Archivo | Cambio |
+|---|---|
+| `src/App.tsx` | Ruta pública `/votar`; el panel requiere `app_metadata.role = 'admin'` |
+| `src/features/voting/VotingKioskPage.tsx` | Identificación, selección única, revisión y confirmación; manejo de error ambiguo sin reintento automático |
+| `src/features/voting/votingService.ts` | Integración tipada con la Edge Function para estado, candidatos activos y voto |
+| `supabase/functions/voting-proxy/index.ts` | Acciones `estado`/`candidatos`, validación de payload y respuesta de identidad minimizada |
+| `tests/voting.test.js` | Integración local de la API del kiosco, voto duplicado y concurrencia |
+| `tests/voting-static.test.js` | Reglas estáticas de seguridad del frontend y minimización de respuestas |
+
+No se añadieron tablas ni migraciones y no se cambiaron políticas RLS. La apertura/cierre sigue usando `configuracion.eleccion_abierta` y las RPC existentes mantienen la protección transaccional. La suite visual/UI y las pruebas de Supabase/Edge Function permanecen pendientes porque este entorno no dispone de Docker, Supabase CLI, `psql` ni `.env.test` local; véase el documento de Fase 03 para resultados y pasos manuales. No se afirma que el kiosco esté listo para producción.
+
+---
+
+## T. FASE 03.1 — Verificación integral del kiosco
+
+**Documento:** [`Fase 03.1 - Verificacion integral.md`](Fase%2003.1%20-%20Verificacion%20integral.md)
+
+Auditoría de cierre de la Fase 03. No se añadieron funciones electorales, tablas, migraciones ni cambios de RLS.
+
+### Defectos corregidos
+
+| Severidad | Hallazgo | Corrección |
+|---|---|---|
+| **CRÍTICO** | La acción `candidatos` estaba anidada dentro de `estado`, por lo que `/votar` nunca podía cargar opciones | Lógica extraída a `handler.ts` con ramas hermanas; regresión estática incluida |
+| **ALTO** | Un DNI inexistente devolvía una respuesta sin `nombre` y el frontend la mostraba como “respuesta inválida” | El proxy devuelve siempre `nombre: null` y `existe`; el servicio distingue no encontrado de respuesta malformada |
+| **MEDIO** | Éxito y respuesta ambigua no tenían salida controlada para el siguiente votante o el personal | Botones de reinicio que limpian estado y **no reenvían** el voto |
+| **MEDIO** | `npx tsc --noEmit` terminaba en 0 sin comprobar `src` por el `tsconfig` de solución | Script `typecheck` real para app, Node y handler del Edge Function |
+| **BAJA** | `.env.test` y `.env.*.local` no estaban ignorados | Añadidos a `.gitignore` |
+
+### Archivos nuevos/modificados
+
+| Archivo | Cambio |
+|---|---|
+| `supabase/functions/voting-proxy/handler.ts` | **NUEVO**: lógica HTTP testeable fuera de Deno |
+| `supabase/functions/voting-proxy/index.ts` | Entrada Deno delgada que inyecta el cliente Supabase |
+| `src/features/voting/votingService.ts` | Validación de `nombre` nulo, `existe` y mapeo de `P0001` |
+| `src/features/voting/VotingKioskPage.tsx` | Reinicio controlado en éxito/ambiguo; sin reenvío de voto |
+| `tests/voting-proxy-handler.test.js` | **NUEVO**: 18 pruebas del handler con cliente simulado |
+| `tests/voting-static.test.js` | 7 pruebas, incluida la regresión de `candidatos` |
+| `tests/manual-kiosk-mock-server.mjs` | **NUEVO**: fixtures para prueba manual en navegador |
+| `package.json` | Scripts `typecheck` y `test:offline` |
+| `tsconfig.edge.json` | **NUEVO**: typecheck del handler |
+| `.gitignore` | Ignora `.env.test` y `.env.*.local` |
+
+### Verificación real
+
+| Check | Resultado |
+|---|---|
+| `npm run build` | Pasó; aviso de chunk JS de 893.43 kB |
+| `npm run typecheck` (app + node + edge) | Pasó |
+| `npm run test:offline` | 25/25 pruebas pasaron |
+| `node --check` de los seis scripts de prueba | Pasó |
+| `git diff --check` | Pasó (solo avisos LF/CRLF) |
+| Navegador real con fixtures | Pasó: estado/candidatos activos, DNI válido/inexistente/ya votado, rate limit, elección cerrada, doble clic con una sola petición, éxito, respuesta ambigua y fallo de red sin voto registrado |
+| `/` sin sesión | Redirige a `/login` |
+
+### Pendiente y bloqueado
+
+`tests/voting.test.js`, `tests/security.test.js`, `tests/fase2.test.js` y `tests/security_privileges.sql` no se ejecutaron: faltan `.env.test`, Docker, Supabase CLI y `psql`. La Edge Function no se ejecutó en Deno. La prueba de navegador usa un mock que reutiliza el handler real, pero **no valida RLS, transacciones, permisos ni rate limiting real**. No se declara el kiosco verificado para producción; véase el documento de Fase 03.1 para riesgos y pasos de reproducción.
