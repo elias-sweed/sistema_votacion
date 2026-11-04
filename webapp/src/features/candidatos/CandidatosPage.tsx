@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useToast } from '../../components/ui/ToastProvider'
 import TiltedCard, { TiltedCardLayer } from '../../components/ui/TiltedCard'
 
 type Candidato = { id: string; nombre: string; foto_url: string | null; activo: boolean }
@@ -18,6 +19,7 @@ function Placeholder({ nombre }: { nombre: string }) {
 }
 
 export default function CandidatosPage() {
+  const toast = useToast()
   const [candidatos, setCandidatos] = useState<Candidato[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -57,10 +59,25 @@ export default function CandidatosPage() {
   }
 
   async function alternarActivo(c: Candidato) {
+    setError(null); setExito(null)
     const { error: err } = await supabase.from('candidatos')
       .update({ activo: !c.activo }).eq('id', c.id)
-    if (err) { setError('No se pudo actualizar.'); return }
+    if (err) {
+      toast({
+        title: 'No se pudo actualizar',
+        description: err.message,
+        variant: 'error',
+        duration: 6000
+      })
+      return
+    }
     setCandidatos((prev) => prev.map((x) => (x.id === c.id ? { ...x, activo: !x.activo } : x)))
+    toast({
+      title: c.activo ? 'Candidato desactivado' : 'Candidato activado',
+      description: c.nombre,
+      variant: 'success',
+      duration: 3000
+    })
   }
 
   return (

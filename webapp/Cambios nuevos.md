@@ -1528,3 +1528,69 @@ Crea o actualiza el usuario `admin@admin.com` / `Admin123456` y confirma el corr
 Este modo **abre el panel a cualquier usuario autenticado**. Es válido para pruebas o uso interno; si luego se requiere restringir, hay que volver a la verificación por `app_metadata.role = 'admin'`.
 
 **No se hizo commit, push ni despliegue. No se ejecutó el script en la base remota.**
+
+---
+
+## XIII. FASE 09 — Verificación del panel y confirmación de cierre de sesión
+
+**Fecha:** 2026-11-04
+**Objetivo:** Verificar el funcionamiento y los mensajes de cada sección del panel, y agregar una confirmación antes de cerrar sesión (antes se cerraba al instante, sin preguntar).
+
+### 1. Diagnóstico previo
+
+| Sección | Estado encontrado |
+|---|---|
+| Inicio (dashboard) | ✅ Cargaba con «Actualizando…», banner de error y botón «Actualizar». |
+| Candidatos | ✅ Mensajes de validación, alta y error. ❌ Activar/desactivar no daba feedback. |
+| Mesas | ✅ Mensajes de alta, edición, duplicado y error. ❌ Activar/desactivar no daba feedback. |
+| Padrón | ✅ Vista previa, resultado de importación, errores detallados y paginación. ❌ Aceptaba `.xlsx` en la validación aunque Excel no está implementado. |
+| Cerrar sesión | ❌ `supabase.auth.signOut()` se ejecutaba al primer clic, **sin confirmación ni mensaje**. |
+
+### 2. Cambios realizados
+
+#### 2.1 `src/features/panel/PanelPage.tsx` — confirmación de cierre de sesión
+
+- El ítem «Cerrar sesión» del dock ahora abre un diálogo de confirmación.
+- El diálogo usa `role="dialog"`, `aria-modal`, `aria-labelledby`, `aria-describedby` y foco automático en el botón de confirmar.
+- Se cierra con «Cancelar», con clic en el fondo o con `Escape`.
+- Al confirmar: `signOut()` → toast **«Sesión cerrada — Has salido del panel de administración.»** → redirección a `/login`.
+- Si `signOut()` devuelve error, se muestra el toast de error y no se navega.
+
+#### 2.2 `src/features/candidatos/CandidatosPage.tsx` y `src/features/mesas/MesasPage.tsx`
+
+- Activar/desactivar ahora emite toast de éxito («Candidato activado/desactivado», «Mesa activada/desactivada») o de error con el mensaje de Supabase.
+
+#### 2.3 `src/features/padron/PadronPage.tsx`
+
+- La validación de archivo acepta solo `.csv` (coherente con el parser, que no soporta Excel).
+- La importación muestra toast de resultado (insertados / duplicados / errores) y toast de error si falla.
+
+### 3. Verificación en navegador (`vite preview`, puerto 4173)
+
+Se inyectó una sesión de prueba local (token sin firma válida) para montar el panel sin tocar Supabase. Las consultas de datos devolvieron 401 a propósito, lo que permitió comprobar también los mensajes de error.
+
+| Comprobación | Resultado |
+|---|---|
+| `/admin` monta el panel | ✅ Muestra «Panel de Control» y el resumen general |
+| `/admin/candidatos` | ✅ Renderiza y muestra «No se pudieron cargar los candidatos.» |
+| `/admin/mesas` | ✅ Renderiza y muestra «No se pudieron cargar las mesas.» |
+| `/admin/padron` | ✅ Renderiza filtros, importación y «No se pudo cargar el padrón.» |
+| Navegación por el dock | ✅ «Candidatos» cambia la URL a `/admin/candidatos` |
+| Abrir «Cerrar sesión» | ✅ Aparece el diálogo de confirmación |
+| «Cancelar» | ✅ Cierra el diálogo sin salir |
+| `Escape` | ✅ Cierra el diálogo sin salir |
+| Confirmar cierre | ✅ Limpia la sesión, redirige a `/login` y muestra el toast «Sesión cerrada» |
+| `npm run typecheck` | ✅ Sin errores |
+| `npm run test:offline` | ✅ 26/26 |
+| `npm run build` | ✅ 536 módulos, bundle `902.67 kB` |
+
+### 4. Estado
+
+| Aspecto | Estado |
+|---|---|
+| Mensajes de las cuatro secciones | ✅ Verificados |
+| Confirmación de cierre de sesión | ✅ Implementada y verificada |
+| Feedback en activar/desactivar | ✅ Implementado |
+| Build, typecheck y tests | ✅ Correctos |
+
+**Se hizo commit y push. No se desplegó en Vercel.**

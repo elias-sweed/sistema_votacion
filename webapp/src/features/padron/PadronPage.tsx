@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { ChangeEvent } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useToast } from '../../components/ui/ToastProvider'
 
 type Votante = {
   dni: string
@@ -46,6 +47,7 @@ type ImportResult = {
 type MesaOption = { id: string; nombre: string }
 
 export default function PadronPage() {
+  const toast = useToast()
   // Estados principales
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -128,8 +130,8 @@ export default function PadronPage() {
   function manejarArchivo(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!file.name.match(/\.(csv|xlsx|xls)$/i)) {
-      setError('Solo se permiten archivos CSV o Excel (.xlsx, .xls)')
+    if (!file.name.match(/\.csv$/i)) {
+      setError('Solo se permiten archivos CSV (.csv)')
       return
     }
     setArchivoSeleccionado(file)
@@ -187,10 +189,24 @@ export default function PadronPage() {
         setPasoImportacion('resultado')
         await cargarVotantes()
         await cargarEstadisticas()
-        setExito(`Importación completada: ${result.insertados} insertados, ${result.duplicados} duplicados, ${(result.errores?.length ?? 0)} errores.`)
+        const totalErrores = result.errores?.length ?? 0
+        setExito(`Importación completada: ${result.insertados} insertados, ${result.duplicados} duplicados, ${totalErrores} errores.`)
+        toast({
+          title: 'Importación completada',
+          description: `${result.insertados} insertados · ${result.duplicados} duplicados · ${totalErrores} errores`,
+          variant: totalErrores > 0 ? 'info' : 'success',
+          duration: 5000
+        })
       }
     } catch (e: any) {
-      setError('Error al importar: ' + (e.message || 'Error desconocido'))
+      const mensaje = 'Error al importar: ' + (e.message || 'Error desconocido')
+      setError(mensaje)
+      toast({
+        title: 'No se pudo importar',
+        description: e.message || 'Error desconocido',
+        variant: 'error',
+        duration: 7000
+      })
     } finally {
       setImportando(false)
     }

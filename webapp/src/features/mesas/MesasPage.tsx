@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useToast } from '../../components/ui/ToastProvider'
 
 type Mesa = { id: string; nombre: string; activo: boolean; creado_en: string }
 
 export default function MesasPage() {
+  const toast = useToast()
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -79,10 +81,25 @@ export default function MesasPage() {
   }
 
   async function alternarActivo(m: Mesa) {
+    setError(null); setExito(null)
     const { error: err } = await supabase.from('mesas')
       .update({ activo: !m.activo }).eq('id', m.id)
-    if (err) { setError('No se pudo actualizar.'); return }
+    if (err) {
+      toast({
+        title: 'No se pudo actualizar',
+        description: err.message,
+        variant: 'error',
+        duration: 6000
+      })
+      return
+    }
     setMesas((prev) => prev.map((x) => (x.id === m.id ? { ...x, activo: !x.activo } : x)))
+    toast({
+      title: m.activo ? 'Mesa desactivada' : 'Mesa activada',
+      description: m.nombre,
+      variant: 'success',
+      duration: 3000
+    })
   }
 
   return (
