@@ -1594,3 +1594,51 @@ Se inyectó una sesión de prueba local (token sin firma válida) para montar el
 | Build, typecheck y tests | ✅ Correctos |
 
 **Se hizo commit y push. No se desplegó en Vercel.**
+
+---
+
+## XIV. FASE 10 — Imagen de candidato y mesas por grado/sección
+
+**Fecha:** 2026-11-04
+**Objetivo:** En el panel, reemplazar el campo de URL de foto por un selector de imagen y organizar las mesas por grado (1°–6°) y sección (A–F).
+
+### 1. Candidatos — «Seleccionar imagen»
+
+`src/features/candidatos/CandidatosPage.tsx`
+
+- Se eliminó el `<input>` de texto «URL de foto (opcional)».
+- Ahora hay un selector de archivo con el label **«Seleccionar imagen»** (`accept="image/png,image/jpeg,image/webp"`).
+- Validaciones: debe ser imagen y no superar **5 MB**.
+- La imagen se redimensiona a **640 px** y se convierte a **WebP** (calidad 0.85, con fallback a JPEG) antes de guardarse en `foto_url` como data URL.
+- Se muestra el nombre del archivo y un botón **«Quitar imagen»**.
+- La vista previa (TiltedCard) usa la imagen seleccionada.
+
+### 2. Mesas — grado y sección
+
+`src/features/mesas/MesasPage.tsx`
+
+- Se reemplazó el campo de texto libre por dos selects:
+  - **Grado:** 1° a 6°.
+  - **Sección:** A, B, C, D, E y F.
+- El nombre de la mesa se genera como `1° A`, `3° C`, etc.
+- Nuevo botón **«Generar todas (36)»**: crea las 36 combinaciones 1°–6° × A–F, omitiendo las que ya existen e informando cuántas se crearon y el total.
+- Se conservan editar, activar/desactivar y los mensajes de error/éxito.
+
+### 3. Verificación
+
+| Comprobación | Resultado |
+|---|---|
+| Label «Seleccionar imagen» visible | ✅ Sin input de URL |
+| Selección de archivo PNG | ✅ Vista previa en WebP, nombre de archivo y «Quitar imagen» |
+| Selects de grado | ✅ 1° a 6° |
+| Selects de sección | ✅ A a F |
+| Composición del nombre | ✅ 3° + C → «Se crea como 3° C» |
+| `npm run typecheck` | ✅ Sin errores |
+| `npm run test:offline` | ✅ 26/26 |
+| `npm run build` | ✅ 536 módulos, bundle `906.26 kB` |
+
+### 4. Nota
+
+La foto se guarda como **data URL dentro de `foto_url`**, sin necesidad de crear un bucket de Storage. Si más adelante se quiere usar Supabase Storage, basta cambiar el origen del valor de `foto` por la URL pública del archivo subido.
+
+**Se hizo commit y push. No se desplegó en Vercel.**
