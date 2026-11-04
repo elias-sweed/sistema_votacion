@@ -9,6 +9,13 @@
 --
 -- Este script solo hace que cualquier usuario autenticado
 -- cuente como administrador, sin app_metadata ni metadata.
+--
+-- Si al ejecutarlo aparece:
+--   ERROR 42501: permission denied for schema public
+-- el rol del SQL Editor no puede crear funciones. Alternativas:
+--   1) node supabase/scripts/aplicar_sql.mjs  (Management API con PAT)
+--   2) Asignar app_metadata {"role":"admin"} al usuario en
+--      Authentication -> Users (no requiere SQL).
 -- ============================================================
 
 create or replace function public.is_app_admin()
