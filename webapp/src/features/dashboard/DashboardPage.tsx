@@ -7,6 +7,7 @@ import Table01Icon from '@hugeicons/core-free-icons/Table01Icon'
 import UserCheck01Icon from '@hugeicons/core-free-icons/UserCheck01Icon'
 import UserGroupIcon from '@hugeicons/core-free-icons/UserGroupIcon'
 import { supabase } from '../../lib/supabase'
+import { mensajeDeError } from '../../lib/supabaseErrors'
 import MagicBento, { type MagicBentoItem } from '../../components/ui/MagicBento'
 
 type Vista = 'candidatos' | 'mesas' | 'padron'
@@ -60,7 +61,12 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
     ])
 
     if (estadisticas.error || candidatos.error || mesas.error) {
-      setError('No se pudo cargar el resumen general.')
+      setError(
+        mensajeDeError(
+          estadisticas.error ?? candidatos.error ?? mesas.error,
+          'No se pudo cargar el resumen general.'
+        )
+      )
       setCargando(false)
       return
     }

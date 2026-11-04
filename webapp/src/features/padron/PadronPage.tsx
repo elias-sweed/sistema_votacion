@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { ChangeEvent } from 'react'
 import { supabase } from '../../lib/supabase'
+import { mensajeDeError } from '../../lib/supabaseErrors'
 import { useToast } from '../../components/ui/ToastProvider'
 
 type Votante = {
@@ -86,7 +87,11 @@ export default function PadronPage() {
   // Cargar estadísticas
   const cargarEstadisticas = useCallback(async () => {
     const { data, error: err } = await supabase.rpc('obtener_estadisticas_padron')
-    if (err) { console.error('Error cargando estadísticas:', err); return }
+    if (err) {
+      console.error('Error cargando estadísticas:', err)
+      setError(mensajeDeError(err, 'No se pudieron cargar las estadísticas del padrón.'))
+      return
+    }
     if (data?.[0]) setEstadisticas(data[0] as Estadisticas)
   }, [])
 
@@ -102,7 +107,7 @@ export default function PadronPage() {
       p_offset: (pagina - 1) * pageSize
     })
     setCargando(false)
-    if (err) { setError('No se pudo cargar el padrón.'); return }
+    if (err) { setError(mensajeDeError(err, 'No se pudo cargar el padrón.')); return }
     if (data) {
       setVotantes(data.map((v: any) => ({
         dni: v.dni,

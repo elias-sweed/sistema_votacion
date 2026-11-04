@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from '../../lib/supabase'
+import { mensajeDeError } from '../../lib/supabaseErrors'
 import { useToast } from '../../components/ui/ToastProvider'
 
 type Mesa = { id: string; nombre: string; activo: boolean; creado_en: string }
@@ -30,7 +31,7 @@ export default function MesasPage() {
     const { data, error: err } = await supabase
       .from('mesas').select('*').order('creado_en', { ascending: true })
     setCargando(false)
-    if (err) { setError('No se pudieron cargar las mesas.'); return }
+    if (err) { setError(mensajeDeError(err, 'No se pudieron cargar las mesas.')); return }
     setMesas(data ?? [])
   }
 
@@ -47,7 +48,7 @@ export default function MesasPage() {
     setGuardando(false)
     if (err) {
       if (err.code === '23505') setError(`La mesa ${nombreMesa} ya existe.`)
-      else setError('No se pudo agregar la mesa.')
+      else setError(mensajeDeError(err, 'No se pudo agregar la mesa.'))
       return
     }
 
@@ -82,7 +83,7 @@ export default function MesasPage() {
     const { error: err } = await supabase.from('mesas').insert(faltantes)
     setGenerando(false)
     if (err) {
-      setError('No se pudieron generar las mesas.')
+      setError(mensajeDeError(err, 'No se pudieron generar las mesas.'))
       return
     }
 
@@ -117,7 +118,7 @@ export default function MesasPage() {
       .update({ nombre: nombreTrim }).eq('id', m.id)
     if (err) {
       if (err.code === '23505') setError('Ya existe una mesa con ese nombre.')
-      else setError('No se pudo actualizar la mesa.')
+      else setError(mensajeDeError(err, 'No se pudo actualizar la mesa.'))
       return
     }
 
@@ -134,7 +135,7 @@ export default function MesasPage() {
     if (err) {
       toast({
         title: 'No se pudo actualizar',
-        description: err.message,
+        description: mensajeDeError(err, err.message),
         variant: 'error',
         duration: 6000
       })

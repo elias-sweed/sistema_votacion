@@ -1642,3 +1642,74 @@ Se inyectó una sesión de prueba local (token sin firma válida) para montar el
 La foto se guarda como **data URL dentro de `foto_url`**, sin necesidad de crear un bucket de Storage. Si más adelante se quiere usar Supabase Storage, basta cambiar el origen del valor de `foto` por la URL pública del archivo subido.
 
 **Se hizo commit y push. No se desplegó en Vercel.**
+
+---
+
+## XV. FASE 11 — Vista previa completa, carga directa y diagnóstico de permisos
+
+**Fecha:** 2026-11-04
+**Objetivo:** Mostrar la imagen completa en la vista previa del candidato, permitir cargarla directamente desde la tarjeta y explicar el error 403/500 del panel (permisos RLS).
+
+### 1. Causa del error al agregar candidato
+
+La consola mostraba:
+
+- `POST /rest/v1/candidatos` → **403**
+- `POST /rest/v1/rpc/obtener_estadisticas_padron` → **500**
+- `POST /rest/v1/rpc/listar_votantes` → **500**
+
+Las funciones `obtener_estadisticas_padron()` y `listar_votantes()` lanzan `P0008` («Acceso denegado») cuando `is_app_admin()` es falso; PostgREST traduce la clase `P0` a **HTTP 500**. El 403 de `candidatos` es la política RLS `admin_full_candidatos`.
+
+Conclusión: **`public.is_app_admin()` sigue devolviendo `false`**. El primer script intentó escribir en `auth.users`, falló con `42501` y abortó la transacción completa, por lo que la redefinición de la función nunca se aplicó.
+
+**Solución:** ejecutar únicamente `webapp/supabase/scripts/acceso_directo.sql` (ya no toca `auth.users`).
+
+### 2. Vista previa de imagen
+
+- `src/components/ui/TiltedCard.tsx`: nueva prop `imageFit?: 'cover' | 'contain'` (por defecto `cover`).
+- `src/features/candidatos/CandidatosPage.tsx`: la vista previa y las tarjetas usan `imageFit="contain"` con fondo `bg-slate-950`, así la imagen se ve **completa** sin recortes.
+- Se agregó un botón **«Cargar imagen» / «Cambiar imagen»** junto a la vista previa que abre el selector de archivos directamente.
+
+### 3. Mensajes de permisos
+
+Nuevo `src/lib/supabaseErrors.ts`:
+
+- `esErrorDePermisos()` detecta `42501`, `P0008`, «row-level security», «acceso denegado» y «permission denied».
+- `mensajeDeError()` devuelve un texto claro: «La base de datos rechazó la operación: tu usuario no tiene permisos de administrador. Ejecuta el script supabase/scripts/acceso_directo.sql…».
+- Aplicado en Dashboard, Candidatos, Mesas y Padrón.
+
+### 4. Verificación
+
+| Comprobación | Resultado |
+|---|---|
+| Imagen horizontal 1200×400 cargada | ✅ `object-fit: contain`, imagen completa |
+| Botón «Cargar imagen» / «Cambiar imagen» | ✅ Abre el selector |
+| `npm run typecheck` | ✅ Sin errores |
+| `npm run test:offline` | ✅ 26/26 |
+| `npm run build` | ✅ 537 módulos, bundle `907.30 kB` |
+
+### 5. Acción pendiente en Supabase
+
+Ejecutar en **SQL Editor**:
+
+```sql
+create or replace function public.is_app_admin()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = pg_catalog, public
+as $$
+  select coalesce(
+    auth.uid() is not null
+    or (auth.jwt() ->> 'role') = 'service_role',
+    false
+  );
+$$;
+
+grant execute on function public.is_app_admin() to authenticated, service_role;
+```
+
+Después recargar el panel. Sin esto, la base seguirá devolviendo 403/500 aunque el panel abra.
+
+**Se hizo commit y push. No se desplegó en Vercel.**

@@ -27,6 +27,7 @@ export interface TiltedCardProps {
   containerWidth?: number | string;
   imageHeight?: number | string;
   imageWidth?: number | string;
+  imageFit?: 'cover' | 'contain';
   scaleOnHover?: number;
   rotateAmplitude?: number;
   showTooltip?: boolean;
@@ -151,6 +152,7 @@ const TiltedCard = ({
   containerWidth = '100%',
   imageHeight = '300px',
   imageWidth = '300px',
+  imageFit = 'cover',
   scaleOnHover = 1.05,
   rotateAmplitude = 12,
   showTooltip = true,
@@ -614,7 +616,9 @@ const TiltedCard = ({
         <div className="tilted-card__face tilted-card__front absolute inset-0 isolate overflow-hidden rounded-[var(--tc-radius)] [backface-visibility:hidden] [-webkit-backface-visibility:hidden]">
           {imageSrc && (
             <img
-              className="pointer-events-none absolute block max-w-none object-cover"
+              className={`pointer-events-none absolute block max-w-none ${
+                imageFit === 'contain' ? 'object-contain bg-slate-950' : 'object-cover'
+              }`}
               src={imageSrc}
               alt={altText}
               draggable={false}

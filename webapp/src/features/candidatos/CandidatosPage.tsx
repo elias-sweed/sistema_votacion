@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { supabase } from '../../lib/supabase'
+import { mensajeDeError } from '../../lib/supabaseErrors'
 import { useToast } from '../../components/ui/ToastProvider'
 import TiltedCard, { TiltedCardLayer } from '../../components/ui/TiltedCard'
 
@@ -51,6 +52,7 @@ function comprimirImagen(file: File): Promise<string> {
 
 export default function CandidatosPage() {
   const toast = useToast()
+  const archivoRef = useRef<HTMLInputElement>(null)
   const [candidatos, setCandidatos] = useState<Candidato[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -98,7 +100,7 @@ export default function CandidatosPage() {
     const { data, error: err } = await supabase
       .from('candidatos').select('*').order('creado_en', { ascending: true })
     setCargando(false)
-    if (err) { setError('No se pudieron cargar los candidatos.'); return }
+    if (err) { setError(mensajeDeError(err, 'No se pudieron cargar los candidatos.')); return }
     setCandidatos(data ?? [])
   }
 
@@ -113,7 +115,7 @@ export default function CandidatosPage() {
     const { error: err } = await supabase.from('candidatos')
       .insert({ nombre: nombre.trim(), foto_url: foto })
     setGuardando(false)
-    if (err) { setError('No se pudo agregar el candidato.'); return }
+    if (err) { setError(mensajeDeError(err, 'No se pudo agregar el candidato.')); return }
 
     setNombre(''); setFoto(null); setNombreArchivo(null)
     setExito('Candidato agregado.')
@@ -127,7 +129,7 @@ export default function CandidatosPage() {
     if (err) {
       toast({
         title: 'No se pudo actualizar',
-        description: err.message,
+        description: mensajeDeError(err, err.message),
         variant: 'error',
         duration: 6000
       })
@@ -157,6 +159,7 @@ export default function CandidatosPage() {
             <div className="flex flex-wrap items-center gap-3">
               <label className="cursor-pointer rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-sm font-medium text-white backdrop-blur-md transition hover:bg-white/[0.08] focus-within:border-blue-400/60">
                 <input
+                  ref={archivoRef}
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
                   onChange={seleccionarImagen}
@@ -196,6 +199,7 @@ export default function CandidatosPage() {
               containerWidth={240}
               imageHeight={280}
               imageWidth={240}
+              imageFit="contain"
               rotateAmplitude={12}
               scaleOnHover={1.05}
               glare={0.5}
@@ -212,6 +216,13 @@ export default function CandidatosPage() {
                 </div>
               </TiltedCardLayer>
             </TiltedCard>
+            <button
+              type="button"
+              onClick={() => archivoRef.current?.click()}
+              className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/[0.12]"
+            >
+              {foto ? 'Cambiar imagen' : 'Cargar imagen'}
+            </button>
             <p className="text-xs text-slate-500">Así se verá tu candidato</p>
           </aside>
         </div>
@@ -234,6 +245,7 @@ export default function CandidatosPage() {
               containerWidth={240}
               imageHeight={300}
               imageWidth={240}
+              imageFit="contain"
               rotateAmplitude={12}
               scaleOnHover={1.05}
               glare={0.5}
