@@ -1,4 +1,4 @@
-import { FunctionsHttpError } from '@supabase/supabase-js'
+import { FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 
 export type ElectionStatus = {
@@ -27,6 +27,7 @@ export type VotingErrorKind =
   | 'rate-limited'
   | 'closed'
   | 'invalid-candidate'
+  | 'unavailable'
   | 'unknown'
 
 export class VotingError extends Error {
@@ -77,6 +78,14 @@ async function functionErrorCode(error: unknown): Promise<string | null> {
   return null
 }
 
+function isFunctionUnavailable(error: unknown): boolean {
+  if (error instanceof FunctionsHttpError) {
+    const context = error.context
+    return context instanceof Response && (context.status === 404 || context.status === 503)
+  }
+  return error instanceof FunctionsRelayError
+}
+
 export function isValidDni(dni: string): boolean {
   return /^\d{8}$/.test(dni)
 }
@@ -86,7 +95,12 @@ export async function loadElectionStatus(): Promise<ElectionStatus> {
     body: { action: 'estado' },
   })
 
-  if (error) throw new VotingError('No se pudo consultar el estado electoral.', 'network')
+  if (error) {
+    if (isFunctionUnavailable(error)) {
+      throw new VotingError('El servicio de votación no está disponible (falta desplegar voting-proxy).', 'unavailable')
+    }
+    throw new VotingError('No se pudo consultar el estado electoral.', 'network')
+  }
   if (!data || typeof data.eleccion_abierta !== 'boolean' || typeof data.titulo !== 'string') {
     throw new VotingError('El servidor devolvió un estado electoral inválido.', 'unknown')
   }
@@ -106,7 +120,12 @@ export async function loadActiveCandidates(): Promise<VotingCandidate[]> {
     body: { action: 'candidatos' },
   })
 
-  if (error) throw new VotingError('No se pudieron cargar las opciones electorales.', 'network')
+  if (error) {
+    if (isFunctionUnavailable(error)) {
+      throw new VotingError('El servicio de votación no está disponible (falta desplegar voting-proxy).', 'unavailable')
+    }
+    throw new VotingError('No se pudieron cargar las opciones electorales.', 'network')
+  }
   if (!data || !Array.isArray(data.candidatos) || !data.candidatos.every(isVotingCandidate)) {
     throw new VotingError('El servidor devolvió opciones electorales inválidas.', 'unknown')
   }
@@ -121,6 +140,9 @@ export async function verifyVoter(dni: string): Promise<VoterVerification> {
   })
 
   if (error) {
+    if (isFunctionUnavailable(error)) {
+      throw new VotingError('El servicio de votación no está disponible (falta desplegar voting-proxy).', 'unavailable')
+    }
     const code = await functionErrorCode(error)
     if (code === 'P0007') throw new VotingError('Se alcanzó el límite de intentos. Espera antes de volver a intentarlo.', 'rate-limited')
     throw new VotingError('No se pudo confirmar la identidad por un problema de conexión. Inténtalo de nuevo.', 'network')
@@ -156,6 +178,9 @@ export async function castVote(dni: string, candidateId: string): Promise<void> 
   })
 
   if (error) {
+    if (isFunctionUnavailable(error)) {
+      throw new VotingError('El servicio de votación no está disponible. No se registró ningún voto.', 'unavailable')
+    }
     const code = await functionErrorCode(error)
     if (code === 'P0001') throw new VotingError('La identificación de la sesión no es válida.', 'input')
     if (code === 'P0003') throw new VotingError('La elección se cerró antes de registrar el voto.', 'closed')

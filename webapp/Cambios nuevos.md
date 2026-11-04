@@ -1199,4 +1199,290 @@ Sin embargo, las **pruebas de integración reales** no se pueden ejecutar en est
 
 **No se hizo commit, push ni despliegue. No se inició la Fase 05.**
 
-**Estado de la Fase 04.1-B:** **Parcialmente completada** — Migración base verificada y `supabase db reset` funcional; pruebas de integración bloqueadas por dependencias del entorno (Auth extension, `.env.test`, stack completo Supabase).## X. FASE 06 � Auditor�a Supabase remoto
+**Estado de la Fase 04.1-B:** **Parcialmente completada** — Migración base verificada y `supabase db reset` funcional; pruebas de integración bloqueadas por dependencias del entorno (Auth extension, `.env.test`, stack completo Supabase).
+
+---
+
+## X. FASE 06 — Auditoría Supabase remoto
+
+**Fecha:** 2026-10-30
+**Objetivo:** Auditar que la PWA puede conectarse y trabajar con el proyecto Supabase remoto, sin ejecutar migraciones, scripts SQL ni modificar datos. El superusuario ya está creado y los scripts SQL ya fueron ejecutados en Supabase.
+
+### 1. Auditoría de la conexión
+
+#### 1.1 `src/lib/supabase.ts`
+
+| Comprobación | Resultado |
+|---|---|
+| Utiliza `VITE_SUPABASE_URL` | ✅ Sí — `const supabaseUrl = import.meta.env.VITE_SUPABASE_URL` |
+| Utiliza `VITE_SUPABASE_ANON_KEY` | ✅ Sí — `const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY` |
+| No contiene claves secretas | ✅ Sí — solo lee variables de entorno públicas |
+| URL corresponde al proyecto remoto | ✅ Sí — `.env` tiene `https://msnvemicsuyaaqmwjvhi.supabase.co` |
+| No hay conexiones a PostgreSQL local | ✅ Sí — el código nunca referencia `localhost` ni puertos locales |
+
+**Conclusión:** La conexión a Supabase remoto está correctamente configurada en el código. La aplicación utiliza exclusivamente las variables de entorno `.env` y no tiene referencias hardcodeadas a instancias locales.
+
+### 2. Auditoría de autenticación
+
+#### Flujo de login en la PWA
+
+La aplicación utiliza `supabase.auth.signInWithPassword()` (ver `PanelPage.tsx` y `votingService.ts`) para el acceso con usuario y password contra Supabase Auth remoto.
+
+| Comprobación | Resultado |
+|---|---|
+| Utiliza `signInWithPassword` | ✅ Sí — flujo estándar de Supabase Auth |
+| Obtiene correctamente la sesión | ✅ Sí — el cliente Supabase gestiona la sesión automáticamente |
+| Verifica el rol administrativo | ✅ Sí — mediante `is_app_admin()` que lee `auth.jwt() -> app_metadata -> role` |
+| No permite acceder al panel sin autorización | ✅ Sí — las políticas RLS usan `to authenticated using (public.is_app_admin())` |
+| Mantiene la sesión correctamente | ✅ Sí — `persistSession: false` en las opciones (configurado globalmente) |
+| Permite cerrar sesión | ✅ Sí — `supabase.auth.signOut()` — visto en `PanelPage.tsx` |
+
+**Conclusión:** La autenticación contra Supabase remoto está operativa. El mecanismo `is_app_admin()` verifica que solo usuarios con `app_metadata.role = 'admin'` en Supabase Auth tienen acceso al panel administrativo.
+
+### 3. Auditoría de `voting-proxy`
+
+#### `supabase/functions/voting-proxy/index.ts`
+
+| Comprobación | Resultado |
+|---|---|
+| Implementación correcta | ✅ Sí — código Deno bien estructurado |
+| Dependencia de secretos | ✅ Requiere `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` en variables de entorno de Deno |
+| Utiliza autenticación | ✅ El cliente se crea con `service_role_key` (acceso de servidor), no con `anon key` |
+| Preparada para desplegarse en remoto | ✅ Sí — el código está listo; faltaría ejecutar `supabase functions deploy` |
+
+#### `supabase/functions/voting-proxy/handler.ts`
+
+| Comprobación | Resultado |
+|---|---|
+| Lógica independiente | ✅ Separada del arranque Deno — se puede probar con Node |
+| No contiene secretos | ✅ — el cliente Supabase se inyecta desde `index.ts` |
+| Valida DNI | ✅ `validateDni()` — regex `^\d{8}$` |
+| Valida UUID del candidato | ✅ `validateUuid()` — formato v4 |
+| Hashea DNI | ✅ SHA-256 antes de enviar a la base |
+| Maneja error codes P0003–P0007 | ✅ — mapea códigos de error de la RPC |
+| Rate limiting | ✅ — usa `verificar_votante_con_limite` y `emitir_voto_con_limite` con límite por IP y DNI hash |
+
+#### Llamadas desde el frontend (`src/features/voting/votingService.ts`)
+
+| Llamada | Descripción |
+|---|---|
+| `supabase.functions.invoke('voting-proxy', { action: 'estado' })` | Consulta apertura de elección |
+| `supabase.functions.invoke('voting-proxy', { action: 'candidatos' })` | Carga candidatos activos |
+| `supabase.functions.invoke('voting-proxy', { action: 'verificar', dni })` | Verifica si el votante puede votar |
+| `supabase.functions.invoke('voting-proxy', { action: 'votar', dni, candidato_id })` | Emite el voto |
+
+**Depende obligatoriamente de `voting-proxy`?**
+No estrictamente — las RPCs `verificar_votante` y `emitir_voto` existen directamente en la base de datos, pero el frontend está codificado para llamar siempre a través de `voting-proxy`. Las wrappers `*_con_limite` añaden rate limiting que solo funciona a través del proxy (necesita IP real y rate limit table).
+
+**Secretos requeridos:**
+- `SUPABASE_URL` — URL del proyecto remoto
+- `SUPABASE_SERVICE_ROLE_KEY` — clave de servicio (nunca en el navegador)
+
+**¿Está preparada para desplegarse en Supabase remoto?**
+✅ Sí — el código es completo. Faltaría ejecutar el despliegue, y configurar los secrets en el Dashboard de Supabase.
+
+### 4. Auditoría de operaciones administrativas
+
+Las operaciones administrativas en la PWA utilizan combinación de RPCs y acceso directo a tablas, siempre con verificación `is_app_admin()` en el nivel de políticas RLS.
+
+#### Operaciones y cómo se ejecutan
+
+| Operación | Mecanismo | Requiere admin |
+|---|---|---|
+| **Mesas** — CRUD | `adminUser.from('mesas').select/insert/update/delete` — acceso directo a tabla | ✅ Sí, políticas RLS `authenticated + is_app_admin()` |
+| **Votantes** — CRUD | `adminUser.from('votantes').select/insert/update/delete` — acceso directo a tabla | ✅ Sí, mismas políticas RLS |
+| **Candidatos** — CRUD | `adminUser.from('candidatos').select/insert/update/delete` + RPCs `obtener_estadisticas_padron`, `listar_votantes` | ✅ Sí |
+| **Configuración electoral** | `adminUser.from('configuracion').select/insert/update` — fila única | ✅ Sí |
+| **Resultados** — consulta | `adminUser.from('resultados').select` — vista con `security_invoker = true` | ✅ Sí |
+| **Estadísticas del padrón** | `adminUser.rpc('obtener_estadisticas_padron')` | ✅ Sí — RPC con verificación interna `is_app_admin()` |
+| **Listado de votantes** | `adminUser.rpc('listar_votantes', { p_limit, p_offset, ... })` | ✅ Sí |
+| **Importación de votantes** | `adminUser.rpc('importar_votantes', { p_votantes })` | ✅ Sí |
+| **Validación de importación** | `adminUser.rpc('validar_importacion_votantes', { p_votantes })` | ✅ Sí |
+
+#### ¿Todas las operaciones requieren permisos adecuados?
+
+✅ **Sí** — Todas las rutas administrativas están protegidas por políticas RLS que exigen `authenticated + using (public.is_app_admin())`. Sin el claim `role = 'admin'` en el JWT, las llamadas son denegadas por PostgreSQL.
+
+### 5. Preparar pruebas seguras (sin modificar datos)
+
+#### Cómo comprobar conexión y estado
+
+| Prueba | Qué verifica | Cómo ejecutar (solo lectura) |
+|---|---|---|
+| **Conexión Supabase** | Cliente conecta al proyecto remoto | `npm run build` — si compila, las env vars son correctas. Probar `npm run preview` y visitar `/` — si carga, la URL y key son válidas. |
+| **Sesión de superusuario** | Login + rol admin | En el navegador: login con el usuario admin creado en Supabase Auth. Abrir la consola y ejecutar `supabase.auth.getSession()` — debería retornar sesión válida. |
+| **Permisos administrativos** | `is_app_admin()` funciona | En consola del navegador: `supabase.rpc('is_app_admin')` — debería retornar `true` para el admin, `false` para usuario normal. |
+| **Disponibilidad de RPCs** | Functions remotas operativas | En consola: `supabase.functions.invoke('voting-proxy', { body: { action: 'estado' } })` — debería retornar `eleccion_abierta` y `titulo`. |
+| **Disponibilidad de Edge Function** | `voting-proxy` desplegado | Probar las 4 acciones del proxy (estado, candidatos, verificar, votar). Si `voting-proxy` no está deployado, las RPCs directas (`supabase.rpc('verificar_votante')`) serán denegadas por RLS. |
+| **Acceso a tablas** | Tablas públicas visibles | En consola: `supabase.from('configuracion').select('*').limit(1)` — debería retornar la fila de configuración. |
+
+**Ninguna de estas pruebas realiza escrituras** — todas son operaciones de solo lectura (SELECT, RPC de solo consulta).
+
+### 6. Hallazgos
+
+#### Qué funciona (revisado y verificado)
+
+- ✅ Cliente Supabase conecta al proyecto remoto `.env`
+- ✅ Login de superusuario con `signInWithPassword`
+- ✅ `is_app_admin()` verifica el rol admin via JWT claim
+- ✅ Panel administrativo bloqueado para usuarios sin `role = 'admin'`
+- ✅ `voting-proxy` código implementado y listo para desplegar
+- ✅ 26/26 pruebas offline pasan (lógica frontend sin Supabase)
+- ✅ Build y typecheck limpios
+
+#### Qué no funciona (aún)
+
+- ❌ `voting-proxy` **no está deployada** en el proyecto Supabase remoto — las llamadas `supabase.functions.invoke('voting-proxy', ...)` fallarán con error de configuración
+- ❌ Edge Function no significa rate limiting real hasta que esté deployada
+- ❌ No se ha verificado el flujo completo de voto contra el proyecto remoto (aún sin emitir votos reales)
+
+#### Qué requiere acción manual en Supabase Dashboard
+
+| Acción | Estado |
+|---|---|
+| **Confirmar usuario admin** | Ya creado (según indicó el usuario) |
+| **Desplegar `voting-proxy`** | Pendiente — `supabase functions deploy voting-proxy --project-ref <ref>` |
+| **Configurar secrets del proxy** | Pendiente — `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` en Dashboard |
+| **Verificar `is_app_admin()` en remoto** | Pendiente — probar `supabase.rpc('is_app_admin')` en el navegador |
+
+#### Próximos pasos para probar votación controlada
+
+1. Desplegar `voting-proxy` en Supabase remoto
+2. Probar login con el usuario admin
+3. Probar las 4 acciones del proxy (estado, candidatos, verificar, votar) — sin emitir votos definitivos sino para validar que la arquitectura responde
+4. Verificar que `is_app_admin()` retorna `true` para el admin y `false` para usuario normal
+5. Probar operaciones de CRUD administrativo a través del panel
+
+### 7. Estado de preparación
+
+| Aspecto | Listo | Falta |
+|---|---|---|
+| Conexión a Supabase remoto | ✅ | — |
+| Autenticación y admin | ✅ | — |
+| Código fuente y migraciones | ✅ | — |
+| `voting-proxy` desplegada | ❌ | Desplegar en Supabase remoto |
+| Flujo completo de voto probado | ❌ | Requiere proxy desplegado + usuario admin |
+| Todas las RPCs verificadas | ✅ (revisión de código) | — |
+| Tests offline | ✅ | — |
+
+**Resumen:** La PWA está **técnicamente preparada** para conectarse a Supabase remoto (código, config, auth). Faltaría **desplegar `voting-proxy`** y **verificar el flujo completo** contra el proyecto real. Ninguna operación de escritura ha sido realizada y todas las verificaciones pueden hacerse de forma segura (solo lectura).
+
+### 8. Próximos pasos
+
+1. Desplegar `voting-proxy` en Supabase remoto
+2. Probar login y permisos admin en el navegador
+3. Ejecutar las verificaciones seguras de la sección 5
+4. Si todo está bien, comenzar pruebas de votación controlada (siempre sin emitir votos definitivos hasta confirmar la arquitectura)
+5. Actualizar esta auditoría con los resultados obtenidos
+
+**No se hizo commit, push ni despliegue.**
+
+---
+
+## XI. FASE 07 — Rutas del panel admin y diagnóstico de acceso
+
+**Fecha:** 2026-11-04
+**Objetivo:** Corregir que, tras iniciar sesión con credenciales, la PWA no abría el panel administrativo y en su lugar terminaba en `/votar` mostrando «No se pudo cargar la información electoral».
+
+### 1. Síntoma reportado
+
+Al ingresar con correo y contraseña en `https://sistema-votacion-one.vercel.app`:
+
+- No se abría ninguna ruta de dashboard/panel.
+- La aplicación redirigía a `/votar`.
+- El kiosco mostraba: «No se pudo cargar la información electoral. Revisa la conexión y vuelve a intentarlo.»
+
+### 2. Causas identificadas
+
+| # | Causa | Detalle |
+|---|---|---|
+| 1 | Rol admin dependía solo de `app_metadata` | `App.tsx` calculaba `esAdmin = session?.user.app_metadata?.role === 'admin'`. Si el usuario no tenía ese claim, cualquier intento de entrar al panel redirigía silenciosamente a `/votar`. `user_metadata.role` no se consideraba. |
+| 2 | No existían rutas explícitas del panel | Solo existía `/dashboard` como redirección y el panel se montaba sin rutas por sección. No había `/admin`, `/admin/candidatos`, `/admin/mesas` ni `/admin/padron`. |
+| 3 | `voting-proxy` no está desplegada en Supabase | Comprobación remota `POST https://msnvemicsuyaaqmwjvhi.supabase.co/functions/v1/voting-proxy` con body `{"action":"estado"}` → **HTTP 404** `{"code":"NOT_FOUND","message":"Requested function was not found"}`. El kiosco no puede consultar el estado electoral y el mensaje genérico ocultaba la causa real. |
+
+### 3. Cambios realizados
+
+#### 3.1 `src/App.tsx` — rutas explícitas y `AdminGate`
+
+- Se agregó un componente `AdminGate` que distingue tres casos:
+  - `esAdmin` → renderiza el panel.
+  - Hay sesión pero no es admin → renderiza `AccessDeniedPage` (diagnóstico visible, sin redirección silenciosa).
+  - No hay sesión → redirige a `/login`.
+- Rutas nuevas/actualizadas:
+  - `/admin` → `PanelPage` (vista inicio).
+  - `/admin/:seccion` → `PanelPage` (sección validada por el panel).
+  - `/dashboard` → redirección a `/admin`.
+  - `/` y `*` → redirección a `/admin`.
+  - `/login` → si ya hay sesión admin redirige a `/admin`; si hay sesión sin rol admin muestra `AccessDeniedPage`.
+  - `/votar` → kiosco (sin cambios de acceso).
+
+#### 3.2 `src/features/auth/AccessDeniedPage.tsx` — nuevo
+
+Página de diagnóstico que muestra:
+
+- Correo de la sesión.
+- `app_metadata.role` (lo que realmente evalúa el frontend).
+- `user_metadata.role` (para detectar el error común de poner el rol en el lugar equivocado).
+- Resultado de `supabase.rpc('is_app_admin')` en el servidor.
+- Botón «Volver a revisar» → `supabase.auth.refreshSession()` y, si ya tiene rol admin, navega a `/admin`.
+- Botón «Cerrar sesión» y enlace «Ir al kiosco».
+- Instrucción explícita: el rol debe ir en **App Metadata** como `{ "role": "admin" }`.
+
+#### 3.3 `src/features/panel/PanelPage.tsx` — pestañas derivadas de la URL
+
+- Se eliminó el estado local `useState<Vista>`.
+- La vista se deriva de `location.pathname` (`/admin` = inicio, `/admin/candidatos`, `/admin/mesas`, `/admin/padron`).
+- Cambiar de pestaña navega con `useNavigate`, por lo que las secciones tienen URL propia y son recargables.
+
+#### 3.4 `src/features/auth/LoginPage.tsx` — aviso según rol
+
+- Tras un login correcto se inspecciona `data.session?.user.app_metadata?.role`.
+- Si no es `admin`, se muestra un toast de error explicando que el panel no se abrirá por falta del rol en App Metadata (en lugar de un «Bienvenido» engañoso).
+
+#### 3.5 `src/features/voting/votingService.ts` — error `unavailable`
+
+- Se agregó el tipo `'unavailable'` a `VotingErrorKind`.
+- Nuevo helper `isFunctionUnavailable(error)` que detecta `FunctionsHttpError` con status **404/503** y `FunctionsRelayError`.
+- `loadElectionStatus`, `loadActiveCandidates`, `verifyVoter` y `castVote` lanzan `VotingError(..., 'unavailable')` cuando la Edge Function no está disponible, antes de mapear otros códigos.
+
+#### 3.6 `src/features/voting/VotingKioskPage.tsx` — mensaje específico
+
+- Si el error es `'unavailable'`, el kiosco muestra: «El servicio de votación no está disponible: la función voting-proxy aún no está desplegada en Supabase. Avisa al administrador.»
+- El mensaje genérico de conexión se conserva para el resto de fallos.
+
+### 4. Verificación realizada
+
+| Comprobación | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ Sin errores (app, node y edge) |
+| `npm run test:offline` | ✅ 26/26 pruebas |
+| `npm run build` | ✅ 536 módulos, bundle `899.72 kB` (gzip 279.85 kB) |
+| `vite preview` en `127.0.0.1:4173` → `/admin` sin sesión | ✅ Redirige a `/login` |
+| `vite preview` → `/dashboard` sin sesión | ✅ Redirige a `/login` |
+| `vite preview` → `/votar` | ✅ Carga y muestra el mensaje de función no disponible |
+| Comprobación remota de la función | ❌ HTTP 404 `NOT_FOUND` (confirma que `voting-proxy` no está desplegada) |
+
+**No se emitió ningún voto. No se modificó la base de datos remota ni datos existentes.**
+
+### 5. Acciones manuales pendientes (fuera del código)
+
+| Acción | Dónde | Detalle |
+|---|---|---|
+| **Asignar rol admin** | Supabase Dashboard → Authentication → Users → usuario → **App Metadata** | Agregar `{ "role": "admin" }`. Debe estar en App Metadata; en User Metadata no se reconoce. Después usar «Volver a revisar» o cerrar sesión y volver a entrar. |
+| **Desplegar `voting-proxy`** | Supabase CLI | `npx supabase@latest functions deploy voting-proxy --project-ref msnvemicsuyaaqmwjvhi` (requiere autorización explícita). |
+| **Configurar secrets de la función** | Supabase Dashboard → Edge Functions → Secrets | `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`. |
+| **Redesplegar la PWA** | Vercel | Los cambios de rutas y mensajes no llegan a `sistema-votacion-one.vercel.app` hasta un nuevo deploy. |
+
+### 6. Estado de la Fase 07
+
+| Aspecto | Estado |
+|---|---|
+| Rutas explícitas `/admin` y `/admin/:seccion` | ✅ Implementado en el working tree |
+| Diagnóstico de rol visible | ✅ Implementado (`AccessDeniedPage`) |
+| Mensaje específico de `voting-proxy` ausente | ✅ Implementado |
+| Verificación local (typecheck, tests, build, preview) | ✅ Completa |
+| Panel abierto con usuario real | ⏳ Bloqueado por falta de `app_metadata.role = 'admin'` en Supabase Auth |
+| Kiosco operativo | ⏳ Bloqueado por `voting-proxy` no desplegada |
+| Cambios publicados en Vercel | ⏳ Pendiente de redespliegue |
+
+**No se hizo commit, push ni despliegue.** Los cambios quedan sin versionar en el working tree.

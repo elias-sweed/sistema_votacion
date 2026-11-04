@@ -44,8 +44,13 @@ export default function VotingKioskPage() {
       ])
       setStatus(electionStatus)
       setCandidates(activeCandidates)
-    } catch {
-      setLoadError('No se pudo cargar la información electoral. Revisa la conexión y vuelve a intentarlo.')
+    } catch (error) {
+      const kind = error instanceof VotingError ? error.kind : 'unknown'
+      setLoadError(
+        kind === 'unavailable'
+          ? 'El servicio de votación no está disponible: la función voting-proxy aún no está desplegada en Supabase. Avisa al administrador.'
+          : 'No se pudo cargar la información electoral. Revisa la conexión y vuelve a intentarlo.'
+      )
     } finally {
       setLoading(false)
     }

@@ -1,10 +1,10 @@
-import { useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import Home01Icon from '@hugeicons/core-free-icons/Home01Icon'
 import IdCardIcon from '@hugeicons/core-free-icons/IdCardIcon'
 import Logout01Icon from '@hugeicons/core-free-icons/Logout01Icon'
 import Table01Icon from '@hugeicons/core-free-icons/Table01Icon'
 import UserGroupIcon from '@hugeicons/core-free-icons/UserGroupIcon'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import Dock, { type DockItemData } from '../../components/ui/Dock'
 import MaskedHeading from '../../components/ui/MaskedHeading'
@@ -24,8 +24,19 @@ const SUBTITULOS: Record<Vista, string> = {
 
 const glyph = (icon: typeof UserGroupIcon) => <HugeiconsIcon icon={icon} size="1em" strokeWidth={1.8} />
 
+const VISTA_POR_SECCION: Record<string, Vista> = {
+  candidatos: 'candidatos',
+  mesas: 'mesas',
+  padron: 'padron'
+}
+
 export default function PanelPage() {
-  const [vista, setVista] = useState<Vista>('inicio')
+  const location = useLocation()
+  const navigate = useNavigate()
+  const segmento = location.pathname.split('/').filter(Boolean)[1] ?? ''
+  const vista: Vista = VISTA_POR_SECCION[segmento] ?? 'inicio'
+  const setVista = (next: Vista) =>
+    navigate(next === 'inicio' ? '/admin' : `/admin/${next}`)
 
   const items: DockItemData[] = [
     {
