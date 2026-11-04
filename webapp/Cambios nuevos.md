@@ -1486,3 +1486,45 @@ Página de diagnóstico que muestra:
 | Cambios publicados en Vercel | ⏳ Pendiente de redespliegue |
 
 **No se hizo commit, push ni despliegue.** Los cambios quedan sin versionar en el working tree.
+
+---
+
+## XII. FASE 08 — Acceso directo sin app_metadata
+
+**Fecha:** 2026-11-04
+**Objetivo:** Permitir que cualquier usuario existente en la base entre al panel con correo y contraseña, sin configurar `app_metadata`, `user_metadata` ni nada en Supabase.
+
+### 1. Cambios en el código
+
+| Archivo | Cambio |
+|---|---|
+| `src/App.tsx` | `esAdmin` ahora es `session !== null`: cualquier sesión válida abre el panel. |
+| `src/features/auth/LoginPage.tsx` | Se eliminó el aviso de rol; el login solo valida que Supabase devuelva sesión. |
+| `supabase/scripts/acceso_directo.sql` | Solo redefine `is_app_admin()` para aceptar a cualquier usuario autenticado (no toca `auth.users`). |
+| `supabase/scripts/crear_usuario.mjs` | Script Node que crea o repara el usuario con la Admin API usando `service_role` (sin permisos SQL sobre `auth.users`). |
+
+### 2. Script directo
+
+**Usuario:** `webapp/supabase/scripts/crear_usuario.mjs`
+
+```
+$env:SUPABASE_SERVICE_ROLE_KEY="TU_SERVICE_ROLE_KEY"
+node supabase/scripts/crear_usuario.mjs
+```
+
+Crea o actualiza el usuario `admin@admin.com` / `Admin123456` y confirma el correo. También puede hacerse desde **Authentication → Users → Add user** marcando «Auto Confirm User».
+
+**Permisos del panel:** ejecutar `webapp/supabase/scripts/acceso_directo.sql` en el SQL Editor. Solo redefine `public.is_app_admin()` como `auth.uid() is not null`, de modo que las políticas RLS y las RPC administrativas acepten a cualquier usuario logueado.
+
+> Se descartó insertar directamente en `auth.users` por SQL: el rol del SQL Editor puede no tener permisos sobre ese esquema (`ERROR 42501: permission denied for table users`).
+
+### 3. Verificación
+
+- `npm run typecheck` → ✅ sin errores
+- `npm run build` → ✅ 536 módulos, bundle `899.63 kB`
+
+### 4. Advertencia
+
+Este modo **abre el panel a cualquier usuario autenticado**. Es válido para pruebas o uso interno; si luego se requiere restringir, hay que volver a la verificación por `app_metadata.role = 'admin'`.
+
+**No se hizo commit, push ni despliegue. No se ejecutó el script en la base remota.**

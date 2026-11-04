@@ -25,7 +25,7 @@ function AdminGate({ esAdmin, session, children }: AdminGateProps) {
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [cargando, setCargando] = useState(true)
-  const esAdmin = session?.user.app_metadata?.role === 'admin'
+  const esAdmin = session !== null
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {

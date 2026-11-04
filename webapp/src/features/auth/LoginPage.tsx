@@ -45,15 +45,21 @@ export default function LoginPage() {
       return
     }
 
-    const esAdmin = data.session?.user.app_metadata?.role === 'admin'
+    if (!data.session) {
+      toast({
+        title: 'No se pudo iniciar sesión',
+        description: 'Supabase no devolvió una sesión válida.',
+        variant: 'error',
+        duration: 6000
+      })
+      return
+    }
 
     toast({
-      title: esAdmin ? 'Bienvenido' : 'Sesión iniciada sin rol admin',
-      description: esAdmin
-        ? 'Sesión iniciada correctamente.'
-        : 'Tu usuario no tiene app_metadata.role = "admin". No se puede abrir el panel de administración.',
-      variant: esAdmin ? 'success' : 'error',
-      duration: esAdmin ? 3000 : 9000
+      title: 'Bienvenido',
+      description: 'Sesión iniciada correctamente.',
+      variant: 'success',
+      duration: 3000
     })
   }
 
