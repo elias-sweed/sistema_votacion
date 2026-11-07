@@ -1849,3 +1849,56 @@ Todos usan `animate-pulse`, `role="status"` y `aria-busy`.
 | `npm run build` | ✅ |
 
 **Se hizo commit y push. No se desplegó en Vercel.**
+
+---
+
+## XIX. FASE 15 — Rediseño premium del alta de candidatos
+
+**Fecha:** 2026-11-06
+**Objetivo:** Reemplazar el formulario básico de candidatos por una interfaz de administración más profesional, clara y cómoda.
+
+### 1. Nueva tarjeta
+
+`src/features/candidatos/CandidatosPage.tsx`:
+
+- Cabecera con icono, título «Nuevo candidato», descripción y badge «Foto opcional».
+- Encabezado de sección con subtítulo y contador de candidatos.
+- Distribución en dos columnas: formulario a la izquierda y vista previa de papeleta a la derecha (en pantallas grandes).
+- Fondo con degradado sutil, borde y sombra para separar la tarjeta del resto.
+
+### 2. Campo de nombre
+
+- Etiqueta en mayúsculas con tracking.
+- Icono de usuario dentro del campo.
+- Placeholder de ejemplo y contador `0/60`.
+- Límite de 60 caracteres y limpieza automática de mensajes al escribir.
+
+### 3. Carga de imagen
+
+- Zona de carga con borde punteado, icono y textos claros.
+- **Arrastrar y soltar** además de hacer clic para seleccionar.
+- Estado visual al arrastrar (`Suelta la imagen aquí`).
+- Validación de tipo y tamaño (5 MB) sin cambios.
+- Vista seleccionada con miniatura, nombre del archivo, botón **Cambiar** y botón **Quitar** con icono.
+
+### 4. Acciones y mensajes
+
+- Botón principal **«Agregar candidato»** con icono y estado «Guardando…».
+- Errores y éxitos como banners con icono y color, no como texto suelto.
+- Vista previa dentro de un panel con badge «Papeleta».
+
+### 5. Verificación en navegador
+
+| Comprobación | Resultado |
+|---|---|
+| Campo con límite 60 y contador | ✅ |
+| Nombre corto rechazado | ✅ «El nombre debe tener al menos 3 caracteres.» |
+| Escribir de nuevo limpia el error | ✅ |
+| Seleccionar imagen | ✅ Miniatura, nombre y vista previa |
+| Arrastrar y soltar imagen | ✅ `arrastrada.png` cargada |
+| Botón Quitar | ✅ Vuelve la zona de carga |
+| `npm run typecheck` | ✅ |
+| `npm run test:offline` | ✅ 26/26 |
+| `npm run build` | ✅ |
+
+**Se hizo commit y push. No se desplegó en Vercel.**
