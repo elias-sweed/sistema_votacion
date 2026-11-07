@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase'
 export type ElectionStatus = {
   open: boolean
   title: string
+  centro: string
+  mesa: { id: string; nombre: string } | null
 }
 
 export type VoterVerification = {
@@ -27,6 +29,7 @@ export type VotingErrorKind =
   | 'rate-limited'
   | 'closed'
   | 'invalid-candidate'
+  | 'invalid-mesa'
   | 'unavailable'
   | 'unknown'
 
@@ -46,6 +49,8 @@ export class VotingError extends Error {
 type StatusResponse = {
   eleccion_abierta?: unknown
   titulo?: unknown
+  centro?: unknown
+  mesa?: unknown
 }
 
 type VerificationResponse = {
@@ -86,26 +91,58 @@ function isFunctionUnavailable(error: unknown): boolean {
   return error instanceof FunctionsRelayError
 }
 
+function invalidMesaError(): VotingError {
+  return new VotingError(
+    'El enlace de esta mesa no es válido o la mesa está inactiva. Solicita un enlace nuevo al administrador.',
+    'invalid-mesa',
+  )
+}
+
+function parseMesa(value: unknown): ElectionStatus['mesa'] {
+  if (value === null || value === undefined) return null
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.nombre !== 'string') {
+    throw new VotingError('El servidor devolvió una mesa inválida.', 'unknown')
+  }
+  return { id: value.id, nombre: value.nombre }
+}
+
 export function isValidDni(dni: string): boolean {
   return /^\d{8}$/.test(dni)
 }
 
-export async function loadElectionStatus(): Promise<ElectionStatus> {
+export async function loadElectionStatus(token: string): Promise<ElectionStatus> {
   const { data, error } = await supabase.functions.invoke<StatusResponse>('voting-proxy', {
-    body: { action: 'estado' },
+    body: { action: 'estado', token },
   })
 
   if (error) {
+    const code = await functionErrorCode(error)
+    if (code === 'MESA_INVALIDA') throw invalidMesaError()
     if (isFunctionUnavailable(error)) {
       throw new VotingError('El servicio de votación no está disponible (falta desplegar voting-proxy).', 'unavailable')
     }
     throw new VotingError('No se pudo consultar el estado electoral.', 'network')
   }
-  if (!data || typeof data.eleccion_abierta !== 'boolean' || typeof data.titulo !== 'string') {
+  if (
+    !data
+    || typeof data.eleccion_abierta !== 'boolean'
+    || typeof data.titulo !== 'string'
+    || typeof data.centro !== 'string'
+  ) {
     throw new VotingError('El servidor devolvió un estado electoral inválido.', 'unknown')
   }
 
-  return { open: data.eleccion_abierta, title: data.titulo }
+  const mesa = parseMesa(data.mesa)
+  if (!mesa) {
+    throw new VotingError('Este enlace no está asociado a una mesa activa.', 'invalid-mesa')
+  }
+
+  return {
+    open: data.eleccion_abierta,
+    title: data.titulo,
+    centro: data.centro,
+    mesa,
+  }
 }
 
 function isVotingCandidate(value: unknown): value is VotingCandidate {
@@ -115,12 +152,14 @@ function isVotingCandidate(value: unknown): value is VotingCandidate {
     && (value.foto_url === null || typeof value.foto_url === 'string')
 }
 
-export async function loadActiveCandidates(): Promise<VotingCandidate[]> {
+export async function loadActiveCandidates(token: string): Promise<VotingCandidate[]> {
   const { data, error } = await supabase.functions.invoke<CandidatesResponse>('voting-proxy', {
-    body: { action: 'candidatos' },
+    body: { action: 'candidatos', token },
   })
 
   if (error) {
+    const code = await functionErrorCode(error)
+    if (code === 'MESA_INVALIDA') throw invalidMesaError()
     if (isFunctionUnavailable(error)) {
       throw new VotingError('El servicio de votación no está disponible (falta desplegar voting-proxy).', 'unavailable')
     }
@@ -132,18 +171,19 @@ export async function loadActiveCandidates(): Promise<VotingCandidate[]> {
   return data.candidatos
 }
 
-export async function verifyVoter(dni: string): Promise<VoterVerification> {
+export async function verifyVoter(token: string, dni: string): Promise<VoterVerification> {
   if (!isValidDni(dni)) throw new VotingError('Ingresa un DNI de ocho dígitos.', 'input')
 
   const { data, error } = await supabase.functions.invoke<VerificationResponse>('voting-proxy', {
-    body: { action: 'verificar', dni },
+    body: { action: 'verificar', dni, token },
   })
 
   if (error) {
+    const code = await functionErrorCode(error)
+    if (code === 'MESA_INVALIDA') throw invalidMesaError()
     if (isFunctionUnavailable(error)) {
       throw new VotingError('El servicio de votación no está disponible (falta desplegar voting-proxy).', 'unavailable')
     }
-    const code = await functionErrorCode(error)
     if (code === 'P0007') throw new VotingError('Se alcanzó el límite de intentos. Espera antes de volver a intentarlo.', 'rate-limited')
     throw new VotingError('No se pudo confirmar la identidad por un problema de conexión. Inténtalo de nuevo.', 'network')
   }
@@ -159,7 +199,7 @@ export async function verifyVoter(dni: string): Promise<VoterVerification> {
   }
 
   if (data.rate_limited) throw new VotingError('Se alcanzó el límite de intentos. Espera antes de volver a intentarlo.', 'rate-limited')
-  if (!data.existe || !data.nombre) throw new VotingError('No encontramos una habilitación de voto para esos datos.', 'not-found')
+  if (!data.existe || !data.nombre) throw new VotingError('No encontramos una habilitación de voto para esos datos en esta mesa.', 'not-found')
   if (!data.puede_votar) throw new VotingError('El sistema indica que este votante ya emitió su voto.', 'already-voted')
 
   return {
@@ -170,23 +210,26 @@ export async function verifyVoter(dni: string): Promise<VoterVerification> {
   }
 }
 
-export async function castVote(dni: string, candidateId: string): Promise<void> {
+export async function castVote(token: string, dni: string, candidateId: string): Promise<void> {
   if (!isValidDni(dni)) throw new VotingError('La identificación de la sesión no es válida.', 'input')
 
   const { data, error } = await supabase.functions.invoke<VoteResponse>('voting-proxy', {
-    body: { action: 'votar', dni, candidato_id: candidateId },
+    body: { action: 'votar', dni, candidato_id: candidateId, token },
   })
 
   if (error) {
+    const code = await functionErrorCode(error)
+    if (code === 'MESA_INVALIDA') throw invalidMesaError()
     if (isFunctionUnavailable(error)) {
       throw new VotingError('El servicio de votación no está disponible. No se registró ningún voto.', 'unavailable')
     }
-    const code = await functionErrorCode(error)
     if (code === 'P0001') throw new VotingError('La identificación de la sesión no es válida.', 'input')
     if (code === 'P0003') throw new VotingError('La elección se cerró antes de registrar el voto.', 'closed')
     if (code === 'P0004') throw new VotingError('El servidor indica que este votante ya emitió su voto.', 'already-voted')
     if (code === 'P0005') throw new VotingError('La opción seleccionada ya no está habilitada.', 'invalid-candidate')
     if (code === 'P0007') throw new VotingError('Se alcanzó el límite de intentos. Solicita ayuda al personal electoral.', 'rate-limited')
+    if (code === 'P0012') throw invalidMesaError()
+    if (code === 'P0013') throw new VotingError('Este votante no pertenece a la mesa de este equipo.', 'invalid-mesa')
     throw new VotingError('No se recibió confirmación del servidor. No vuelvas a enviar el voto; solicita asistencia para verificar su estado.', 'unknown')
   }
 

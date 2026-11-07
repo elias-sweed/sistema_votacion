@@ -3,6 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import Home01Icon from '@hugeicons/core-free-icons/Home01Icon'
 import IdCardIcon from '@hugeicons/core-free-icons/IdCardIcon'
 import Logout01Icon from '@hugeicons/core-free-icons/Logout01Icon'
+import Settings01Icon from '@hugeicons/core-free-icons/Settings01Icon'
 import Table01Icon from '@hugeicons/core-free-icons/Table01Icon'
 import UserGroupIcon from '@hugeicons/core-free-icons/UserGroupIcon'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -12,17 +13,19 @@ import { useToast } from '../../components/ui/ToastProvider'
 import Dock, { type DockItemData } from '../../components/ui/Dock'
 import MaskedHeading from '../../components/ui/MaskedHeading'
 import CandidatosPage from '../candidatos/CandidatosPage'
+import ConfiguracionPage from '../configuracion/ConfiguracionPage'
 import DashboardPage from '../dashboard/DashboardPage'
 import MesasPage from '../mesas/MesasPage'
 import PadronPage from '../padron/PadronPage'
 
-type Vista = 'inicio' | 'candidatos' | 'mesas' | 'padron'
+type Vista = 'inicio' | 'candidatos' | 'mesas' | 'padron' | 'configuracion'
 
 const SUBTITULOS: Record<Vista, string> = {
   inicio: 'Estado general del proceso electoral.',
   candidatos: 'Gestiona los candidatos y su estado.',
-  mesas: 'Administra las mesas y salones.',
-  padron: 'Importa y supervisa el padrón electoral.'
+  mesas: 'Administra las mesas, sus enlaces y la participación.',
+  padron: 'Importa y supervisa el padrón electoral.',
+  configuracion: 'Abre o cierra la elección y define los datos del centro.'
 }
 
 const glyph = (icon: typeof UserGroupIcon) => <HugeiconsIcon icon={icon} size="1em" strokeWidth={1.8} />
@@ -30,7 +33,8 @@ const glyph = (icon: typeof UserGroupIcon) => <HugeiconsIcon icon={icon} size="1
 const VISTA_POR_SECCION: Record<string, Vista> = {
   candidatos: 'candidatos',
   mesas: 'mesas',
-  padron: 'padron'
+  padron: 'padron',
+  configuracion: 'configuracion'
 }
 
 export default function PanelPage() {
@@ -105,6 +109,12 @@ export default function PanelPage() {
       active: vista === 'padron',
       onClick: () => setVista('padron')
     },
+    {
+      icon: glyph(Settings01Icon),
+      label: 'Configuración',
+      active: vista === 'configuracion',
+      onClick: () => setVista('configuracion')
+    },
     { separator: true },
     {
       icon: glyph(Logout01Icon),
@@ -143,6 +153,7 @@ export default function PanelPage() {
         {vista === 'candidatos' && <CandidatosPage />}
         {vista === 'mesas' && <MesasPage />}
         {vista === 'padron' && <PadronPage />}
+        {vista === 'configuracion' && <ConfiguracionPage />}
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 px-4 pointer-events-none">

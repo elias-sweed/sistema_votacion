@@ -12,7 +12,7 @@ import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import MagicBento, { type MagicBentoItem } from '../../components/ui/MagicBento'
 import { DashboardSkeleton } from '../panel/PanelSkeletons'
 
-type Vista = 'candidatos' | 'mesas' | 'padron'
+type Vista = 'candidatos' | 'mesas' | 'padron' | 'configuracion'
 
 type Resumen = {
   votantes: number
@@ -23,6 +23,9 @@ type Resumen = {
   candidatosTotal: number
   mesasActivas: number
   mesasTotal: number
+  eleccionAbierta: boolean
+  titulo: string
+  centro: string
 }
 
 type EstadisticasRpc = {
@@ -44,12 +47,15 @@ const VACIO: Resumen = {
   candidatosActivos: 0,
   candidatosTotal: 0,
   mesasActivas: 0,
-  mesasTotal: 0
+  mesasTotal: 0,
+  eleccionAbierta: false,
+  titulo: '',
+  centro: ''
 }
 
 export default function DashboardPage({ onNavigate }: DashboardPageProps) {
-  const [resumenInicial] = useState(() => leerCache<Resumen>(CLAVES_CACHE.dashboard))
-  const [resumen, setResumen] = useState<Resumen>(resumenInicial ?? VACIO)
+  const [resumenInicial] = useState(() => leerCache<Partial<Resumen>>(CLAVES_CACHE.dashboard))
+  const [resumen, setResumen] = useState<Resumen>(() => ({ ...VACIO, ...(resumenInicial ?? {}) }))
   const [cargando, setCargando] = useState(resumenInicial === null)
   const [tieneDatos, setTieneDatos] = useState(resumenInicial !== null)
   const [error, setError] = useState<string | null>(null)
@@ -58,16 +64,17 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
     setCargando(true)
     setError(null)
 
-    const [estadisticas, candidatos, mesas] = await Promise.all([
+    const [estadisticas, candidatos, mesas, configuracion] = await Promise.all([
       supabase.rpc('obtener_estadisticas_padron'),
       supabase.from('candidatos').select('activo'),
-      supabase.from('mesas').select('activo')
+      supabase.from('mesas').select('activo'),
+      supabase.from('configuracion').select('eleccion_abierta, titulo, centro').eq('id', 1).maybeSingle()
     ])
 
-    if (estadisticas.error || candidatos.error || mesas.error) {
+    if (estadisticas.error || candidatos.error || mesas.error || configuracion.error) {
       setError(
         mensajeDeError(
-          estadisticas.error ?? candidatos.error ?? mesas.error,
+          estadisticas.error ?? candidatos.error ?? mesas.error ?? configuracion.error,
           'No se pudo cargar el resumen general.'
         )
       )
@@ -78,6 +85,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
     const est = (estadisticas.data?.[0] ?? {}) as EstadisticasRpc
     const listaCandidatos = (candidatos.data ?? []) as { activo: boolean }[]
     const listaMesas = (mesas.data ?? []) as { activo: boolean }[]
+    const conf = (configuracion.data ?? {}) as { eleccion_abierta?: boolean; titulo?: string; centro?: string }
 
     const nuevoResumen: Resumen = {
       votantes: Number(est.total_votantes ?? 0),
@@ -87,7 +95,10 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
       candidatosActivos: listaCandidatos.filter(c => c.activo).length,
       candidatosTotal: listaCandidatos.length,
       mesasActivas: listaMesas.filter(m => m.activo).length,
-      mesasTotal: listaMesas.length
+      mesasTotal: listaMesas.length,
+      eleccionAbierta: conf.eleccion_abierta === true,
+      titulo: typeof conf.titulo === 'string' ? conf.titulo : '',
+      centro: typeof conf.centro === 'string' ? conf.centro : ''
     }
     setResumen(nuevoResumen)
     guardarCache(CLAVES_CACHE.dashboard, nuevoResumen)

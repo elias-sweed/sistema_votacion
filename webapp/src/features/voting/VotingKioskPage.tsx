@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useParams } from 'react-router-dom'
 import {
   castVote,
   isValidDni,
@@ -18,6 +19,8 @@ function initials(name: string) {
 }
 
 export default function VotingKioskPage() {
+  const { token: tokenParam } = useParams<{ token: string }>()
+  const token = tokenParam?.trim() ?? ''
   const dniRef = useRef('')
   const submittingRef = useRef(false)
   const [status, setStatus] = useState<ElectionStatus | null>(null)
@@ -35,21 +38,27 @@ export default function VotingKioskPage() {
   const [identityConfirmed, setIdentityConfirmed] = useState(false)
 
   async function loadOptions() {
+    if (!token) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setLoadError(null)
     try {
       const [electionStatus, activeCandidates] = await Promise.all([
-        loadElectionStatus(),
-        loadActiveCandidates(),
+        loadElectionStatus(token),
+        loadActiveCandidates(token),
       ])
       setStatus(electionStatus)
       setCandidates(activeCandidates)
     } catch (error) {
       const kind = error instanceof VotingError ? error.kind : 'unknown'
       setLoadError(
-        kind === 'unavailable'
-          ? 'El servicio de votación no está disponible: la función voting-proxy aún no está desplegada en Supabase. Avisa al administrador.'
-          : 'No se pudo cargar la información electoral. Revisa la conexión y vuelve a intentarlo.'
+        kind === 'invalid-mesa'
+          ? 'Este enlace no es válido o la mesa está inactiva. Pide al administrador que genere uno nuevo.'
+          : kind === 'unavailable'
+            ? 'El servicio de votación no está disponible: la función voting-proxy aún no está desplegada en Supabase. Avisa al administrador.'
+            : 'No se pudo cargar la información electoral. Revisa la conexión y vuelve a intentarlo.'
       )
     } finally {
       setLoading(false)
@@ -57,8 +66,12 @@ export default function VotingKioskPage() {
   }
 
   useEffect(() => {
+    if (!token) {
+      setLoading(false)
+      return
+    }
     void loadOptions()
-  }, [])
+  }, [token])
 
   function clearVoterState() {
     dniRef.current = ''
@@ -86,7 +99,7 @@ export default function VotingKioskPage() {
 
     setChecking(true)
     try {
-      const voter = await verifyVoter(dni)
+      const voter = await verifyVoter(token, dni)
       dniRef.current = dni
       setVoterName(voter.name)
       setStep('identity')
@@ -120,7 +133,7 @@ export default function VotingKioskPage() {
     setSubmitting(true)
     setMessage(null)
     try {
-      await castVote(dni, candidateId)
+      await castVote(token, dni, candidateId)
       clearVoterState()
       setStep('success')
     } catch (error) {
@@ -152,6 +165,25 @@ export default function VotingKioskPage() {
   const selectedCandidate = candidates.find(candidate => candidate.id === selectedCandidateId) ?? null
   const canStart = !loading && !loadError && status?.open && candidates.length > 0
 
+  if (!token) {
+    return (
+      <main className="relative flex min-h-screen items-center justify-center px-4 py-10 text-white">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(37,99,235,0.18),transparent_55%)]" />
+        <section className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950/80 p-8 text-center shadow-2xl backdrop-blur-xl">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-400/15 text-2xl text-amber-200" aria-hidden="true">!</span>
+          <h1 className="mt-5 text-2xl font-bold">Abre el enlace de tu mesa</h1>
+          <p className="mt-3 text-sm text-slate-300">
+            Este equipo necesita el enlace de acceso asignado a su salón. Pídelo al administrador
+            y ábrelo en este navegador.
+          </p>
+          <p className="mt-4 text-xs text-slate-500">
+            Cada enlace identifica la mesa donde se registran los votos. No compartas el enlace de otra mesa.
+          </p>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main className="relative min-h-screen px-4 py-8 text-white sm:px-8 sm:py-12">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_12%,rgba(37,99,235,0.2),transparent_50%)]" />
@@ -161,6 +193,12 @@ export default function VotingKioskPage() {
           <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
             {status?.title || 'Votación escolar'}
           </h1>
+          {status?.centro && <p className="mt-2 text-sm text-slate-400">{status.centro}</p>}
+          {status?.mesa && (
+            <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-1.5 text-sm font-semibold text-sky-100">
+              Mesa {status.mesa.nombre}
+            </p>
+          )}
           <p className="mt-3 text-sm text-slate-300">Sigue las indicaciones en pantalla. Tu voto es secreto.</p>
         </header>
 

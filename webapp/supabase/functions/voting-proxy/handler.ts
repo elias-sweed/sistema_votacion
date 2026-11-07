@@ -11,20 +11,24 @@ export const corsHeaders = {
 interface VerifyRequest {
   action: "verificar";
   dni: string;
+  token: string;
 }
 
 interface VoteRequest {
   action: "votar";
   dni: string;
   candidato_id: string;
+  token: string;
 }
 
 interface StatusRequest {
   action: "estado";
+  token?: string;
 }
 
 interface CandidatesRequest {
   action: "candidatos";
+  token?: string;
 }
 
 type RequestBody = VerifyRequest | VoteRequest | StatusRequest | CandidatesRequest;
@@ -77,15 +81,68 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+// Los enlaces usan tokens hexadecimales de 128 bits generados por la base.
+// Se acepta cualquier cadena URL-safe suficientemente larga para permitir
+// rotaciones futuras sin cambiar el código.
+export function validateToken(token: unknown): token is string {
+  if (typeof token !== "string") return false;
+  const value = token.trim();
+  return value.length >= 16 && value.length <= 128 && /^[A-Za-z0-9_-]+$/.test(value);
+}
+
+type MesaInfo = { id: string; nombre: string };
+
+async function resolveMesa(
+  supabase: SupabaseLike,
+  token: string,
+): Promise<{ mesa: MesaInfo | null; error: unknown }> {
+  const { data, error } = await supabase
+    .from("mesas")
+    .select("id, nombre, activo")
+    .eq("token_acceso", token)
+    .maybeSingle();
+
+  if (error) return { mesa: null, error };
+
+  if (
+    !isRecord(data)
+    || data.activo !== true
+    || typeof data.id !== "string"
+    || typeof data.nombre !== "string"
+  ) {
+    return { mesa: null, error: null };
+  }
+
+  return { mesa: { id: data.id, nombre: data.nombre }, error: null };
+}
+
 export function parseRequest(value: unknown): RequestBody | null {
   if (!isRecord(value) || typeof value.action !== "string") return null;
-  if (value.action === "estado") return { action: "estado" };
-  if (value.action === "candidatos") return { action: "candidatos" };
-  if (value.action === "verificar" && typeof value.dni === "string") {
-    return { action: "verificar", dni: value.dni };
+  if (value.action === "estado") {
+    if (value.token === undefined) return { action: "estado" };
+    if (!validateToken(value.token)) return null;
+    return { action: "estado", token: value.token.trim() };
   }
-  if (value.action === "votar" && typeof value.dni === "string" && typeof value.candidato_id === "string") {
-    return { action: "votar", dni: value.dni, candidato_id: value.candidato_id };
+  if (value.action === "candidatos") {
+    if (value.token === undefined) return { action: "candidatos" };
+    if (!validateToken(value.token)) return null;
+    return { action: "candidatos", token: value.token.trim() };
+  }
+  if (value.action === "verificar" && typeof value.dni === "string" && validateToken(value.token)) {
+    return { action: "verificar", dni: value.dni, token: value.token.trim() };
+  }
+  if (
+    value.action === "votar"
+    && typeof value.dni === "string"
+    && typeof value.candidato_id === "string"
+    && validateToken(value.token)
+  ) {
+    return {
+      action: "votar",
+      dni: value.dni,
+      candidato_id: value.candidato_id,
+      token: value.token.trim(),
+    };
   }
   return null;
 }
@@ -116,10 +173,14 @@ export function validateUuid(uuid: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uuid);
 }
 
-async function handleStatus(supabase: SupabaseLike): Promise<Response> {
+function mesaInvalida(): Response {
+  return json({ error: "Enlace de mesa inválido o inactivo", code: "MESA_INVALIDA" }, 403);
+}
+
+async function handleStatus(supabase: SupabaseLike, body: StatusRequest): Promise<Response> {
   const { data, error } = await supabase
     .from("configuracion")
-    .select("eleccion_abierta, titulo")
+    .select("eleccion_abierta, titulo, centro")
     .eq("id", 1)
     .maybeSingle();
 
@@ -132,9 +193,22 @@ async function handleStatus(supabase: SupabaseLike): Promise<Response> {
     return json({ error: "No existe configuración electoral" }, 503);
   }
 
+  let mesa: MesaInfo | null = null;
+  if (body.token) {
+    const resolved = await resolveMesa(supabase, body.token);
+    if (resolved.error) {
+      logError("Error al validar la mesa del enlace", resolved.error);
+      return json({ error: "No se pudo validar la mesa del enlace" }, 500);
+    }
+    if (!resolved.mesa) return mesaInvalida();
+    mesa = resolved.mesa;
+  }
+
   return json({
     eleccion_abierta: data.eleccion_abierta === true,
     titulo: typeof data.titulo === "string" ? data.titulo : "",
+    centro: typeof data.centro === "string" ? data.centro : "",
+    mesa,
   });
 }
 
@@ -164,16 +238,24 @@ async function handleCandidates(supabase: SupabaseLike): Promise<Response> {
 }
 
 async function handleVerify(supabase: SupabaseLike, body: VerifyRequest, clientIp: string): Promise<Response> {
-  const { dni } = body;
+  const { dni, token } = body;
 
   if (!validateDni(dni)) {
     return json({ error: "DNI inválido" }, 400);
   }
 
+  const resolved = await resolveMesa(supabase, token);
+  if (resolved.error) {
+    logError("Error al validar la mesa del enlace", resolved.error);
+    return json({ error: "No se pudo validar la mesa del enlace" }, 500);
+  }
+  if (!resolved.mesa) return mesaInvalida();
+
   const dniHash = await hashDni(dni);
 
   const { data, error } = await supabase.rpc("verificar_votante_con_limite", {
     p_dni: dni,
+    p_mesa_id: resolved.mesa.id,
     p_client_ip: clientIp,
     p_dni_hash: dniHash,
   });
@@ -207,7 +289,7 @@ async function handleVerify(supabase: SupabaseLike, body: VerifyRequest, clientI
 }
 
 async function handleVote(supabase: SupabaseLike, body: VoteRequest, clientIp: string): Promise<Response> {
-  const { dni, candidato_id } = body;
+  const { dni, candidato_id, token } = body;
 
   if (!validateDni(dni)) {
     return json({ error: "DNI inválido" }, 400);
@@ -217,11 +299,19 @@ async function handleVote(supabase: SupabaseLike, body: VoteRequest, clientIp: s
     return json({ error: "Candidato inválido", code: "P0005" }, 400);
   }
 
+  const resolved = await resolveMesa(supabase, token);
+  if (resolved.error) {
+    logError("Error al validar la mesa del enlace", resolved.error);
+    return json({ error: "No se pudo validar la mesa del enlace" }, 500);
+  }
+  if (!resolved.mesa) return mesaInvalida();
+
   const dniHash = await hashDni(dni);
 
   const { error } = await supabase.rpc("emitir_voto_con_limite", {
     p_dni: dni,
     p_candidato_id: candidato_id,
+    p_mesa_id: resolved.mesa.id,
     p_client_ip: clientIp,
     p_dni_hash: dniHash,
   });
@@ -233,6 +323,8 @@ async function handleVote(supabase: SupabaseLike, body: VoteRequest, clientIp: s
     else if (error.code === "P0004") message = "Este votante ya emitió su voto";
     else if (error.code === "P0005") message = "Candidato inválido";
     else if (error.code === "P0007") message = "Demasiados intentos. Espere un momento";
+    else if (error.code === "P0012") message = "Mesa inválida o inactiva";
+    else if (error.code === "P0013") message = "El votante no pertenece a esta mesa";
 
     return json({
       error: message,
@@ -273,7 +365,7 @@ export async function handleProxyRequest(req: Request, deps: ProxyDependencies):
   }
 
   try {
-    if (body.action === "estado") return await handleStatus(deps.supabase);
+    if (body.action === "estado") return await handleStatus(deps.supabase, body);
     if (body.action === "candidatos") return await handleCandidates(deps.supabase);
     if (body.action === "verificar") return await handleVerify(deps.supabase, body, clientIp);
     return await handleVote(deps.supabase, body, clientIp);

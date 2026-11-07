@@ -10,12 +10,22 @@ function jsonResponse(body, status = 200) {
   });
 }
 
-function createFakeSupabase({ config, candidates, rpc } = {}) {
+function createFakeSupabase({ config, candidates, mesas, rpc } = {}) {
   const calls = { from: [], rpc: [] };
   return {
     calls,
     from(table) {
       calls.from.push(table);
+      if (table === 'mesas') {
+        const result = mesas ?? { data: null, error: null };
+        const builder = {
+          select: () => builder,
+          eq: () => builder,
+          maybeSingle: () => Promise.resolve(result),
+          then: (resolve, reject) => Promise.resolve(result).then(resolve, reject),
+        };
+        return builder;
+      }
       const result = table === 'configuracion'
         ? (config ?? { data: null, error: null })
         : table === 'candidatos'
@@ -88,13 +98,15 @@ test('acción desconocida se rechaza', async () => {
 
 test('estado devuelve apertura y título', async () => {
   const supabase = createFakeSupabase({
-    config: { data: { eleccion_abierta: true, titulo: 'Elección de prueba' }, error: null },
+    config: { data: { eleccion_abierta: true, titulo: 'Elección de prueba', centro: '' }, error: null },
   });
   const response = await handleProxyRequest(proxyRequest({ action: 'estado' }), { supabase });
   assert.equal(response.status, 200);
   assert.deepEqual(await readJson(response), {
     eleccion_abierta: true,
     titulo: 'Elección de prueba',
+    centro: '',
+    mesa: null,
   });
 });
 
@@ -139,12 +151,13 @@ test('candidatos devuelve error controlado si falla la consulta', async (t) => {
 
 test('verificar DNI existente devuelve nombre y elegibilidad', async () => {
   const supabase = createFakeSupabase({
+    mesas: { data: { id: 'm1', nombre: 'Mesa 1', activo: true }, error: null },
     rpc: async () => ({
       data: [{ nombre: 'Ana Pérez', puede_votar: true, rate_limited: false }],
       error: null,
     }),
   });
-  const response = await handleProxyRequest(proxyRequest({ action: 'verificar', dni: '12345678' }), { supabase });
+  const response = await handleProxyRequest(proxyRequest({ action: 'verificar', dni: '12345678', token: 'tokentestvalido123' }), { supabase });
   assert.equal(response.status, 200);
   assert.deepEqual(await readJson(response), {
     existe: true,
@@ -162,8 +175,11 @@ test('verificar DNI existente devuelve nombre y elegibilidad', async () => {
 });
 
 test('verificar DNI inexistente devuelve nombre nulo explícito', async () => {
-  const supabase = createFakeSupabase({ rpc: async () => ({ data: [], error: null }) });
-  const response = await handleProxyRequest(proxyRequest({ action: 'verificar', dni: '87654321' }), { supabase });
+  const supabase = createFakeSupabase({
+    mesas: { data: { id: 'm1', nombre: 'Mesa 1', activo: true }, error: null },
+    rpc: async () => ({ data: [], error: null }),
+  });
+  const response = await handleProxyRequest(proxyRequest({ action: 'verificar', dni: '87654321', token: 'tokentestvalido123' }), { supabase });
   assert.equal(response.status, 200);
   assert.deepEqual(await readJson(response), {
     existe: false,
@@ -175,12 +191,13 @@ test('verificar DNI inexistente devuelve nombre nulo explícito', async () => {
 
 test('verificar votante que ya votó y rate limit', async () => {
   const alreadyVoted = createFakeSupabase({
+    mesas: { data: { id: 'm1', nombre: 'Mesa 1', activo: true }, error: null },
     rpc: async () => ({
       data: [{ nombre: 'Carlos', puede_votar: false, rate_limited: false }],
       error: null,
     }),
   });
-  let response = await handleProxyRequest(proxyRequest({ action: 'verificar', dni: '11111111' }), { supabase: alreadyVoted });
+  let response = await handleProxyRequest(proxyRequest({ action: 'verificar', dni: '11111111', token: 'tokentestvalido123' }), { supabase: alreadyVoted });
   assert.deepEqual(await readJson(response), {
     existe: true,
     nombre: 'Carlos',
@@ -189,12 +206,13 @@ test('verificar votante que ya votó y rate limit', async () => {
   });
 
   const limited = createFakeSupabase({
+    mesas: { data: { id: 'm1', nombre: 'Mesa 1', activo: true }, error: null },
     rpc: async () => ({
       data: [{ nombre: null, puede_votar: false, rate_limited: true }],
       error: null,
     }),
   });
-  response = await handleProxyRequest(proxyRequest({ action: 'verificar', dni: '22222222' }), { supabase: limited });
+  response = await handleProxyRequest(proxyRequest({ action: 'verificar', dni: '22222222', token: 'tokentestvalido123' }), { supabase: limited });
   assert.deepEqual(await readJson(response), {
     existe: false,
     nombre: null,
@@ -204,17 +222,22 @@ test('verificar votante que ya votó y rate limit', async () => {
 });
 
 test('verificar rechaza DNI con formato inválido', async () => {
-  const supabase = createFakeSupabase();
-  const response = await handleProxyRequest(proxyRequest({ action: 'verificar', dni: '12A4567' }), { supabase });
+  const supabase = createFakeSupabase({
+    mesas: { data: { id: 'm1', nombre: 'Mesa 1', activo: true }, error: null },
+  });
+  const response = await handleProxyRequest(proxyRequest({ action: 'verificar', dni: '12A4567', token: 'tokentestvalido123' }), { supabase });
   assert.equal(response.status, 400);
   assert.deepEqual(await readJson(response), { error: 'DNI inválido' });
   assert.equal(supabase.calls.rpc.length, 0);
 });
 
 test('votar registra un único voto con el candidato recibido', async () => {
-  const supabase = createFakeSupabase({ rpc: async () => ({ data: null, error: null }) });
+  const supabase = createFakeSupabase({
+    mesas: { data: { id: 'm1', nombre: 'Mesa 1', activo: true }, error: null },
+    rpc: async () => ({ data: null, error: null }),
+  });
   const candidato = '123e4567-e89b-42d3-a456-426614174000';
-  const response = await handleProxyRequest(proxyRequest({ action: 'votar', dni: '12345678', candidato_id: candidato }), { supabase });
+  const response = await handleProxyRequest(proxyRequest({ action: 'votar', dni: '12345678', candidato_id: candidato, token: 'tokentestvalido123' }), { supabase });
   assert.equal(response.status, 200);
   assert.deepEqual(await readJson(response), { success: true });
 
@@ -229,12 +252,14 @@ test('votar registra un único voto con el candidato recibido', async () => {
 test('votar propaga el código de elección cerrada', async (t) => {
   t.mock.method(console, 'error', () => {});
   const supabase = createFakeSupabase({
+    mesas: { data: { id: 'm1', nombre: 'Mesa 1', activo: true }, error: null },
     rpc: async () => ({ data: null, error: { code: 'P0003', message: 'La elección está cerrada' } }),
   });
   const response = await handleProxyRequest(proxyRequest({
     action: 'votar',
     dni: '12345678',
     candidato_id: '123e4567-e89b-42d3-a456-426614174000',
+    token: 'tokentestvalido123',
   }), { supabase });
   assert.equal(response.status, 400);
   assert.deepEqual(await readJson(response), {
@@ -252,12 +277,14 @@ test('votar propaga voto duplicado y rate limit', async (t) => {
     ['P0007', 'Demasiados intentos. Espere un momento'],
   ]) {
     const supabase = createFakeSupabase({
+      mesas: { data: { id: 'm1', nombre: 'Mesa 1', activo: true }, error: null },
       rpc: async () => ({ data: null, error: { code, message: 'error de prueba' } }),
     });
     const response = await handleProxyRequest(proxyRequest({
       action: 'votar',
       dni: '12345678',
       candidato_id: '123e4567-e89b-42d3-a456-426614174000',
+      token: 'tokentestvalido123',
     }), { supabase });
     const body = await readJson(response);
     assert.equal(response.status, 400);
@@ -269,7 +296,7 @@ test('votar propaga voto duplicado y rate limit', async (t) => {
 
 test('votar rechaza candidato que no es UUID antes de llamar a la base', async () => {
   const supabase = createFakeSupabase();
-  const response = await handleProxyRequest(proxyRequest({ action: 'votar', dni: '12345678', candidato_id: 'no-uuid' }), { supabase });
+  const response = await handleProxyRequest(proxyRequest({ action: 'votar', dni: '12345678', candidato_id: 'no-uuid', token: 'tokentestvalido123' }), { supabase });
   assert.equal(response.status, 400);
   assert.deepEqual(await readJson(response), { error: 'Candidato inválido', code: 'P0005' });
   assert.equal(supabase.calls.rpc.length, 0);
@@ -285,9 +312,10 @@ test('sin cliente Supabase responde error de configuración', async (t) => {
 test('una excepción inesperada se convierte en error interno', async (t) => {
   t.mock.method(console, 'error', () => {});
   const supabase = createFakeSupabase({
+    mesas: { data: { id: 'm1', nombre: 'Mesa 1', activo: true }, error: null },
     rpc: async () => { throw new Error('fallo inesperado'); },
   });
-  const response = await handleProxyRequest(proxyRequest({ action: 'verificar', dni: '12345678' }), { supabase });
+  const response = await handleProxyRequest(proxyRequest({ action: 'verificar', dni: '12345678', token: 'tokentestvalido123' }), { supabase });
   assert.equal(response.status, 500);
   assert.deepEqual(await readJson(response), { error: 'Error interno del servidor' });
 });

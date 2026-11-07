@@ -66,6 +66,7 @@ export default function App() {
         ) : (
           <BrowserRouter>
             <Routes>
+              <Route path="/votar/:token" element={<VotingKioskPage />} />
               <Route path="/votar" element={<VotingKioskPage />} />
               <Route
                 path="/login"
