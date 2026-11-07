@@ -1,35 +1,40 @@
 -- ============================================================
--- ACCESO DIRECTO AL PANEL (parte SQL)
+-- ACCESO AL PANEL: OTORGAR ROL ADMIN A UN CORREO
 --
--- El usuario NO se crea aquí: auth.users está protegido y el
--- SQL Editor puede no tener permiso. Créalo desde:
---   Supabase Dashboard -> Authentication -> Users -> Add user
---   (marca "Auto Confirm User")
--- o ejecuta: node supabase/scripts/crear_usuario.mjs
+-- Cambia `correo` por el correo del administrador y ejecuta este
+-- script en Supabase -> SQL Editor.
 --
--- Este script solo hace que cualquier usuario autenticado
--- cuente como administrador, sin app_metadata ni metadata.
+-- Escribe app_metadata.role = 'admin', que es un claim firmado por
+-- Supabase Auth. No abre el panel a cualquier usuario autenticado.
 --
--- Si al ejecutarlo aparece:
---   ERROR 42501: permission denied for schema public
--- el rol del SQL Editor no puede crear funciones. Alternativas:
---   1) node supabase/scripts/aplicar_sql.mjs  (Management API con PAT)
---   2) Asignar app_metadata {"role":"admin"} al usuario en
---      Authentication -> Users (no requiere SQL).
+-- Después de ejecutarlo, el usuario debe cerrar sesión y volver a
+-- entrar (o refrescar la sesión) para que el JWT incluya el rol.
 -- ============================================================
 
-create or replace function public.is_app_admin()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = pg_catalog, public
-as $$
-  select coalesce(
-    auth.uid() is not null
-    or (auth.jwt() ->> 'role') = 'service_role',
-    false
-  );
-$$;
+do $$
+declare
+  correo text := 'votacion@jimenezpimentel.edu.pe';
+  afectados integer;
+begin
+  update auth.users
+  set raw_app_meta_data =
+    coalesce(raw_app_meta_data, '{}'::jsonb)
+    || jsonb_build_object('role', 'admin')
+  where lower(email) = lower(correo);
 
-grant execute on function public.is_app_admin() to authenticated, service_role;
+  get diagnostics afectados = row_count;
+
+  if afectados = 0 then
+    raise exception 'No existe un usuario con el correo %', correo;
+  end if;
+end $$;
+
+-- ------------------------------------------------------------
+-- VERIFICACIÓN
+-- ------------------------------------------------------------
+select
+  u.email,
+  u.raw_app_meta_data ->> 'role' as rol
+from auth.users u
+where (u.raw_app_meta_data ->> 'role') = 'admin'
+order by u.email;

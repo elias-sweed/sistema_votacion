@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
+import { esSesionAdmin } from '../../lib/session'
 
 export default function AccessDeniedPage() {
   const [session, setSession] = useState<Session | null>(null)
@@ -39,7 +40,7 @@ export default function AccessDeniedPage() {
       return
     }
 
-    if (data.session?.user.app_metadata?.role === 'admin') {
+    if (esSesionAdmin(data.session)) {
       navigate('/admin', { replace: true })
       return
     }

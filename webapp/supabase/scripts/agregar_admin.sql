@@ -1,17 +1,35 @@
 -- ============================================================
--- AGREGAR UN USUARIO COMO SUPER ADMIN
--- Cambia el correo y ejecútalo en Supabase -> SQL Editor.
--- (El usuario debe existir antes en Authentication -> Users)
+-- AGREGAR UN ADMINISTRADOR POR CORREO
+--
+-- Este script hace lo mismo que acceso_directo.sql. Se conserva el
+-- nombre para no romper enlaces de documentación anteriores.
+--
+-- NO usa public.usuarios_admin ni concede acceso a todos los
+-- usuarios: escribe app_metadata.role = 'admin' solo en el correo
+-- indicado. Tras ejecutarlo, cierra sesión y vuelve a entrar.
 -- ============================================================
 
-insert into public.usuarios_admin (user_id, email, rol, activo)
-select u.id, u.email, 'super_admin', true
-from auth.users u
-where lower(u.email) = lower('admin@admin.com')
-on conflict (user_id) do update
-  set email  = excluded.email,
-      rol    = 'super_admin',
-      activo = true;
+do $$
+declare
+  correo text := 'admin@admin.com';  -- <- cambia este correo
+  afectados integer;
+begin
+  update auth.users
+  set raw_app_meta_data =
+    coalesce(raw_app_meta_data, '{}'::jsonb)
+    || jsonb_build_object('role', 'admin')
+  where lower(email) = lower(correo);
 
-select email, rol, activo
-from public.usuarios_admin;
+  get diagnostics afectados = row_count;
+
+  if afectados = 0 then
+    raise exception 'No existe un usuario con el correo %', correo;
+  end if;
+end $$;
+
+select
+  u.email,
+  u.raw_app_meta_data ->> 'role' as rol
+from auth.users u
+where (u.raw_app_meta_data ->> 'role') = 'admin'
+order by u.email;

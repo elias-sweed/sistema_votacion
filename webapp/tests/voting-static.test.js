@@ -19,9 +19,23 @@ const kiosk = readFileSync(new URL('../src/features/voting/VotingKioskPage.tsx',
 const service = readFileSync(new URL('../src/features/voting/votingService.ts', import.meta.url), 'utf8');
 const proxyEntry = readFileSync(new URL('../supabase/functions/voting-proxy/index.ts', import.meta.url), 'utf8');
 const proxy = readFileSync(new URL('../supabase/functions/voting-proxy/handler.ts', import.meta.url), 'utf8');
+const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+const sessionHelper = readFileSync(new URL('../src/lib/session.ts', import.meta.url), 'utf8');
+const supabaseClient = readFileSync(new URL('../src/lib/supabase.ts', import.meta.url), 'utf8');
 
 test('frontend sources never include a service role key', () => {
   assert.doesNotMatch(frontend, /SUPABASE_SERVICE_ROLE_KEY|service_role/i);
+});
+
+test('admin gate only accepts the app_metadata admin role', () => {
+  assert.doesNotMatch(app, /const\s+esAdmin\s*=\s*session\s*!==\s*null/);
+  assert.match(app, /esSesionAdmin\(session\)/);
+  assert.match(sessionHelper, /app_metadata\?\.role/);
+});
+
+test('auth session is not persisted in localStorage', () => {
+  assert.doesNotMatch(supabaseClient, /localStorage\s*\./);
+  assert.match(supabaseClient, /sessionStorage/);
 });
 
 test('browser voting service never invokes the protected voting RPCs directly', () => {

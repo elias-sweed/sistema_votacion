@@ -37,7 +37,12 @@ async function crear() {
   const res = await fetch(`${URL_BASE}/auth/v1/admin/users`, {
     method: 'POST',
     headers: HEADERS,
-    body: JSON.stringify({ email: EMAIL, password: PASSWORD, email_confirm: true })
+    body: JSON.stringify({
+      email: EMAIL,
+      password: PASSWORD,
+      email_confirm: true,
+      app_metadata: { role: 'admin' }
+    })
   })
   if (!res.ok) throw new Error(`crear usuario: HTTP ${res.status} ${await res.text()}`)
   return res.json()
@@ -51,7 +56,8 @@ async function actualizar(id) {
       email: EMAIL,
       password: PASSWORD,
       email_confirm: true,
-      ban_duration: 'none'
+      ban_duration: 'none',
+      app_metadata: { role: 'admin' }
     })
   })
   if (!res.ok) throw new Error(`actualizar usuario: HTTP ${res.status} ${await res.text()}`)
