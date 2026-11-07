@@ -1713,3 +1713,37 @@ grant execute on function public.is_app_admin() to authenticated, service_role;
 Después recargar el panel. Sin esto, la base seguirá devolviendo 403/500 aunque el panel abra.
 
 **Se hizo commit y push. No se desplegó en Vercel.**
+
+---
+
+## XVI. FASE 12 — Super admin por tabla (sin app_metadata)
+
+**Fecha:** 2026-11-06
+**Objetivo:** Que el usuario creado en Authentication tenga permisos totales mediante una tabla, sin editar `app_metadata`.
+
+### 1. Script
+
+`webapp/supabase/scripts/super_admin.sql`:
+
+1. Crea `public.usuarios_admin` (`user_id`, `email`, `rol`, `activo`).
+2. Activa RLS con lectura solo de la propia fila.
+3. Redefine `public.is_app_admin()` como `SECURITY DEFINER` para devolver `true` si el `auth.uid()` está en `usuarios_admin` con `activo = true` y rol `super_admin`/`admin`.
+4. Inserta como `super_admin` a **todos** los usuarios que ya existen en `auth.users`.
+
+Como todas las políticas RLS y RPC del proyecto ya usan `is_app_admin()`, con redefinir esa función se habilitan candidatos, mesas, padrón, configuración, etc.
+
+`webapp/supabase/scripts/agregar_admin.sql`: agrega un correo concreto después.
+
+### 2. Uso
+
+Pegar el contenido de `supabase/scripts/super_admin.sql` en el SQL Editor y ejecutarlo una vez.
+Luego entrar con el usuario de Authentication.
+
+Si el SQL Editor responde `42501 permission denied for schema public`:
+
+```powershell
+$env:SUPABASE_ACCESS_TOKEN="sbp_..."
+node supabase/scripts/aplicar_sql.mjs supabase/scripts/super_admin.sql
+```
+
+**Se hizo commit y push. No se desplegó en Vercel.**
