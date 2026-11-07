@@ -7,6 +7,7 @@ import Table01Icon from '@hugeicons/core-free-icons/Table01Icon'
 import UserGroupIcon from '@hugeicons/core-free-icons/UserGroupIcon'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { limpiarCachePanel } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
 import Dock, { type DockItemData } from '../../components/ui/Dock'
 import MaskedHeading from '../../components/ui/MaskedHeading'
@@ -69,6 +70,7 @@ export default function PanelPage() {
       return
     }
 
+    limpiarCachePanel()
     toast({
       title: 'Sesión cerrada',
       description: 'Has salido del panel de administración.',

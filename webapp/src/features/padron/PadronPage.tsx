@@ -2,7 +2,9 @@ import { useEffect, useState, useCallback } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
+import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
+import { PadronSkeleton } from '../panel/PanelSkeletons'
 
 type Votante = {
   dni: string
@@ -47,13 +49,17 @@ type ImportResult = {
 
 type MesaOption = { id: string; nombre: string }
 
+type ListaCache = { votantes: Votante[]; totalCount: number }
+
 // Solo letras (con tildes/ñ) y espacios simples entre palabras.
 const NOMBRE_REGEX = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*$/
 
 export default function PadronPage() {
   const toast = useToast()
   // Estados principales
-  const [cargando, setCargando] = useState(true)
+  const [listaInicial] = useState(() => leerCache<ListaCache>(CLAVES_CACHE.padronLista))
+  const [cargando, setCargando] = useState(listaInicial === null)
+  const [tieneDatos, setTieneDatos] = useState(listaInicial !== null)
   const [error, setError] = useState<string | null>(null)
   const [exito, setExito] = useState<string | null>(null)
 
@@ -67,10 +73,12 @@ export default function PadronPage() {
   const [exitoManual, setExitoManual] = useState<string | null>(null)
 
   // Datos
-  const [votantes, setVotantes] = useState<Votante[]>([])
-  const [totalCount, setTotalCount] = useState(0)
-  const [mesas, setMesas] = useState<MesaOption[]>([])
-  const [estadisticas, setEstadisticas] = useState<Estadisticas | null>(null)
+  const [votantes, setVotantes] = useState<Votante[]>(() => listaInicial?.votantes ?? [])
+  const [totalCount, setTotalCount] = useState(() => listaInicial?.totalCount ?? 0)
+  const [mesasInicial] = useState(() => leerCache<MesaOption[]>(CLAVES_CACHE.padronMesas))
+  const [mesas, setMesas] = useState<MesaOption[]>(mesasInicial ?? [])
+  const [estadisticasInicial] = useState(() => leerCache<Estadisticas>(CLAVES_CACHE.padronEstadisticas))
+  const [estadisticas, setEstadisticas] = useState<Estadisticas | null>(estadisticasInicial)
 
   // Filtros y paginación
   const [busqueda, setBusqueda] = useState('')
@@ -93,7 +101,11 @@ export default function PadronPage() {
   const cargarMesas = useCallback(async () => {
     const { data, error: err } = await supabase
       .from('mesas').select('id, nombre').eq('activo', true).order('nombre')
-    if (!err && data) setMesas(data.map(m => ({ id: m.id, nombre: m.nombre })))
+    if (!err && data) {
+      const lista = data.map(m => ({ id: m.id, nombre: m.nombre }))
+      setMesas(lista)
+      guardarCache(CLAVES_CACHE.padronMesas, lista)
+    }
   }, [])
 
   // Cargar estadísticas
@@ -104,13 +116,18 @@ export default function PadronPage() {
       setError(mensajeDeError(err, 'No se pudieron cargar las estadísticas del padrón.'))
       return
     }
-    if (data?.[0]) setEstadisticas(data[0] as Estadisticas)
+    if (data?.[0]) {
+      const est = data[0] as Estadisticas
+      setEstadisticas(est)
+      guardarCache(CLAVES_CACHE.padronEstadisticas, est)
+    }
   }, [])
 
   // Cargar votantes con filtros
   const cargarVotantes = useCallback(async () => {
     setCargando(true)
     setError(null)
+    const vistaPorDefecto = !mesaFiltro && !busqueda && !soloPendientes && pagina === 1
     const { data, error: err } = await supabase.rpc('listar_votantes', {
       p_mesa_id: mesaFiltro || null,
       p_busqueda: busqueda || null,
@@ -121,15 +138,23 @@ export default function PadronPage() {
     setCargando(false)
     if (err) { setError(mensajeDeError(err, 'No se pudo cargar el padrón.')); return }
     if (data) {
-      setVotantes(data.map((v: any) => ({
+      const lista: Votante[] = data.map((v: any) => ({
         dni: v.dni,
         nombre: v.nombre,
         mesa_id: v.mesa_id,
         mesa_nombre: v.mesa_nombre,
         ha_votado: v.ha_votado,
         creado_en: v.creado_en,
-      })))
-      setTotalCount(data[0]?.total_count ?? 0)
+      }))
+      const total = data[0]?.total_count ?? 0
+      setVotantes(lista)
+      setTotalCount(total)
+      setTieneDatos(true)
+      // Solo guardamos la vista por defecto para que al volver se vea
+      // el padrón completo y no una búsqueda filtrada anterior.
+      if (vistaPorDefecto) {
+        guardarCache(CLAVES_CACHE.padronLista, { votantes: lista, totalCount: total })
+      }
     }
   }, [mesaFiltro, busqueda, soloPendientes, pagina, pageSize])
 
@@ -341,8 +366,8 @@ export default function PadronPage() {
 
   // --- RENDER ---
 
-  if (cargando && votantes.length === 0) {
-    return <div className="text-center py-8 text-slate-400">Cargando padrón…</div>
+  if (cargando && !tieneDatos) {
+    return <PadronSkeleton />
   }
 
   return (

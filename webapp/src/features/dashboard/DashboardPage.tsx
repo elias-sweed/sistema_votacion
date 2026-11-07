@@ -8,7 +8,9 @@ import UserCheck01Icon from '@hugeicons/core-free-icons/UserCheck01Icon'
 import UserGroupIcon from '@hugeicons/core-free-icons/UserGroupIcon'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
+import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import MagicBento, { type MagicBentoItem } from '../../components/ui/MagicBento'
+import { DashboardSkeleton } from '../panel/PanelSkeletons'
 
 type Vista = 'candidatos' | 'mesas' | 'padron'
 
@@ -46,8 +48,10 @@ const VACIO: Resumen = {
 }
 
 export default function DashboardPage({ onNavigate }: DashboardPageProps) {
-  const [resumen, setResumen] = useState<Resumen>(VACIO)
-  const [cargando, setCargando] = useState(true)
+  const [resumenInicial] = useState(() => leerCache<Resumen>(CLAVES_CACHE.dashboard))
+  const [resumen, setResumen] = useState<Resumen>(resumenInicial ?? VACIO)
+  const [cargando, setCargando] = useState(resumenInicial === null)
+  const [tieneDatos, setTieneDatos] = useState(resumenInicial !== null)
   const [error, setError] = useState<string | null>(null)
 
   const cargar = useCallback(async () => {
@@ -75,7 +79,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
     const listaCandidatos = (candidatos.data ?? []) as { activo: boolean }[]
     const listaMesas = (mesas.data ?? []) as { activo: boolean }[]
 
-    setResumen({
+    const nuevoResumen: Resumen = {
       votantes: Number(est.total_votantes ?? 0),
       votaron: Number(est.total_votaron ?? 0),
       pendientes: Number(est.total_pendientes ?? 0),
@@ -84,7 +88,10 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
       candidatosTotal: listaCandidatos.length,
       mesasActivas: listaMesas.filter(m => m.activo).length,
       mesasTotal: listaMesas.length
-    })
+    }
+    setResumen(nuevoResumen)
+    guardarCache(CLAVES_CACHE.dashboard, nuevoResumen)
+    setTieneDatos(true)
     setCargando(false)
   }, [])
 
@@ -257,31 +264,35 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
         </p>
       )}
 
-      <MagicBento
-        items={items}
-        columns={4}
-        rowHeight={170}
-        gap={14}
-        radius={22}
-        glowColor="#3b82f6"
-        spotlightRadius={320}
-        enableBorderGlow
-        enableSpotlight
-        clickEffect
-        enableStars={false}
-        enableTilt={false}
-        enableMagnetism={false}
-        textAutoHide
-        intro
-        style={
-          {
-            '--mb-surface':
-              'linear-gradient(180deg, rgba(13, 22, 43, 0.72) 0%, rgba(7, 12, 26, 0.66) 100%)',
-            '--mb-shadow':
-              '0 30px 70px -40px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.06)'
-          } as CSSProperties
-        }
-      />
+      {cargando && !tieneDatos ? (
+        <DashboardSkeleton />
+      ) : (
+        <MagicBento
+          items={items}
+          columns={4}
+          rowHeight={170}
+          gap={14}
+          radius={22}
+          glowColor="#3b82f6"
+          spotlightRadius={320}
+          enableBorderGlow
+          enableSpotlight
+          clickEffect
+          enableStars={false}
+          enableTilt={false}
+          enableMagnetism={false}
+          textAutoHide
+          intro
+          style={
+            {
+              '--mb-surface':
+                'linear-gradient(180deg, rgba(13, 22, 43, 0.72) 0%, rgba(7, 12, 26, 0.66) 100%)',
+              '--mb-shadow':
+                '0 30px 70px -40px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.06)'
+            } as CSSProperties
+          }
+        />
+      )}
     </section>
   )
 }

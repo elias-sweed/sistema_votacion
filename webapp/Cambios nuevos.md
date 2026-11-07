@@ -1796,3 +1796,56 @@ Al guardar: toast de éxito, mensaje en línea, limpieza de campos y recarga de 
 | `npm run build` | ✅ |
 
 **Se hizo commit y push. No se desplegó en Vercel.**
+
+---
+
+## XVIII. FASE 14 — Caché por sección con skeletons solo la primera vez
+
+**Fecha:** 2026-11-06
+**Objetivo:** Al abrir una sección por primera vez mostrar skeletons; en las siguientes visitas mostrar el contenido al instante desde `localStorage`, sin parpadeos, refrescando en segundo plano.
+
+### 1. Caché
+
+Nuevo `src/lib/panelCache.ts`:
+
+- `leerCache<T>(clave)` / `guardarCache<T>(clave, data)`.
+- Prefijo versionado `sv-panel-cache:v1:`.
+- Claves: `dashboard`, `candidatos`, `mesas`, `padron:lista`, `padron:mesas`, `padron:estadisticas`.
+- `limpiarCachePanel()` se ejecuta al cerrar sesión.
+
+Cada página hidrata su estado inicial desde la caché mediante `useState(() => leerCache(...))`. Si no hay caché, se muestra el skeleton; si hay, el contenido aparece de inmediato mientras la petición real se resuelve en segundo plano.
+
+### 2. Skeletons
+
+Nuevo `src/components/ui/Skeleton.tsx` y `src/features/panel/PanelSkeletons.tsx` con:
+
+- `DashboardSkeleton` (tarjetas del resumen).
+- `CandidatosSkeleton` (3 tarjetas).
+- `MesasSkeleton` (filas de mesas).
+- `PadronSkeleton` (estadísticas, filtros, formulario y tabla).
+
+Todos usan `animate-pulse`, `role="status"` y `aria-busy`.
+
+### 3. Detalles
+
+- El padrón solo guarda la vista por defecto (sin filtros, página 1) para no reaparecer con una búsqueda antigua.
+- Las mutaciones actualizan la caché: agregar candidato/mesa/votante, importar CSV y activar/desactivar.
+- El dashboard sigue mostrando «Actualizando…» durante el refresco silencioso.
+- El error de red no borra los datos cacheados: se mantiene el contenido visible.
+
+### 4. Verificación en navegador
+
+| Escenario | Resultado |
+|---|---|
+| Dashboard con caché | ✅ Contenido inmediato, 0 skeletons |
+| Dashboard sin caché | ✅ 7 skeletons y «Cargando resumen general» |
+| Candidatos sin caché | ✅ 3 skeletons y «Cargando candidatos» |
+| Candidatos con caché | ✅ «Ana Torres» inmediato, 0 skeletons |
+| Mesas con caché | ✅ «1° A» inmediato, 0 skeletons |
+| Padrón sin caché | ✅ 40 skeletons y «Cargando padrón electoral» |
+| Padrón con caché | ✅ DNI y nombre inmediatos, 0 skeletons |
+| `npm run typecheck` | ✅ |
+| `npm run test:offline` | ✅ 26/26 |
+| `npm run build` | ✅ |
+
+**Se hizo commit y push. No se desplegó en Vercel.**

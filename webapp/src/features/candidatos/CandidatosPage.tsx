@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
+import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
 import TiltedCard, { TiltedCardLayer } from '../../components/ui/TiltedCard'
+import { CandidatosSkeleton } from '../panel/PanelSkeletons'
 
 type Candidato = { id: string; nombre: string; foto_url: string | null; activo: boolean }
 
@@ -53,8 +55,10 @@ function comprimirImagen(file: File): Promise<string> {
 export default function CandidatosPage() {
   const toast = useToast()
   const archivoRef = useRef<HTMLInputElement>(null)
-  const [candidatos, setCandidatos] = useState<Candidato[]>([])
-  const [cargando, setCargando] = useState(true)
+  const [candidatosInicial] = useState(() => leerCache<Candidato[]>(CLAVES_CACHE.candidatos))
+  const [candidatos, setCandidatos] = useState<Candidato[]>(candidatosInicial ?? [])
+  const [cargando, setCargando] = useState(candidatosInicial === null)
+  const [tieneDatos, setTieneDatos] = useState(candidatosInicial !== null)
   const [error, setError] = useState<string | null>(null)
   const [exito, setExito] = useState<string | null>(null)
   const [nombre, setNombre] = useState('')
@@ -101,7 +105,10 @@ export default function CandidatosPage() {
       .from('candidatos').select('*').order('creado_en', { ascending: true })
     setCargando(false)
     if (err) { setError(mensajeDeError(err, 'No se pudieron cargar los candidatos.')); return }
-    setCandidatos(data ?? [])
+    const lista = data ?? []
+    setCandidatos(lista)
+    guardarCache(CLAVES_CACHE.candidatos, lista)
+    setTieneDatos(true)
   }
 
   useEffect(() => { cargar() }, [])
@@ -135,7 +142,11 @@ export default function CandidatosPage() {
       })
       return
     }
-    setCandidatos((prev) => prev.map((x) => (x.id === c.id ? { ...x, activo: !x.activo } : x)))
+    setCandidatos((prev) => {
+      const siguiente = prev.map((x) => (x.id === c.id ? { ...x, activo: !x.activo } : x))
+      guardarCache(CLAVES_CACHE.candidatos, siguiente)
+      return siguiente
+    })
     toast({
       title: c.activo ? 'Candidato desactivado' : 'Candidato activado',
       description: c.nombre,
@@ -228,8 +239,8 @@ export default function CandidatosPage() {
         </div>
       </div>
 
-      {cargando && <p className="text-slate-400">Cargando candidatos…</p>}
-      {!cargando && candidatos.length === 0 && (
+      {cargando && !tieneDatos && <CandidatosSkeleton />}
+      {tieneDatos && candidatos.length === 0 && (
         <p className="text-slate-500">Aún no hay candidatos. Agrega el primero.</p>
       )}
 

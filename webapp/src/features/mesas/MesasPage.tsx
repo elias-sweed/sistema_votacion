@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
+import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
+import { MesasSkeleton } from '../panel/PanelSkeletons'
 
 type Mesa = { id: string; nombre: string; activo: boolean; creado_en: string }
 
@@ -14,8 +16,10 @@ const TODAS_LAS_MESAS = GRADOS.flatMap((grado) =>
 
 export default function MesasPage() {
   const toast = useToast()
-  const [mesas, setMesas] = useState<Mesa[]>([])
-  const [cargando, setCargando] = useState(true)
+  const [mesasInicial] = useState(() => leerCache<Mesa[]>(CLAVES_CACHE.mesas))
+  const [mesas, setMesas] = useState<Mesa[]>(mesasInicial ?? [])
+  const [cargando, setCargando] = useState(mesasInicial === null)
+  const [tieneDatos, setTieneDatos] = useState(mesasInicial !== null)
   const [error, setError] = useState<string | null>(null)
   const [exito, setExito] = useState<string | null>(null)
   const [grado, setGrado] = useState<string>(GRADOS[0])
@@ -32,7 +36,10 @@ export default function MesasPage() {
       .from('mesas').select('*').order('creado_en', { ascending: true })
     setCargando(false)
     if (err) { setError(mensajeDeError(err, 'No se pudieron cargar las mesas.')); return }
-    setMesas(data ?? [])
+    const lista = (data ?? []) as Mesa[]
+    setMesas(lista)
+    guardarCache(CLAVES_CACHE.mesas, lista)
+    setTieneDatos(true)
   }
 
   useEffect(() => { cargar() }, [])
@@ -141,7 +148,11 @@ export default function MesasPage() {
       })
       return
     }
-    setMesas((prev) => prev.map((x) => (x.id === m.id ? { ...x, activo: !x.activo } : x)))
+    setMesas((prev) => {
+      const siguiente = prev.map((x) => (x.id === m.id ? { ...x, activo: !x.activo } : x))
+      guardarCache(CLAVES_CACHE.mesas, siguiente)
+      return siguiente
+    })
     toast({
       title: m.activo ? 'Mesa desactivada' : 'Mesa activada',
       description: m.nombre,
@@ -203,8 +214,8 @@ export default function MesasPage() {
         {exito && <p className="text-emerald-400 text-sm">{exito}</p>}
       </div>
 
-      {cargando && <p className="text-slate-400">Cargando mesas…</p>}
-      {!cargando && mesas.length === 0 && (
+      {cargando && !tieneDatos && <MesasSkeleton />}
+      {tieneDatos && mesas.length === 0 && (
         <p className="text-slate-500">Aún no hay mesas. Agrega la primera o usa «Generar todas».</p>
       )}
 
