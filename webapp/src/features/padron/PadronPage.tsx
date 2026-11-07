@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { useToast } from '../../components/ui/ToastProvider'
@@ -47,12 +47,24 @@ type ImportResult = {
 
 type MesaOption = { id: string; nombre: string }
 
+// Solo letras (con tildes/ñ) y espacios simples entre palabras.
+const NOMBRE_REGEX = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*$/
+
 export default function PadronPage() {
   const toast = useToast()
   // Estados principales
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exito, setExito] = useState<string | null>(null)
+
+  // Alta manual de votante
+  const [nuevoDni, setNuevoDni] = useState('')
+  const [nuevoNombre, setNuevoNombre] = useState('')
+  const [nuevoApellido, setNuevoApellido] = useState('')
+  const [nuevaMesaId, setNuevaMesaId] = useState('')
+  const [guardandoVotante, setGuardandoVotante] = useState(false)
+  const [errorManual, setErrorManual] = useState<string | null>(null)
+  const [exitoManual, setExitoManual] = useState<string | null>(null)
 
   // Datos
   const [votantes, setVotantes] = useState<Votante[]>([])
@@ -129,6 +141,72 @@ export default function PadronPage() {
   useEffect(() => {
     cargarVotantes()
   }, [cargarVotantes])
+
+  // --- ALTA MANUAL ---
+
+  async function agregarVotanteManual(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setErrorManual(null)
+    setExitoManual(null)
+
+    const dni = nuevoDni.trim()
+    const nombre = nuevoNombre.trim().replace(/\s+/g, ' ')
+    const apellido = nuevoApellido.trim().replace(/\s+/g, ' ')
+
+    if (!/^[0-9]{8}$/.test(dni)) {
+      setErrorManual('El DNI debe tener exactamente 8 dígitos numéricos.')
+      return
+    }
+    if (nombre.length < 2 || !NOMBRE_REGEX.test(nombre)) {
+      setErrorManual('El nombre debe tener al menos 2 letras (solo letras y espacios).')
+      return
+    }
+    if (apellido.length < 2 || !NOMBRE_REGEX.test(apellido)) {
+      setErrorManual('El apellido debe tener al menos 2 letras (solo letras y espacios).')
+      return
+    }
+    if (!nuevaMesaId) {
+      setErrorManual('Selecciona una mesa: cada votante necesita una mesa para poder votar.')
+      return
+    }
+
+    setGuardandoVotante(true)
+    const { error: err } = await supabase.from('votantes').insert({
+      dni,
+      nombre: `${nombre} ${apellido}`,
+      mesa_id: nuevaMesaId
+    })
+    setGuardandoVotante(false)
+
+    if (err) {
+      if (err.code === '23505') {
+        setErrorManual(`El DNI ${dni} ya está registrado en el padrón.`)
+      } else if (err.code === '23514') {
+        setErrorManual('El DNI debe tener exactamente 8 dígitos numéricos.')
+      } else if (err.code === '23503') {
+        setErrorManual('La mesa seleccionada ya no existe. Recarga la página.')
+      } else if (err.code === '23502') {
+        setErrorManual('Falta un dato obligatorio (DNI, nombre o mesa).')
+      } else {
+        setErrorManual(mensajeDeError(err, 'No se pudo agregar al votante.'))
+      }
+      return
+    }
+
+    setExitoManual(`Votante ${dni} agregado correctamente.`)
+    toast({
+      title: 'Votante agregado',
+      description: `${nombre} ${apellido} · DNI ${dni}`,
+      variant: 'success',
+      duration: 4000
+    })
+    setNuevoDni('')
+    setNuevoNombre('')
+    setNuevoApellido('')
+    setNuevaMesaId('')
+    await cargarVotantes()
+    await cargarEstadisticas()
+  }
 
   // --- IMPORTACIÓN ---
 
@@ -329,6 +407,80 @@ export default function PadronPage() {
             Solo pendientes
           </label>
         </div>
+      </div>
+
+      {/* Alta manual de votante */}
+      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 space-y-4 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
+        <div>
+          <h3 className="text-lg font-semibold text-white">Agregar votante manualmente</h3>
+          <p className="text-sm text-slate-400">
+            DNI de 8 dígitos, nombre, apellido y mesa. El DNI solo acepta números.
+          </p>
+        </div>
+
+        <form onSubmit={agregarVotanteManual} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="text-xs text-slate-400">DNI</label>
+              <span className={`text-[11px] ${nuevoDni.length === 8 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                {nuevoDni.length}/8
+              </span>
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={8}
+              value={nuevoDni}
+              onChange={(e) => setNuevoDni(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              placeholder="12345678"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 font-mono text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-slate-400">Nombre</label>
+            <input
+              type="text"
+              value={nuevoNombre}
+              onChange={(e) => setNuevoNombre(e.target.value)}
+              placeholder="Nombres"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-slate-400">Apellido</label>
+            <input
+              type="text"
+              value={nuevoApellido}
+              onChange={(e) => setNuevoApellido(e.target.value)}
+              placeholder="Apellidos"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-slate-400">Mesa</label>
+            <select
+              value={nuevaMesaId}
+              onChange={(e) => setNuevaMesaId(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+            >
+              <option value="">Selecciona una mesa</option>
+              {mesas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col justify-end">
+            <button
+              type="submit"
+              disabled={guardandoVotante}
+              className="w-full rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {guardandoVotante ? 'Agregando…' : 'Agregar votante'}
+            </button>
+          </div>
+        </form>
+
+        {errorManual && <p className="text-sm text-red-400">{errorManual}</p>}
+        {exitoManual && <p className="text-sm text-emerald-400">{exitoManual}</p>}
       </div>
 
       {/* Importación */}

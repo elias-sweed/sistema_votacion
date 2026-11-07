@@ -1747,3 +1747,52 @@ node supabase/scripts/aplicar_sql.mjs supabase/scripts/super_admin.sql
 ```
 
 **Se hizo commit y push. No se desplegó en Vercel.**
+
+---
+
+## XVII. FASE 13 — Alta manual de votantes
+
+**Fecha:** 2026-11-06
+**Objetivo:** Permitir agregar un votante desde el panel con DNI validado, nombre, apellido y mesa.
+
+### 1. Formulario
+
+Nueva tarjeta **«Agregar votante manualmente»** en `src/features/padron/PadronPage.tsx`, antes de la importación CSV.
+
+| Campo | Validación |
+|---|---|
+| DNI | Solo dígitos (`replace(/\D/g, '')`), máximo 8 caracteres, contador `n/8`, `inputMode="numeric"`. Debe tener exactamente 8 para guardar. |
+| Nombre | Mínimo 2 letras; solo letras con tildes/ñ y espacios. |
+| Apellido | Mínimo 2 letras; solo letras con tildes/ñ y espacios. |
+| Mesa | Obligatoria. |
+
+El nombre completo se guarda como `nombre + " " + apellido` en `votantes.nombre`.
+
+### 2. Por qué la mesa es obligatoria
+
+`public.votantes.mesa_id` es `NOT NULL` y tiene clave foránea a `public.mesas`. Además `listar_votantes()` usa `JOIN public.mesas` y `emitir_voto()` obtiene la mesa del votante. Un votante sin mesa no se podría guardar ni podría votar. Por eso el formulario exige seleccionar una mesa en lugar de dejarla opcional.
+
+### 3. Errores controlados
+
+- `23505` → «El DNI … ya está registrado en el padrón.»
+- `23514` → DNI con formato inválido.
+- `23503` → la mesa ya no existe.
+- `23502` → falta un dato obligatorio.
+- Otros → `mensajeDeError()` (incluye permisos/RLS).
+
+Al guardar: toast de éxito, mensaje en línea, limpieza de campos y recarga de votantes + estadísticas.
+
+### 4. Verificación
+
+| Comprobación | Resultado |
+|---|---|
+| Escribir `12ab34cd567890` en DNI | ✅ Queda `12345678` |
+| DNI de 3 dígitos | ✅ «debe tener exactamente 8 dígitos» |
+| Nombre con número | ✅ rechazado |
+| Apellido con número | ✅ rechazado |
+| Sin mesa | ✅ «Selecciona una mesa…» |
+| `npm run typecheck` | ✅ |
+| `npm run test:offline` | ✅ 26/26 |
+| `npm run build` | ✅ |
+
+**Se hizo commit y push. No se desplegó en Vercel.**
