@@ -4,18 +4,20 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import AlertCircleIcon from '@hugeicons/core-free-icons/AlertCircleIcon'
 import CheckmarkCircle02Icon from '@hugeicons/core-free-icons/CheckmarkCircle02Icon'
 import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
+import Edit02Icon from '@hugeicons/core-free-icons/Edit02Icon'
 import ImageAdd01Icon from '@hugeicons/core-free-icons/ImageAdd01Icon'
 import ImageUpload01Icon from '@hugeicons/core-free-icons/ImageUpload01Icon'
 import PlusSignIcon from '@hugeicons/core-free-icons/PlusSignIcon'
-import SparklesIcon from '@hugeicons/core-free-icons/SparklesIcon'
-import UserAdd01Icon from '@hugeicons/core-free-icons/UserAdd01Icon'
 import UserIcon from '@hugeicons/core-free-icons/UserIcon'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
-import TiltedCard, { TiltedCardLayer } from '../../components/ui/TiltedCard'
 import { CandidatosSkeleton } from '../panel/PanelSkeletons'
+import { SectionHeader } from '../../components/ui/SectionHeader'
+import { AdminCard } from '../../components/ui/AdminCard'
+import { AdminButton } from '../../components/ui/AdminButton'
+import { Badge } from '../../components/ui/Badge'
 
 type Candidato = { id: string; nombre: string; foto_url: string | null; activo: boolean }
 
@@ -23,17 +25,8 @@ function iniciales(texto: string) {
   return texto.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('')
 }
 
-function Placeholder({ nombre }: { nombre: string }) {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500 via-blue-800 to-[#050a1a]">
-      <span className="text-5xl font-bold text-white/90">{iniciales(nombre) || '?'}</span>
-    </div>
-  )
-}
-
 const MAX_IMAGEN_BYTES = 5 * 1024 * 1024
 
-// Reduce la imagen a 640 px y la convierte a WebP para no guardar archivos enormes.
 function comprimirImagen(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -76,8 +69,10 @@ export default function CandidatosPage() {
   const [nombreArchivo, setNombreArchivo] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [arrastrando, setArrastrando] = useState(false)
-
-  const fotoPreview = foto ?? undefined
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [editNombre, setEditNombre] = useState('')
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState<Candidato | null>(null)
+  const [eliminando, setEliminando] = useState(false)
 
   async function procesarImagen(file: File) {
     setError(null)
@@ -183,58 +178,90 @@ export default function CandidatosPage() {
     })
   }
 
+  function iniciarEdicion(c: Candidato) {
+    setEditandoId(c.id)
+    setEditNombre(c.nombre)
+    setError(null)
+    setExito(null)
+  }
+
+  function cancelarEdicion() {
+    setEditandoId(null)
+    setEditNombre('')
+  }
+
+  async function guardarEdicion(c: Candidato) {
+    setError(null); setExito(null)
+    const nombreTrim = editNombre.trim()
+    if (nombreTrim.length < 3) { setError('El nombre debe tener al menos 3 caracteres.'); return }
+    if (nombreTrim === c.nombre) { setEditandoId(null); return }
+
+    const { error: err } = await supabase.from('candidatos')
+      .update({ nombre: nombreTrim }).eq('id', c.id)
+    if (err) {
+      setError(mensajeDeError(err, 'No se pudo actualizar el candidato.'))
+      return
+    }
+    setEditandoId(null)
+    setEditNombre('')
+    setExito('Candidato actualizado.')
+    await cargar()
+  }
+
+  async function eliminarCandidato(c: Candidato) {
+    setEliminando(true)
+    try {
+      const { error: err } = await supabase.from('candidatos').delete().eq('id', c.id)
+      if (err) {
+        setError(mensajeDeError(err, 'No se pudo eliminar el candidato.'))
+        return
+      }
+      setExito('Candidato eliminado.')
+      setCandidatos((prev) => prev.filter((x) => x.id !== c.id))
+      guardarCache(CLAVES_CACHE.candidatos, candidatos.filter((x) => x.id !== c.id))
+      await cargar()
+    } finally {
+      setEliminando(false)
+      setConfirmandoEliminar(null)
+    }
+  }
+
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
-          <div>
-            <h2 className="text-xl font-bold text-white">Candidatos</h2>
-            <p className="mt-0.5 text-sm text-slate-400">Administra quiénes aparecen en la papeleta.</p>
-          </div>
+      <SectionHeader
+        title="Candidatos"
+        description="Administra quiénes aparecen en la papeleta."
+        actions={
+          <AdminButton variant="secondary" size="sm" onClick={() => void cargar()} disabled={guardando}>
+            {guardando ? 'Actualizando…' : 'Actualizar'}
+          </AdminButton>
+        }
+      />
+
+      <div className="flex items-end justify-between gap-3">
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-300">
+          <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+          {candidatos.length} {candidatos.length === 1 ? 'candidato' : 'candidatos'}
         </div>
-        {tieneDatos && (
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
-            {candidatos.length} {candidatos.length === 1 ? 'candidato' : 'candidatos'}
-          </span>
-        )}
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.03] to-transparent shadow-[0_30px_90px_-52px_rgba(0,0,0,0.95)] backdrop-blur-xl">
-        <div className="flex flex-col gap-4 border-b border-white/10 px-6 py-5 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-blue-400/30 bg-gradient-to-br from-blue-500/25 to-sky-400/10 text-blue-200 shadow-[0_10px_30px_-14px_rgba(37,99,235,0.6)]">
-              <HugeiconsIcon icon={UserAdd01Icon} size={20} strokeWidth={1.8} />
-            </span>
-            <div>
+      {/* Formulario de nuevo candidato */}
+      <AdminCard>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <HugeiconsIcon icon={UserIcon} size={18} strokeWidth={1.8} className="text-blue-400" />
               <h3 className="text-base font-semibold text-white">Nuevo candidato</h3>
-              <p className="text-sm text-slate-400">
-                Completa el nombre y agrega una fotografía para la papeleta.
-              </p>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-slate-300 sm:ml-auto">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            Foto opcional
-          </span>
-        </div>
 
-        <div className="grid gap-8 p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <form onSubmit={agregar} className="flex flex-col gap-6">
-            <div className="space-y-2">
+          <form onSubmit={agregar} className="grid gap-4 sm:grid-cols-3">
+            <div className="col-span-3 sm:col-span-2 space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <label
-                  htmlFor="candidato-nombre"
-                  className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400"
-                >
+                <label htmlFor="candidato-nombre" className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
                   Nombre del candidato
                 </label>
-                <span
-                  className={`text-[11px] tabular-nums ${
-                    nombre.length >= 55 ? 'text-amber-300' : 'text-slate-500'
-                  }`}
-                >
+                <span className={`text-[11px] tabular-nums ${nombre.length >= 55 ? 'text-amber-300' : 'text-slate-500'}`}>
                   {nombre.length}/60
                 </span>
               </div>
@@ -249,7 +276,7 @@ export default function CandidatosPage() {
                   placeholder="Ej. María Fernanda Rojas"
                   maxLength={60}
                   autoComplete="off"
-                  className="h-12 w-full rounded-2xl border border-white/10 bg-black/25 pl-11 pr-4 text-[15px] text-white shadow-inner shadow-black/20 backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                  className="h-12 w-full rounded-xl border border-white/10 bg-black/25 pl-11 pr-4 text-[15px] text-white shadow-inner shadow-black/20 backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
                 />
               </div>
               <p className="text-xs text-slate-500">
@@ -257,11 +284,9 @@ export default function CandidatosPage() {
               </p>
             </div>
 
-            <div className="space-y-2">
+            <div className="col-span-3 sm:col-span-1 flex flex-col gap-2">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-                  Fotografía
-                </span>
+                <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Fotografía</span>
                 <span className="text-[11px] text-slate-500">Opcional</span>
               </div>
 
@@ -277,19 +302,11 @@ export default function CandidatosPage() {
               {foto ? (
                 <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 sm:flex-row sm:items-center">
                   <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/30">
-                    <img
-                      src={foto}
-                      alt="Fotografía del candidato"
-                      className="h-full w-full object-cover"
-                    />
+                    <img src={foto} alt="Fotografía del candidato" className="h-full w-full object-cover" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-white">
-                      {nombreArchivo ?? 'Imagen seleccionada'}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Optimizada automáticamente · 640 px · WebP
-                    </p>
+                    <p className="truncate text-sm font-medium text-white">{nombreArchivo ?? 'Imagen seleccionada'}</p>
+                    <p className="mt-1 text-xs text-slate-500">Optimizada automáticamente · 640 px · WebP</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <button
@@ -313,38 +330,20 @@ export default function CandidatosPage() {
                 <button
                   type="button"
                   onClick={() => archivoRef.current?.click()}
-                  onDragEnter={(e) => {
-                    e.preventDefault()
-                    setArrastrando(true)
-                  }}
+                  onDragEnter={(e) => { e.preventDefault(); setArrastrando(true) }}
                   onDragOver={(e) => e.preventDefault()}
-                  onDragLeave={(e) => {
-                    const siguiente = e.relatedTarget as Node | null
-                    if (!siguiente || !e.currentTarget.contains(siguiente)) setArrastrando(false)
-                  }}
+                  onDragLeave={(e) => { const siguiente = e.relatedTarget as Node | null; if (!siguiente || !e.currentTarget.contains(siguiente)) setArrastrando(false) }}
                   onDrop={soltarImagen}
                   className={`group flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-6 py-8 text-center transition ${
-                    arrastrando
-                      ? 'border-blue-400/70 bg-blue-500/10'
-                      : 'border-white/15 bg-black/20 hover:border-blue-300/40 hover:bg-white/[0.04]'
+                    arrastrando ? 'border-blue-400/70 bg-blue-500/10' : 'border-white/15 bg-black/20 hover:border-blue-300/40 hover:bg-white/[0.04]'
                   }`}
                 >
-                  <span
-                    className={`grid h-12 w-12 place-items-center rounded-2xl border transition ${
-                      arrastrando
-                        ? 'border-blue-400/40 bg-blue-500/20 text-blue-200'
-                        : 'border-white/10 bg-white/[0.05] text-slate-300 group-hover:text-blue-200'
-                    }`}
-                  >
+                  <span className={`grid h-12 w-12 place-items-center rounded-2xl border transition ${arrastrando ? 'border-blue-400/40 bg-blue-500/20 text-blue-200' : 'border-white/10 bg-white/[0.05] text-slate-300 group-hover:text-blue-200'}`}>
                     <HugeiconsIcon icon={ImageUpload01Icon} size={22} strokeWidth={1.7} />
                   </span>
                   <span className="space-y-1">
-                    <span className="block text-sm font-medium text-white">
-                      {arrastrando ? 'Suelta la imagen aquí' : 'Arrastra tu imagen aquí'}
-                    </span>
-                    <span className="block text-xs text-slate-500">
-                      o selecciona un archivo desde tu equipo
-                    </span>
+                    <span className="block text-sm font-medium text-white">{arrastrando ? 'Suelta la imagen aquí' : 'Arrastra tu imagen aquí'}</span>
+                    <span className="block text-xs text-slate-500">o selecciona un archivo desde tu equipo</span>
                   </span>
                   <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-2 text-xs font-medium text-slate-200 transition group-hover:bg-white/[0.1]">
                     <HugeiconsIcon icon={ImageAdd01Icon} size={15} strokeWidth={1.8} />
@@ -353,35 +352,23 @@ export default function CandidatosPage() {
                   <span className="text-[11px] text-slate-500">JPG, PNG o WebP · máx. 5 MB</span>
                 </button>
               )}
+
             </div>
 
             {error && (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-200"
-              >
-                <span className="mt-0.5 shrink-0 text-red-300">
-                  <HugeiconsIcon icon={AlertCircleIcon} size={16} strokeWidth={1.8} />
-                </span>
+              <div className="col-span-3 flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-200">
+                <span className="mt-0.5 shrink-0 text-red-300"><HugeiconsIcon icon={AlertCircleIcon} size={16} strokeWidth={1.8} /></span>
                 <span>{error}</span>
               </div>
             )}
             {exito && (
-              <div
-                role="status"
-                className="flex items-start gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-200"
-              >
-                <span className="mt-0.5 shrink-0 text-emerald-300">
-                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} strokeWidth={1.8} />
-                </span>
+              <div className="col-span-3 flex items-start gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-200">
+                <span className="mt-0.5 shrink-0 text-emerald-300"><HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} strokeWidth={1.8} /></span>
                 <span>{exito}</span>
               </div>
             )}
 
-            <div className="flex flex-col-reverse gap-3 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-slate-500">
-                La foto se guarda optimizada para que la papeleta cargue rápido.
-              </p>
+            <div className="col-span-3 flex items-end gap-2 sm:justify-end">
               <button
                 type="submit"
                 disabled={guardando}
@@ -392,108 +379,111 @@ export default function CandidatosPage() {
               </button>
             </div>
           </form>
-
-          <aside className="flex h-full flex-col items-center gap-3 rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.01] p-4">
-            <div className="flex w-full items-center justify-between gap-2">
-              <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
-                Vista previa
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-blue-400/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-200">
-                <HugeiconsIcon icon={SparklesIcon} size={11} strokeWidth={1.8} />
-                Papeleta
-              </span>
-            </div>
-
-            <TiltedCard
-              imageSrc={fotoPreview}
-              altText={nombre || 'Nuevo candidato'}
-              captionText={nombre || 'Nuevo candidato'}
-              showTooltip={false}
-              containerHeight={280}
-              containerWidth={240}
-              imageHeight={280}
-              imageWidth={240}
-              imageFit="contain"
-              rotateAmplitude={12}
-              scaleOnHover={1.05}
-              glare={0.5}
-              shadow={0.6}
-              radius={16}
-            >
-              {!fotoPreview && <Placeholder nombre={nombre} />}
-              <TiltedCardLayer depth={30}>
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-4">
-                  <h3 className="text-base font-semibold text-white">
-                    {nombre.trim() || 'Nuevo candidato'}
-                  </h3>
-                  <p className="text-xs text-white/70">Vista previa</p>
-                </div>
-              </TiltedCardLayer>
-            </TiltedCard>
-
-            <p className="text-center text-[11px] leading-relaxed text-slate-500">
-              Así se verá tu candidato en la papeleta.
-            </p>
-          </aside>
         </div>
-      </div>
+      </AdminCard>
 
       {cargando && !tieneDatos && <CandidatosSkeleton />}
       {tieneDatos && candidatos.length === 0 && (
-        <p className="text-slate-500">Aún no hay candidatos. Agrega el primero.</p>
+        <AdminCard>
+          <div className="text-center py-10">
+            <p className="text-slate-500">Aún no hay candidatos. Agrega el primero.</p>
+          </div>
+        </AdminCard>
       )}
 
-      <ul className="grid gap-8 justify-items-center sm:grid-cols-2 lg:grid-cols-3">
-        {candidatos.map((c) => (
-          <li key={c.id}>
-            <TiltedCard
-              imageSrc={c.foto_url ?? undefined}
-              altText={c.nombre}
-              captionText={c.nombre}
-              showTooltip={false}
-              containerHeight={300}
-              containerWidth={240}
-              imageHeight={300}
-              imageWidth={240}
-              imageFit="contain"
-              rotateAmplitude={12}
-              scaleOnHover={1.05}
-              glare={0.5}
-              shadow={0.6}
-              radius={16}
-              backContent={
-                <div className="flex h-full flex-col justify-between border border-white/10 bg-[#07101f]/80 p-5 backdrop-blur-xl">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-blue-300/80">Candidato</p>
-                    <h3 className="mt-1 text-lg font-semibold text-white">{c.nombre}</h3>
-                  </div>
-                  <div className="space-y-3">
-                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
-                      c.activo ? 'bg-emerald-500/15 text-emerald-300' : 'bg-white/[0.06] text-slate-300'
-                    }`}>
-                      {c.activo ? 'Activo' : 'Inactivo'}
-                    </span>
-                    <button onClick={(e) => { e.stopPropagation(); alternarActivo(c) }}
-                      className="w-full rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-sm text-white backdrop-blur-md transition hover:bg-white/[0.1]">
-                      {c.activo ? 'Desactivar' : 'Activar'}
+      {/* Lista de candidatos */}
+      <AdminCard>
+        <ul className="divide-y divide-white/10">
+          {candidatos.map((c) => {
+            const estaEditando = editandoId === c.id
+            return (
+              <li key={c.id} className="p-4">
+                {estaEditando ? (
+                  <form onSubmit={(e) => { e.preventDefault(); void guardarEdicion(c); }} className="flex gap-3 items-end">
+                    <input value={editNombre} onChange={(e) => setEditNombre(e.target.value)}
+                      className="flex-1 rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15" />
+                    <button type="submit" className="rounded-lg bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:brightness-110">
+                      Guardar
                     </button>
+                    <button type="button" onClick={cancelarEdicion} className="rounded-lg border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white backdrop-blur-md transition hover:bg-white/[0.1]">
+                      Cancelar
+                    </button>
+                  </form>
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="relative shrink-0 h-12 w-12 rounded-xl overflow-hidden border border-white/10 bg-black/25">
+                        {c.foto_url ? (
+                          <img src={c.foto_url} alt={c.nombre} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500 via-blue-800 to-[#050a1a]">
+                            <span className="text-xl font-bold text-white/90">{iniciales(c.nombre) || '?'}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-white truncate">{c.nombre}</p>
+                        <Badge variant={c.activo ? 'success' : 'default'}>{c.activo ? 'Activo' : 'Inactivo'}</Badge>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void alternarActivo(c)}
+                        className="rounded-lg px-3 py-1.5 text-xs font-medium text-white transition ${c.activo ? 'bg-red-500/10 text-red-200 hover:bg-red-500/20 border border-red-400/30' : 'bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 border border-emerald-400/30'}"
+                      >
+                        {c.activo ? 'Desactivar' : 'Activar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setConfirmandoEliminar(null); iniciarEdicion(c) }}
+                        className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:text-white hover:bg-white/[0.05]"
+                      >
+                        <HugeiconsIcon icon={Edit02Icon} size={14} strokeWidth={1.8} />
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setEditandoId(null); setConfirmandoEliminar(c) }}
+                        className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-200 transition hover:bg-red-500/10"
+                      >
+                        <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={1.8} />
+                        Eliminar
+                      </button>
+                    </div>
                   </div>
-                </div>
-              }
-            >
-              {c.foto_url ? null : <Placeholder nombre={c.nombre} />}
-              <TiltedCardLayer depth={30}>
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-4">
-                  <h3 className={`text-base font-semibold text-white ${c.activo ? '' : 'line-through opacity-70'}`}>
-                    {c.nombre}
-                  </h3>
-                  <p className="text-xs text-white/70">{c.activo ? 'Activo' : 'Inactivo'}</p>
-                </div>
-              </TiltedCardLayer>
-            </TiltedCard>
-          </li>
-        ))}
-      </ul>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      </AdminCard>
+
+      {confirmandoEliminar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+          <button
+            type="button"
+            aria-label="Cancelar eliminación de candidato"
+            onClick={() => setConfirmandoEliminar(null)}
+            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
+          />
+          <form onSubmit={(e) => { e.preventDefault(); void eliminarCandidato(confirmandoEliminar); }} role="dialog" aria-modal="true" className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]">
+            <h2 className="text-base font-semibold text-white">Eliminar candidato</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Se eliminará <strong className="text-white">{confirmandoEliminar.nombre}</strong>. Esta acción no se puede deshacer.
+            </p>
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <button type="button" onClick={() => setConfirmandoEliminar(null)} className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12]">
+                Cancelar
+              </button>
+              <button type="submit" disabled={eliminando} className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
+                {eliminando ? 'Eliminando…' : 'Confirmar eliminación'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </section>
   )
 }
