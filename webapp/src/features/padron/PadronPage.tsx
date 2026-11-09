@@ -9,6 +9,8 @@ import { PadronSkeleton } from '../panel/PanelSkeletons'
 type Votante = {
   dni: string
   nombre: string
+  grado: string | null
+  seccion: string | null
   ha_votado: boolean
   creado_en: string
 }
@@ -32,6 +34,8 @@ type ImportPreviewItem = {
   fila: number
   dni: string
   nombre: string
+  grado: string | null
+  seccion: string | null
   valido: boolean
   motivo: string | null
 }
@@ -61,6 +65,8 @@ export default function PadronPage() {
   const [nuevoDni, setNuevoDni] = useState('')
   const [nuevoNombre, setNuevoNombre] = useState('')
   const [nuevoApellido, setNuevoApellido] = useState('')
+  const [nuevoGrado, setNuevoGrado] = useState('')
+  const [nuevaSeccion, setNuevaSeccion] = useState('')
   const [guardandoVotante, setGuardandoVotante] = useState(false)
   const [errorManual, setErrorManual] = useState<string | null>(null)
   const [exitoManual, setExitoManual] = useState<string | null>(null)
@@ -70,6 +76,10 @@ export default function PadronPage() {
   const [totalCount, setTotalCount] = useState(() => listaInicial?.totalCount ?? 0)
   const [estadisticasInicial] = useState(() => leerCache<Estadisticas>(CLAVES_CACHE.padronEstadisticas))
   const [estadisticas, setEstadisticas] = useState<Estadisticas | null>(estadisticasInicial)
+
+  // Opciones de grado y sección (solo referencia informativa del estudiante)
+  const GRADOS = ['1°', '2°', '3°', '4°', '5°', '6°'] as const
+  const SECCIONES = ['A', 'B', 'C', 'D', 'E', 'F'] as const
 
   // Filtros y paginación
   const [busqueda, setBusqueda] = useState('')
@@ -119,6 +129,8 @@ export default function PadronPage() {
       const lista: Votante[] = data.map((v: any) => ({
         dni: v.dni,
         nombre: v.nombre,
+        grado: v.grado ?? null,
+        seccion: v.seccion ?? null,
         ha_votado: v.ha_votado,
         creado_en: v.creado_en,
       }))
@@ -169,7 +181,9 @@ export default function PadronPage() {
     setGuardandoVotante(true)
     const { error: err } = await supabase.from('votantes').insert({
       dni,
-      nombre: `${nombre} ${apellido}`
+      nombre: `${nombre} ${apellido}`,
+      grado: nuevoGrado || null,
+      seccion: nuevaSeccion || null
     })
     setGuardandoVotante(false)
 
@@ -189,13 +203,15 @@ export default function PadronPage() {
     setExitoManual(`Votante ${dni} agregado correctamente.`)
     toast({
       title: 'Votante agregado',
-      description: `${nombre} ${apellido} · DNI ${dni}`,
+      description: `${nombre} ${apellido} · DNI ${dni} ${nuevoGrado ? `· ${nuevoGrado} ${nuevaSeccion}` : ''}`.trim(),
       variant: 'success',
       duration: 4000
     })
     setNuevoDni('')
     setNuevoNombre('')
     setNuevoApellido('')
+    setNuevoGrado('')
+    setNuevaSeccion('')
     await cargarVotantes()
     await cargarEstadisticas()
   }
@@ -314,8 +330,10 @@ export default function PadronPage() {
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
     const dniIdx = headers.indexOf('dni')
     const nombreIdx = headers.indexOf('nombre')
+    const gradoIdx = headers.indexOf('grado')
+    const seccionIdx = headers.indexOf('seccion')
     if (dniIdx === -1 || nombreIdx === -1) {
-      throw new Error('CSV debe tener columnas: dni, nombre')
+      throw new Error('CSV debe tener columnas: dni, nombre (opcional: grado, seccion)')
     }
     const rows: any[] = []
     for (let i = 1; i < lines.length; i++) {
@@ -323,7 +341,9 @@ export default function PadronPage() {
       if (cols.length < 2) continue
       rows.push({
         dni: cols[dniIdx],
-        nombre: cols[nombreIdx]
+        nombre: cols[nombreIdx],
+        grado: gradoIdx >= 0 ? cols[gradoIdx] : null,
+        seccion: seccionIdx >= 0 ? cols[seccionIdx] : null
       })
     }
     return rows
@@ -393,11 +413,11 @@ export default function PadronPage() {
         <div>
           <h3 className="text-lg font-semibold text-white">Agregar votante manualmente</h3>
           <p className="text-sm text-slate-400">
-            DNI de 8 dígitos, nombre y apellido. El padrón es general; la mesa se elige al abrir el enlace del salón.
+            DNI de 8 dígitos, nombre y apellido. Grado y sección son solo referencia del estudiante; la mesa se elige al abrir el enlace del salón.
           </p>
         </div>
 
-        <form onSubmit={agregarVotanteManual} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <form onSubmit={agregarVotanteManual} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <div>
             <div className="mb-1 flex items-center justify-between">
               <label className="text-xs text-slate-400">DNI</label>
@@ -436,6 +456,28 @@ export default function PadronPage() {
               className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
             />
           </div>
+          <div>
+            <label className="mb-1 block text-xs text-slate-400">Grado</label>
+            <select
+              value={nuevoGrado}
+              onChange={(e) => setNuevoGrado(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+            >
+              <option value="">Grado</option>
+              {GRADOS.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-slate-400">Sección</label>
+            <select
+              value={nuevaSeccion}
+              onChange={(e) => setNuevaSeccion(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+            >
+              <option value="">Sección</option>
+              {SECCIONES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
           <div className="flex flex-col justify-end">
             <button
               type="submit"
@@ -458,8 +500,8 @@ export default function PadronPage() {
         {pasoImportacion === 'archivo' && (
           <div>
             <p className="text-sm text-slate-400 mb-3">
-              Formato CSV requerido: columnas <code className="text-blue-300">dni,nombre</code>.
-              El archivo debe tener encabezados. Máx. recomendado: 500 filas.
+              Formato CSV requerido: columnas <code className="text-blue-300">dni,nombre</code>. Opcional:
+              <code className="text-blue-300">grado,seccion</code>. El archivo debe tener encabezados. Máx. recomendado: 500 filas.
             </p>
             <input
               id="file-input"
@@ -489,6 +531,8 @@ export default function PadronPage() {
                     <th className="p-2">Fila</th>
                     <th className="p-2">DNI</th>
                     <th className="p-2">Nombre</th>
+                    <th className="p-2">Grado</th>
+                    <th className="p-2">Sección</th>
                     <th className="p-2">Estado</th>
                   </tr>
                 </thead>
@@ -498,6 +542,8 @@ export default function PadronPage() {
                       <td className="p-2 text-slate-400">{item.fila}</td>
                       <td className="p-2 font-mono">{item.dni}</td>
                       <td className="p-2">{item.nombre}</td>
+                      <td className="p-2 text-slate-300">{item.grado ?? '-'}</td>
+                      <td className="p-2 text-slate-300">{item.seccion ?? '-'}</td>
                       <td className="p-2">
                         <span className={`px-2 py-0.5 rounded text-xs ${item.valido ? 'bg-emerald-900/30 text-emerald-400' : 'bg-red-900/30 text-red-400'}`}>
                           {item.valido ? '✓ Válido' : item.motivo}
@@ -507,7 +553,7 @@ export default function PadronPage() {
                   ))}
                   {previewData.length > 100 && (
                     <tr>
-                      <td colSpan={4} className="p-2 text-center text-slate-500">
+                      <td colSpan={6} className="p-2 text-center text-slate-500">
                         … y {previewData.length - 100} filas más
                       </td>
                     </tr>
@@ -564,6 +610,8 @@ export default function PadronPage() {
               <tr>
                 <th className="p-3">DNI</th>
                 <th className="p-3">Nombre</th>
+                <th className="p-3">Grado</th>
+                <th className="p-3">Sección</th>
                 <th className="p-3">Estado</th>
                 <th className="p-3">Registrado</th>
               </tr>
@@ -571,7 +619,7 @@ export default function PadronPage() {
             <tbody className="divide-y divide-white/10">
               {votantes.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-slate-500">
+                  <td colSpan={6} className="p-8 text-center text-slate-500">
                     No hay votantes que coincidan con los filtros.
                   </td>
                 </tr>
@@ -580,6 +628,8 @@ export default function PadronPage() {
                   <tr key={v.dni} className={v.ha_votado ? 'bg-emerald-900/10' : ''}>
                     <td className="p-3 font-mono text-sky-300">{v.dni}</td>
                     <td className="p-3">{v.nombre}</td>
+                    <td className="p-3 text-slate-300">{v.grado ?? '-'}</td>
+                    <td className="p-3 text-slate-300">{v.seccion ?? '-'}</td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded text-xs ${v.ha_votado ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-900/30 text-blue-300'}`}>
                         {v.ha_votado ? 'Votó' : 'Pendiente'}

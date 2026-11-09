@@ -56,6 +56,7 @@ export default function MesasPage() {
   const [confirmandoRotar, setConfirmandoRotar] = useState<Mesa | null>(null)
   const [copiadoId, setCopiadoId] = useState<string | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<Mesa | null>(null)
+  const [confirmandoEliminarTodas, setConfirmandoEliminarTodas] = useState(false)
   const [passwordEliminar, setPasswordEliminar] = useState('')
   const [eliminando, setEliminando] = useState(false)
   const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
@@ -268,6 +269,7 @@ export default function MesasPage() {
   function cerrarEliminar() {
     if (eliminando) return
     setConfirmandoEliminar(null)
+    setConfirmandoEliminarTodas(false)
     setPasswordEliminar('')
     setErrorEliminar(null)
   }
@@ -285,8 +287,6 @@ export default function MesasPage() {
 
     setEliminando(true)
     try {
-      // La contraseña de la cuenta se pide como confirmación extra antes de
-      // borrar datos. No se guarda en ningún lado.
       const { data: userData, error: userError } = await supabase.auth.getUser()
       const email = userData.user?.email
 
@@ -326,6 +326,64 @@ export default function MesasPage() {
         duration: 4000
       })
       setConfirmandoEliminar(null)
+      setPasswordEliminar('')
+      await cargar()
+    } finally {
+      setEliminando(false)
+    }
+  }
+
+  async function eliminarTodasLasMesas(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!confirmandoEliminarTodas || eliminando) return
+
+    setErrorEliminar(null)
+
+    if (!passwordEliminar) {
+      setErrorEliminar('Escribe la contraseña de tu cuenta para confirmar.')
+      return
+    }
+
+    setEliminando(true)
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      const email = userData.user?.email
+
+      if (userError || !email) {
+        setErrorEliminar('No se pudo comprobar tu cuenta. Vuelve a iniciar sesión.')
+        return
+      }
+
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password: passwordEliminar
+      })
+
+      if (authError) {
+        setErrorEliminar('La contraseña no es correcta. Inténtalo otra vez.')
+        return
+      }
+
+      // Primero borrar los votos (por la FK restrict), luego las mesas.
+      const { error: errVotos } = await supabase.from('votos').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      if (errVotos) {
+        setErrorEliminar(mensajeDeError(errVotos, 'No se pudieron borrar los votos registrados.'))
+        return
+      }
+
+      const { error: errMesas } = await supabase.from('mesas').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      if (errMesas) {
+        setErrorEliminar(mensajeDeError(errMesas, 'No se pudieron eliminar las mesas.'))
+        return
+      }
+
+      toast({
+        title: 'Todas las mesas eliminadas',
+        description: 'Se borraron todas las mesas, sus enlaces y los votos registrados.',
+        variant: 'success',
+        duration: 4000
+      })
+      setConfirmandoEliminarTodas(false)
       setPasswordEliminar('')
       await cargar()
     } finally {
@@ -394,6 +452,11 @@ export default function MesasPage() {
           <button type="button" onClick={() => void generarTodas()} disabled={generando}
             className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-white backdrop-blur-md transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-40">
             {generando ? 'Generando…' : 'Generar todas (36)'}
+          </button>
+
+          <button type="button" onClick={() => { setConfirmandoEliminarTodas(true); setPasswordEliminar(''); setErrorEliminar(null) }} disabled={generando}
+            className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40">
+            Eliminar todas las mesas
           </button>
         </form>
 
@@ -633,6 +696,68 @@ export default function MesasPage() {
                 className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {eliminando ? 'Eliminando…' : 'Eliminar mesa'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {confirmandoEliminarTodas && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+          <button
+            type="button"
+            aria-label="Cancelar eliminación de todas las mesas"
+            onClick={cerrarEliminar}
+            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
+          />
+          <form
+            onSubmit={(e) => void eliminarTodasLasMesas(e)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-eliminar-todas-mesas"
+            className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]"
+          >
+            <h2 id="titulo-eliminar-todas-mesas" className="text-base font-semibold text-white">
+              Eliminar todas las mesas
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Se borrarán todas las mesas, sus enlaces de acceso y los votos registrados. Esta acción no se puede deshacer.
+            </p>
+            <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
+              Para confirmar, escribe la contraseña de tu cuenta de administrador.
+            </p>
+
+            <label htmlFor="password-eliminar-todas" className="mt-4 mb-1 block text-xs text-slate-400">
+              Contraseña
+            </label>
+            <input
+              id="password-eliminar-todas"
+              type="password"
+              autoComplete="current-password"
+              value={passwordEliminar}
+              onChange={(e) => setPasswordEliminar(e.target.value)}
+              autoFocus
+              disabled={eliminando}
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
+            />
+
+            {errorEliminar && <p className="mt-3 text-sm text-red-400">{errorEliminar}</p>}
+
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={cerrarEliminar}
+                disabled={eliminando}
+                className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={eliminando || passwordEliminar.length === 0}
+                className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {eliminando ? 'Eliminando…' : 'Eliminar todas las mesas'}
               </button>
             </div>
           </form>

@@ -62,6 +62,12 @@ export default function ConfiguracionPage() {
   const [confirmando, setConfirmando] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Eliminar todo (votantes, candidatos, centro educativo)
+  const [eliminandoTodo, setEliminandoTodo] = useState<'votantes' | 'candidatos' | 'centro' | null>(null)
+  const [passwordEliminarTodo, setPasswordEliminarTodo] = useState('')
+  const [eliminandoTodoCargando, setEliminandoTodoCargando] = useState(false)
+  const [errorEliminarTodo, setErrorEliminarTodo] = useState<string | null>(null)
+
   async function cargar() {
     setCargando(true)
     setError(null)
@@ -191,6 +197,88 @@ export default function ConfiguracionPage() {
       variant: 'success',
       duration: 4000
     })
+  }
+
+  async function autenticarAdmin(): Promise<string | null> {
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+    const email = userData.user?.email
+    if (userError || !email) return null
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password: passwordEliminarTodo
+    })
+    if (authError) return null
+    return email
+  }
+
+  async function cerrarEliminarTodo() {
+    setEliminandoTodo(null)
+    setPasswordEliminarTodo('')
+    setErrorEliminarTodo(null)
+  }
+
+  async function ejecutarEliminarTodo() {
+    if (!eliminandoTodo || eliminandoTodoCargando) return
+
+    setErrorEliminarTodo(null)
+
+    const email = await autenticarAdmin()
+    if (!email) {
+      setErrorEliminarTodo('La contraseña no es correcta. Inténtalo otra vez.')
+      return
+    }
+
+    setEliminandoTodoCargando(true)
+    try {
+      if (eliminandoTodo === 'votantes') {
+        const { error: err } = await supabase.from('votantes').delete().neq('dni', '')
+        if (err) {
+          setErrorEliminarTodo(mensajeDeError(err, 'No se pudieron eliminar los votantes.'))
+          return
+        }
+        toast({
+          title: 'Votantes eliminados',
+          description: 'Se borraron todos los votantes del padrón.',
+          variant: 'success',
+          duration: 4000
+        })
+      } else if (eliminandoTodo === 'candidatos') {
+        const { error: err } = await supabase.from('candidatos').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        if (err) {
+          setErrorEliminarTodo(mensajeDeError(err, 'No se pudieron eliminar los candidatos.'))
+          return
+        }
+        toast({
+          title: 'Candidatos eliminados',
+          description: 'Se borraron todos los candidatos.',
+          variant: 'success',
+          duration: 4000
+        })
+      } else if (eliminandoTodo === 'centro') {
+        const { error: err } = await supabase
+          .from('configuracion')
+          .update({ titulo: 'Elección de Municipios Escolares', centro: 'I.E. Jimenez Pimentel', logo_url: null })
+          .eq('id', 1)
+        if (err) {
+          setErrorEliminarTodo(mensajeDeError(err, 'No se pudo restablecer el centro educativo.'))
+          return
+        }
+        setTitulo('Elección de Municipios Escolares')
+        setCentro('I.E. Jimenez Pimentel')
+        setLogoUrl(null)
+        setConfig(current => current ? { ...current, titulo: 'Elección de Municipios Escolares', centro: 'I.E. Jimenez Pimentel', logo_url: null } : current)
+        toast({
+          title: 'Centro educativo restablecido',
+          description: 'Se restablecieron el título, el centro y el logo por defecto.',
+          variant: 'success',
+          duration: 4000
+        })
+      }
+
+      await cerrarEliminarTodo()
+    } finally {
+      setEliminandoTodoCargando(false)
+    }
   }
 
   const abierta = config?.eleccion_abierta === true
@@ -448,6 +536,122 @@ export default function ConfiguracionPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Eliminar todo */}
+      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4">
+        <div className="flex items-center gap-3">
+          <span className="h-px w-8 bg-gradient-to-r from-red-400/80 to-transparent" />
+          <h3 className="text-lg font-semibold text-white">Eliminar todo (solo admin)</h3>
+        </div>
+        <p className="text-sm text-slate-400">
+          Estas acciones borran datos permanentemente. Se requiere tu contraseña de administrador.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => { setEliminandoTodo('votantes'); setPasswordEliminarTodo(''); setErrorEliminarTodo(null) }}
+            disabled={eliminandoTodoCargando}
+            className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-left transition hover:bg-red-500/20 disabled:opacity-50"
+          >
+            <div className="flex items-center gap-2">
+              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />
+              <span>Eliminar todos los votantes</span>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Borra todo el padrón</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setEliminandoTodo('candidatos'); setPasswordEliminarTodo(''); setErrorEliminarTodo(null) }}
+            disabled={eliminandoTodoCargando}
+            className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-left transition hover:bg-red-500/20 disabled:opacity-50"
+          >
+            <div className="flex items-center gap-2">
+              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />
+              <span>Eliminar todos los candidatos</span>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Borra todas las opciones</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setEliminandoTodo('centro'); setPasswordEliminarTodo(''); setErrorEliminarTodo(null) }}
+            disabled={eliminandoTodoCargando}
+            className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-left transition hover:bg-red-500/20 disabled:opacity-50"
+          >
+            <div className="flex items-center gap-2">
+              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />
+              <span>Restablecer centro educativo</span>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Título, I.E y logo por defecto</p>
+          </button>
+        </div>
+        {errorEliminarTodo && <p className="mt-3 text-sm text-red-400">{errorEliminarTodo}</p>}
+      </div>
+
+      {eliminandoTodo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+          <button
+            type="button"
+            aria-label="Cancelar eliminación masiva"
+            onClick={cerrarEliminarTodo}
+            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
+          />
+          <form
+            onSubmit={(e) => { e.preventDefault(); void ejecutarEliminarTodo() }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-eliminar-todo"
+            className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]"
+          >
+            <h2 id="titulo-eliminar-todo" className="text-base font-semibold text-white">
+              Confirmar eliminación masiva
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+              {eliminandoTodo === 'votantes'
+                ? 'Se borrarán todos los votantes del padrón. Esta acción no se puede deshacer.'
+                : eliminandoTodo === 'candidatos'
+                  ? 'Se borrarán todos los candidatos. Esta acción no se puede deshacer.'
+                  : 'Se restablecerán el título, el centro educativo y el logo a los valores por defecto.'}
+            </p>
+            <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
+              Para confirmar, escribe la contraseña de tu cuenta de administrador.
+            </p>
+
+            <label htmlFor="password-eliminar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
+              Contraseña
+            </label>
+            <input
+              id="password-eliminar-todo"
+              type="password"
+              autoComplete="current-password"
+              value={passwordEliminarTodo}
+              onChange={(e) => setPasswordEliminarTodo(e.target.value)}
+              autoFocus
+              disabled={eliminandoTodoCargando}
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
+            />
+
+            {errorEliminarTodo && <p className="mt-3 text-sm text-red-400">{errorEliminarTodo}</p>}
+
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={cerrarEliminarTodo}
+                disabled={eliminandoTodoCargando}
+                className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={eliminandoTodoCargando || passwordEliminarTodo.length === 0}
+                className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {eliminandoTodoCargando ? 'Procesando…' : 'Sí, eliminar todo'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </section>

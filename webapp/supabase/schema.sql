@@ -23,9 +23,12 @@ create table if not exists public.mesas (
 -- Padrón: quién puede votar (un alumno = un voto).
 -- Sin mesa_id: el padrón es global. La mesa se registra en el voto
 -- según el enlace de acceso usado en el kiosco, no según el votante.
+-- grado y seccion son solo referencia informativa del estudiante.
 create table if not exists public.votantes (
   dni         text primary key,                     -- DNI normalizado, solo dígitos
   nombre      text not null,
+  grado       text,                                 -- ej: "1°"
+  seccion     text,                                 -- ej: "A"
   ha_votado   boolean not null default false,
   creado_en   timestamptz not null default now(),
   constraint dni_formato check (dni ~ '^[0-9]{8}$')
