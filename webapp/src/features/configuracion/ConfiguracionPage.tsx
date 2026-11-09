@@ -1001,52 +1001,20 @@ export default function ConfiguracionPage() {
       )}
 
       {confirmando !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
-          <button
-            type="button"
-            aria-label="Cancelar cambio de estado"
-            onClick={() => !cambiandoEstado && setConfirmando(null)}
-            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="titulo-confirmar-estado"
-            className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]"
-          >
-            <h2 id="titulo-confirmar-estado" className="text-base font-semibold text-white">
-              {confirmando ? 'Abrir la elección' : 'Cerrar la elección'}
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              {confirmando
-                ? 'Los kioscos con enlace válido podrán registrar votos de inmediato.'
-                : 'Los kioscos dejarán de aceptar votos de inmediato. Esta acción no borra los votos ya registrados.'}
-            </p>
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => setConfirmando(null)}
-                disabled={cambiandoEstado}
-                className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                autoFocus
-                onClick={() => void cambiarEstado(confirmando)}
-                disabled={cambiandoEstado}
-                className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 ${
-                  confirmando
-                    ? 'bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-600'
-                    : 'bg-gradient-to-r from-red-500 via-rose-500 to-red-600'
-                }`}
-              >
-                {cambiandoEstado ? 'Aplicando…' : confirmando ? 'Abrir elección' : 'Cerrar elección'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <AdminModal
+          open={confirmando !== null}
+          onClose={() => setConfirmando(null)}
+          title={confirmando ? 'Abrir la elección' : 'Cerrar la elección'}
+          description={
+            confirmando
+              ? 'Los kioscos con enlace válido podrán registrar votos de inmediato.'
+              : 'Los kioscos dejarán de aceptar votos de inmediato. Esta acción no borra los votos ya registrados.'
+          }
+          confirmLabel={confirmando ? 'Abrir elección' : 'Cerrar elección'}
+          confirmVariant={confirmando ? 'primary' : 'danger'}
+          loading={cambiandoEstado}
+          onConfirm={() => void cambiarEstado(confirmando)}
+        />
       )}
 
       {eliminandoTodo && (
