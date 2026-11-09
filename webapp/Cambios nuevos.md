@@ -2044,3 +2044,40 @@ Se separó el padrón de las mesas para que agregar votantes sea más simple.
 | `npm run build` | ✅ |
 
 **Se hizo commit y push. No se desplegó en Vercel.**
+
+---
+
+## XXI. FASE 17 — Simplificación del panel de mesas y ajuste definitivo RLS
+
+**Fecha:** 2026-11-09
+**Objetivo:** Simplificar el alta/borrado de mesas para el uso real del panel y aplicar la versión corregida del ajuste de RLS.
+
+### 1. Mesas — simplificación del flujo
+
+`webapp/src/features/mesas/MesasPage.tsx`:
+
+- Se eliminaron los botones **«Generar todas (36)»** y **«Eliminar todas las mesas»**.
+- El alta de mesa ahora usa dos campos de texto libre (Grado y Sección) que inician vacíos, con placeholders **«Seleccionar el grado»** y **«Seleccionar la sección»**.
+- Al dar «Agregar mesa» se abre un modal de confirmación **«¿Estás seguro?»** que, al confirmar, agrega la mesa.
+- El mensaje de éxito de cada cambio se muestra en una sola línea con minúsculas: «se agregó la mesa X» / «se eliminó la mesa X».
+
+### 2. RLS — script corregido
+
+`webapp/supabase/scripts/fix_admin_rls.sql` (nuevo):
+
+- Orden correcto: primero se borran las políticas (`admin_uuid_*`, `anon_uuid_candidatos_select`, etc.), luego las funciones, y después se recrean todo.
+- Activa RLS en `mesas`, `votantes`, `candidatos`, `votos` y `configuracion`.
+- Crea políticas `admin_uuid_*` por `auth.uid()` y `anon_uuid_candidatos_select` para anónimos con `activo = true`.
+- `es_admin_uuid()` como `security definer` verificando `auth.uid() = '1fbf5137-09fa-404f-8232-e21788a047f8'`.
+
+`webapp/supabase/migrations/013_admin_uuid_permisos_completos.sql` se actualizó con la misma versión corregida.
+
+### 3. Verificación
+
+| Comprobación | Resultado |
+|---|---|
+| `npm run typecheck` | ✅ |
+| `npm run test:offline` | ✅ 31/31 |
+| `npm run build` | ✅ |
+
+**Se hizo commit y push. No se desplegó en Vercel.**

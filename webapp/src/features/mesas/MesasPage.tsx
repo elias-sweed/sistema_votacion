@@ -38,12 +38,6 @@ type ResumenMesa = {
   votos_emitidos: number
 }
 
-const GRADOS = ['1°', '2°', '3°', '4°', '5°', '6°'] as const
-const SECCIONES = ['A', 'B', 'C', 'D', 'E', 'F'] as const
-const TODAS_LAS_MESAS = GRADOS.flatMap((grado) =>
-  SECCIONES.map((seccion) => `${grado} ${seccion}`)
-)
-
 function enlaceDeMesa(mesa: Mesa): string {
   if (!mesa.token_acceso) return ''
   return `${window.location.origin}/votar/${mesa.token_acceso}`
@@ -58,17 +52,19 @@ export default function MesasPage() {
   const [tieneDatos, setTieneDatos] = useState(mesasInicial !== null)
   const [error, setError] = useState<string | null>(null)
   const [exito, setExito] = useState<string | null>(null)
-  const [grado, setGrado] = useState<string>(GRADOS[0])
-  const [seccion, setSeccion] = useState<string>(SECCIONES[0])
+
+  // Grado y sección: empiezan vacíos, se pueden escribir libremente
+  const [grado, setGrado] = useState('')
+  const [seccion, setSeccion] = useState('')
   const [guardando, setGuardando] = useState(false)
-  const [generando, setGenerando] = useState(false)
+  const [confirmandoAgregar, setConfirmandoAgregar] = useState(false)
+
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [editNombre, setEditNombre] = useState('')
   const [rotandoId, setRotandoId] = useState<string | null>(null)
   const [confirmandoRotar, setConfirmandoRotar] = useState<Mesa | null>(null)
   const [copiadoId, setCopiadoId] = useState<string | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<Mesa | null>(null)
-  const [confirmandoEliminarTodas, setConfirmandoEliminarTodas] = useState(false)
   const [passwordEliminar, setPasswordEliminar] = useState('')
   const [eliminando, setEliminando] = useState(false)
   const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
@@ -125,78 +121,56 @@ export default function MesasPage() {
 
   useEffect(() => { void cargar() }, [])
 
-  async function agregar(e: FormEvent) {
+  function handleAgregar(e: FormEvent) {
     e.preventDefault()
-    setError(null); setExito(null)
-    const nombreMesa = `${grado} ${seccion}`
+    setError(null)
+    setExito(null)
+    if (!grado.trim() || !seccion.trim()) {
+      setError('Escribe el grado y la sección.')
+      return
+    }
+    setConfirmandoAgregar(true)
+  }
+
+  async function confirmarAgregar() {
+    const nombreMesa = `${grado.trim()} ${seccion.trim()}`
+    setConfirmandoAgregar(false)
+    setGuardando(true)
 
     if (estaActivoEnsayo()) {
       ensayoAgregarMesa({ nombre: nombreMesa, activo: true, token_acceso: null })
-      setExito(`Mesa ${nombreMesa} agregada (modo ensayo).`)
-      toast({ title: 'Mesa agregada (ensayo)', description: `${nombreMesa} · enlace generado`, variant: 'success', duration: 3000 })
+      setGuardando(false)
+      setGrado('')
+      setSeccion('')
+      const mensajeCambio = `se agregó la mesa ${nombreMesa}`
+      setExito(mensajeCambio)
       await cargar()
       return
     }
 
-    setGuardando(true)
     const { error: err } = await supabase.from('mesas')
       .insert({ nombre: nombreMesa, activo: true })
     setGuardando(false)
+
     if (err) {
       if (err.code === '23505') setError(`La mesa ${nombreMesa} ya existe.`)
       else setError(mensajeDeError(err, 'No se pudo agregar la mesa.'))
       return
     }
 
-    setExito(`Mesa ${nombreMesa} agregada con su enlace de acceso.`)
-    toast({ title: 'Mesa agregada', description: `${nombreMesa} · enlace generado`, variant: 'success', duration: 3000 })
-    await cargar()
-  }
-
-  async function generarTodas() {
-    setError(null); setExito(null)
-    setGenerando(true)
-
-    const { data: existentes, error: errLectura } = await supabase
-      .from('mesas').select('nombre')
-    if (errLectura) {
-      setGenerando(false)
-      setError('No se pudieron consultar las mesas existentes.')
-      return
-    }
-
-    const yaExisten = new Set((existentes ?? []).map((m: { nombre: string }) => m.nombre))
-    const faltantes = TODAS_LAS_MESAS
-      .filter((nombreMesa) => !yaExisten.has(nombreMesa))
-      .map((nombreMesa) => ({ nombre: nombreMesa, activo: true }))
-
-    if (faltantes.length === 0) {
-      setGenerando(false)
-      setExito('Ya existen las 36 mesas (1° a 6° grado, secciones A–F).')
-      return
-    }
-
-    const { error: err } = await supabase.from('mesas').insert(faltantes)
-    setGenerando(false)
-    if (err) {
-      setError(mensajeDeError(err, 'No se pudieron generar las mesas.'))
-      return
-    }
-
-    setExito(`Se crearon ${faltantes.length} mesas con sus enlaces. Total: ${yaExisten.size + faltantes.length} de 36.`)
-    toast({
-      title: 'Mesas generadas',
-      description: `${faltantes.length} nuevas · ${yaExisten.size + faltantes.length}/36 en total`,
-      variant: 'success',
-      duration: 4000
-    })
+    setGrado('')
+    setSeccion('')
+    const mensajeCambio = `se agregó la mesa ${nombreMesa}`
+    setExito(mensajeCambio)
+    toast({ title: 'mesa agregada', description: mensajeCambio, variant: 'success', duration: 3000 })
     await cargar()
   }
 
   function iniciarEdicion(m: Mesa) {
     setEditandoId(m.id)
     setEditNombre(m.nombre)
-    setError(null); setExito(null)
+    setError(null)
+    setExito(null)
   }
 
   function cancelarEdicion() {
@@ -205,7 +179,8 @@ export default function MesasPage() {
   }
 
   async function guardarEdicion(m: Mesa) {
-    setError(null); setExito(null)
+    setError(null)
+    setExito(null)
     const nombreTrim = editNombre.trim()
     if (nombreTrim.length < 2) { setError('El nombre debe tener al menos 2 caracteres.'); return }
     if (nombreTrim === m.nombre) { setEditandoId(null); return }
@@ -214,7 +189,7 @@ export default function MesasPage() {
       ensayoActualizarMesa(m.id, nombreTrim, m.activo)
       setEditandoId(null)
       setEditNombre('')
-      setExito('Mesa actualizada (ensayo).')
+      setExito('Mesa actualizada.')
       await cargar()
       return
     }
@@ -234,7 +209,8 @@ export default function MesasPage() {
   }
 
   async function alternarActivo(m: Mesa) {
-    setError(null); setExito(null)
+    setError(null)
+    setExito(null)
 
     if (estaActivoEnsayo()) {
       ensayoActualizarMesa(m.id, m.nombre, !m.activo)
@@ -244,12 +220,10 @@ export default function MesasPage() {
         return siguiente
       })
       toast({
-        title: m.activo ? 'Mesa desactivada (ensayo)' : 'Mesa activada (ensayo)',
-        description: m.activo
-          ? `${m.nombre}: su enlace dejará de aceptar votos.`
-          : `${m.nombre}: su enlace vuelve a estar operativo.`,
+        title: m.activo ? 'Mesa desactivada' : 'Mesa activada',
+        description: m.nombre,
         variant: 'success',
-        duration: 3500
+        duration: 3000
       })
       return
     }
@@ -257,12 +231,7 @@ export default function MesasPage() {
     const { error: err } = await supabase.from('mesas')
       .update({ activo: !m.activo }).eq('id', m.id)
     if (err) {
-      toast({
-        title: 'No se pudo actualizar',
-        description: mensajeDeError(err, err.message),
-        variant: 'error',
-        duration: 6000
-      })
+      toast({ title: 'No se pudo actualizar', description: mensajeDeError(err, err.message), variant: 'error', duration: 6000 })
       return
     }
     setMesas((prev) => {
@@ -272,18 +241,16 @@ export default function MesasPage() {
     })
     toast({
       title: m.activo ? 'Mesa desactivada' : 'Mesa activada',
-      description: m.activo
-        ? `${m.nombre}: su enlace dejará de aceptar votos.`
-        : `${m.nombre}: su enlace vuelve a estar operativo.`,
+      description: m.nombre,
       variant: 'success',
-      duration: 3500
+      duration: 3000
     })
   }
 
   async function copiarEnlace(m: Mesa) {
     const enlace = enlaceDeMesa(m)
     if (!enlace) {
-      setError('Esta mesa no tiene enlace. Genera uno nuevo.')
+      setError('Esta mesa no tiene enlace.')
       return
     }
     try {
@@ -293,14 +260,14 @@ export default function MesasPage() {
       toast({ title: 'Enlace copiado', description: m.nombre, variant: 'success', duration: 2500 })
       window.setTimeout(() => setCopiadoId((actual) => actual === m.id ? null : actual), 2500)
     } catch {
-      setError('El navegador no permitió copiar. Abre el enlace y cópialo desde la barra de direcciones.')
+      setError('No se pudo copiar el enlace.')
     }
   }
 
   function abrirEnlace(m: Mesa) {
     const enlace = enlaceDeMesa(m)
     if (!enlace) {
-      setError('Esta mesa no tiene enlace. Genera uno nuevo.')
+      setError('Esta mesa no tiene enlace.')
       return
     }
     window.open(enlace, '_blank', 'noopener,noreferrer')
@@ -308,7 +275,8 @@ export default function MesasPage() {
 
   async function rotarEnlace(m: Mesa) {
     setRotandoId(m.id)
-    setError(null); setExito(null)
+    setError(null)
+    setExito(null)
     const { data, error: err } = await supabase.rpc('rotar_token_mesa', { p_mesa_id: m.id })
     setRotandoId(null)
     setConfirmandoRotar(null)
@@ -327,14 +295,13 @@ export default function MesasPage() {
       guardarCache(CLAVES_CACHE.mesas, siguiente)
       return siguiente
     })
-    setExito(`Enlace de ${m.nombre} regenerado. El anterior ya no funciona.`)
-    toast({ title: 'Enlace regenerado', description: 'El enlace anterior dejó de funcionar.', variant: 'success', duration: 4000 })
+    setExito(`Enlace de ${m.nombre} regenerado.`)
+    toast({ title: 'Enlace regenerado', description: m.nombre, variant: 'success', duration: 3000 })
   }
 
   function cerrarEliminar() {
     if (eliminando) return
     setConfirmandoEliminar(null)
-    setConfirmandoEliminarTodas(false)
     setPasswordEliminar('')
     setErrorEliminar(null)
   }
@@ -346,7 +313,7 @@ export default function MesasPage() {
     setErrorEliminar(null)
 
     if (!passwordEliminar) {
-      setErrorEliminar('Escribe la contraseña de tu cuenta para confirmar.')
+      setErrorEliminar('Escribe tu contraseña para confirmar.')
       return
     }
 
@@ -356,7 +323,7 @@ export default function MesasPage() {
       const email = userData.user?.email
 
       if (userError || !email) {
-        setErrorEliminar('No se pudo comprobar tu cuenta. Vuelve a iniciar sesión.')
+        setErrorEliminar('No se pudo comprobar tu cuenta.')
         return
       }
 
@@ -366,18 +333,15 @@ export default function MesasPage() {
       })
 
       if (authError) {
-        setErrorEliminar('La contraseña no es correcta. Inténtalo otra vez.')
+        setErrorEliminar('Contraseña incorrecta.')
         return
       }
 
       if (estaActivoEnsayo()) {
         ensayoEliminarMesa(confirmandoEliminar.id)
-        toast({
-          title: 'Mesa eliminada (ensayo)',
-          description: `${confirmandoEliminar.nombre} fue eliminada.`,
-          variant: 'success',
-          duration: 4000
-        })
+        const mensajeCambio = `se eliminó la mesa ${confirmandoEliminar.nombre}`
+        setExito(mensajeCambio)
+        toast({ title: 'mesa eliminada', description: mensajeCambio, variant: 'success', duration: 3000 })
         setConfirmandoEliminar(null)
         setPasswordEliminar('')
         await cargar()
@@ -391,74 +355,17 @@ export default function MesasPage() {
 
       if (err) {
         if (err.code === '23503') {
-          setErrorEliminar('Esta mesa ya tiene votos registrados. Para dejar de usarla, desactívala.')
+          setErrorEliminar('Esta mesa tiene votos registrados. Desactívala primero.')
         } else {
           setErrorEliminar(mensajeDeError(err, 'No se pudo eliminar la mesa.'))
         }
         return
       }
 
-      toast({
-        title: 'Mesa eliminada',
-        description: `${confirmandoEliminar.nombre} y su enlace fueron eliminados.`,
-        variant: 'success',
-        duration: 4000
-      })
+      const mensajeCambio = `se eliminó la mesa ${confirmandoEliminar.nombre}`
+      setExito(mensajeCambio)
+      toast({ title: 'mesa eliminada', description: mensajeCambio, variant: 'success', duration: 3000 })
       setConfirmandoEliminar(null)
-      setPasswordEliminar('')
-      await cargar()
-    } finally {
-      setEliminando(false)
-    }
-  }
-
-  async function eliminarTodasLasMesas(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (!confirmandoEliminarTodas || eliminando) return
-
-    setErrorEliminar(null)
-
-    if (!passwordEliminar) {
-      setErrorEliminar('Escribe la contraseña de tu cuenta para confirmar.')
-      return
-    }
-
-    setEliminando(true)
-    try {
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-      const email = userData.user?.email
-
-      if (userError || !email) {
-        setErrorEliminar('No se pudo comprobar tu cuenta. Vuelve a iniciar sesión.')
-        return
-      }
-
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password: passwordEliminar
-      })
-
-      if (authError) {
-        setErrorEliminar('La contraseña no es correcta. Inténtalo otra vez.')
-        return
-      }
-
-      // Se usa una función RPC SECURITY DEFINER basada en auth.uid().
-      // PostgREST rechaza DELETE sin filtro WHERE, por eso no se puede
-      // hacer .delete() directo para borrados masivos.
-      const { error: errVotos } = await supabase.rpc('borrar_todas_mesas')
-      if (errVotos) {
-        setErrorEliminar(mensajeDeError(errVotos, 'No se pudieron borrar las mesas y votos.'))
-        return
-      }
-
-      toast({
-        title: 'Todas las mesas eliminadas',
-        description: 'Se borraron todas las mesas, sus enlaces y los votos registrados.',
-        variant: 'success',
-        duration: 4000
-      })
-      setConfirmandoEliminarTodas(false)
       setPasswordEliminar('')
       await cargar()
     } finally {
@@ -479,6 +386,8 @@ export default function MesasPage() {
     votos: estaActivoEnsayo() ? ensayoContarVotos() : totalVotos
   }
 
+  const nombreMesa = `${grado.trim()} ${seccion.trim()}`.trim()
+
   return (
     <section className="space-y-6">
       <div className="flex items-center gap-3">
@@ -494,64 +403,78 @@ export default function MesasPage() {
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4">
-        <form onSubmit={agregar} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="sm:w-36">
+        <p className="text-sm text-slate-400">
+          Escribe el grado y la sección de la mesa. Puedes usar cualquier valor, no solo los de la lista.
+        </p>
+        <p className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3 text-xs leading-relaxed text-amber-100/80">
+          Privacidad: el sistema cuenta cuántos votos hay por mesa, pero no guarda qué votante eligió a qué candidato. El voto sigue siendo secreto.
+        </p>
+
+        <form onSubmit={handleAgregar} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="sm:w-40">
             <label htmlFor="mesa-grado" className="mb-1 block text-xs text-slate-400">Grado</label>
-            <select
+            <input
               id="mesa-grado"
+              type="text"
+              list="grados-lista"
               value={grado}
               onChange={(e) => setGrado(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-            >
-              {GRADOS.map((g) => <option key={g} value={g}>{g} grado</option>)}
-            </select>
+              placeholder="Seleccionar el grado"
+              autoComplete="off"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+            />
+            <datalist id="grados-lista">
+              <option value="1°" />
+              <option value="2°" />
+              <option value="3°" />
+              <option value="4°" />
+              <option value="5°" />
+              <option value="6°" />
+            </datalist>
           </div>
 
-          <div className="sm:w-36">
+          <div className="sm:w-40">
             <label htmlFor="mesa-seccion" className="mb-1 block text-xs text-slate-400">Sección</label>
-            <select
+            <input
               id="mesa-seccion"
+              type="text"
+              list="secciones-lista"
               value={seccion}
               onChange={(e) => setSeccion(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-            >
-              {SECCIONES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+              placeholder="Seleccionar la sección"
+              autoComplete="off"
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+            />
+            <datalist id="secciones-lista">
+              <option value="A" />
+              <option value="B" />
+              <option value="C" />
+              <option value="D" />
+              <option value="E" />
+              <option value="F" />
+            </datalist>
           </div>
 
-          <button disabled={guardando}
-            className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
-            {guardando ? 'Guardando…' : 'Agregar'}
-          </button>
-
-          <button type="button" onClick={() => void generarTodas()} disabled={generando}
-            className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-white backdrop-blur-md transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-40">
-            {generando ? 'Generando…' : 'Generar todas (36)'}
-          </button>
-
-          <button type="button" onClick={() => { setConfirmandoEliminarTodas(true); setPasswordEliminar(''); setErrorEliminar(null) }} disabled={generando}
-            className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40">
-            Eliminar todas las mesas
+          <button
+            type="submit"
+            disabled={guardando}
+            className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {guardando ? 'Agregando…' : 'Agregar mesa'}
           </button>
         </form>
 
         <p className="text-xs text-slate-500">
-          Cada mesa recibe un enlace único. Ábrelo en la máquina de ese salón: el padrón es general y el
-          voto queda registrado en la mesa del enlace. «Generar todas» crea 1° a 6° grado en las secciones A–F sin duplicar.
+          Cada mesa recibe un enlace único. Ábrelo en la máquina de ese salón y el voto quedará registrado en esa mesa.
         </p>
 
-        <p className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3 text-xs leading-relaxed text-amber-100/80">
-          Privacidad: el sistema cuenta cuántos votos hay por mesa, pero no guarda qué votante eligió a
-          qué candidato. El voto sigue siendo secreto.
-        </p>
-
-        {error && <p className="text-red-400 text-sm">{error}</p>}
-        {exito && <p className="text-emerald-400 text-sm">{exito}</p>}
+        {error && <p className="text-sm text-red-400">{error}</p>}
+        {exito && <p className="text-sm text-emerald-400">{exito}</p>}
       </div>
 
       {cargando && !tieneDatos && <MesasSkeleton />}
       {tieneDatos && mesas.length === 0 && (
-        <p className="text-slate-500">Aún no hay mesas. Agrega la primera o usa «Generar todas».</p>
+        <p className="text-slate-500">Aún no hay mesas. Agrega la primera.</p>
       )}
 
       <ul className="grid gap-3 sm:grid-cols-2">
@@ -671,6 +594,47 @@ export default function MesasPage() {
         })}
       </ul>
 
+      {confirmandoAgregar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+          <button
+            type="button"
+            aria-label="Cancelar agregar mesa"
+            onClick={() => setConfirmandoAgregar(false)}
+            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-confirmar-agregar"
+            className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]"
+          >
+            <h2 id="titulo-confirmar-agregar" className="text-base font-semibold text-white">
+              ¿Estás seguro?
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Vas a agregar la mesa <strong className="text-white">{nombreMesa}</strong>.
+            </p>
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setConfirmandoAgregar(false)}
+                className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => void confirmarAgregar()}
+                className="flex-1 rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+              >
+                Sí, agregar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmandoRotar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
           <button
@@ -689,8 +653,7 @@ export default function MesasPage() {
               Regenerar enlace de {confirmandoRotar.nombre}
             </h2>
             <p className="mt-2 text-sm text-slate-400">
-              El enlace actual dejará de funcionar inmediatamente. La máquina de esa mesa tendrá que
-              abrir el nuevo enlace.
+              El enlace actual dejará de funcionar. La máquina de esa mesa tendrá que abrir el nuevo.
             </p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <button
@@ -734,10 +697,10 @@ export default function MesasPage() {
               Eliminar mesa {confirmandoEliminar.nombre}
             </h2>
             <p className="mt-2 text-sm text-slate-400">
-              Se borrará la mesa y su enlace de acceso. Esta acción no se puede deshacer.
+              Se borrará la mesa y su enlace. Esta acción no se puede deshacer.
             </p>
             <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
-              Para confirmar, escribe la contraseña de tu cuenta de administrador.
+              Escribe tu contraseña para confirmar.
             </p>
 
             <label htmlFor="password-eliminar" className="mt-4 mb-1 block text-xs text-slate-400">
@@ -771,68 +734,6 @@ export default function MesasPage() {
                 className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {eliminando ? 'Eliminando…' : 'Eliminar mesa'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {confirmandoEliminarTodas && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
-          <button
-            type="button"
-            aria-label="Cancelar eliminación de todas las mesas"
-            onClick={cerrarEliminar}
-            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
-          />
-          <form
-            onSubmit={(e) => void eliminarTodasLasMesas(e)}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="titulo-eliminar-todas-mesas"
-            className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]"
-          >
-            <h2 id="titulo-eliminar-todas-mesas" className="text-base font-semibold text-white">
-              Eliminar todas las mesas
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              Se borrarán todas las mesas, sus enlaces de acceso y los votos registrados. Esta acción no se puede deshacer.
-            </p>
-            <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
-              Para confirmar, escribe la contraseña de tu cuenta de administrador.
-            </p>
-
-            <label htmlFor="password-eliminar-todas" className="mt-4 mb-1 block text-xs text-slate-400">
-              Contraseña
-            </label>
-            <input
-              id="password-eliminar-todas"
-              type="password"
-              autoComplete="current-password"
-              value={passwordEliminar}
-              onChange={(e) => setPasswordEliminar(e.target.value)}
-              autoFocus
-              disabled={eliminando}
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
-            />
-
-            {errorEliminar && <p className="mt-3 text-sm text-red-400">{errorEliminar}</p>}
-
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={cerrarEliminar}
-                disabled={eliminando}
-                className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={eliminando || passwordEliminar.length === 0}
-                className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {eliminando ? 'Eliminando…' : 'Eliminar todas las mesas'}
               </button>
             </div>
           </form>
