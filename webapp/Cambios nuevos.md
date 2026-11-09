@@ -1993,3 +1993,14 @@ npm run verify:prod
 ```
 
 `deploy:function` ya usa `--no-verify-jwt`, y `verify:prod` confirma que el endpoint responde. Este paso requiere el token de acceso de Supabase; no se ejecutó desde el agente.
+
+**Opción sin terminal (Dashboard web):**
+
+1. Abrir el proyecto `msnvemicsuyaaqmwjvhi` en el Dashboard de Supabase.
+2. Ir a **Edge Functions** → **Deploy a new function** → **Via Editor**.
+3. Nombre: `voting-proxy`.
+4. Desactivar **Verify JWT**.
+5. Pegar el contenido de `supabase/functions/voting-proxy/dashboard.ts`.
+6. Pulsar **Deploy**.
+
+Ese archivo se genera con `npm run build:function-dashboard` y contiene `handler.ts` + `index.ts` en un solo archivo, sin imports relativos.
