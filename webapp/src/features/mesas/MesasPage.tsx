@@ -375,15 +375,11 @@ export default function MesasPage() {
       }
 
       // Primero borrar los votos (por la FK restrict), luego las mesas.
-      const { error: errVotos } = await supabase.from('votos').delete()
+      // Se usa una función RPC SECURITY DEFINER para evitar filtros WHERE
+      // en el endpoint REST que Supabase/PostgREST rechaza en DELETE masivo.
+      const { error: errVotos } = await supabase.rpc('borrar_todas_mesas')
       if (errVotos) {
         setErrorEliminar(mensajeDeError(errVotos, 'No se pudieron borrar los votos registrados.'))
-        return
-      }
-
-      const { error: errMesas } = await supabase.from('mesas').delete()
-      if (errMesas) {
-        setErrorEliminar(mensajeDeError(errMesas, 'No se pudieron eliminar las mesas.'))
         return
       }
 
