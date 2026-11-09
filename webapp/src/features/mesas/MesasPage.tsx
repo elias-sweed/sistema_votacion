@@ -364,8 +364,18 @@ export default function MesasPage() {
         return
       }
 
+      // Refrescar la sesión para que el JWT incluya el rol de administrador
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      const role = sessionData.session?.user.app_metadata?.role
+      if (sessionError || role !== 'admin') {
+        setErrorEliminar(
+          'Tu usuario no tiene rol de administrador. Aplica el script acceso_directo.sql en Supabase o asigna app_metadata {"role":"admin"} a tu usuario en Authentication → Users.'
+        )
+        return
+      }
+
       // Primero borrar los votos (por la FK restrict), luego las mesas.
-      const { error: errVotos } = await supabase.from('votos').delete().gt('id', 0)
+      const { error: errVotos } = await supabase.from('votos').delete().is('id', 'not.null')
       if (errVotos) {
         setErrorEliminar(mensajeDeError(errVotos, 'No se pudieron borrar los votos registrados.'))
         return
