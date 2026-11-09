@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import fondoVotantes from '../../assets/votantes.jpg'
 import {
   castVote,
   isValidDni,
@@ -266,8 +267,21 @@ export default function VotingKioskPage() {
 
   return (
     <main className="relative min-h-screen px-4 py-8 text-white sm:px-8 sm:py-12">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_12%,rgba(37,99,235,0.2),transparent_50%)]" />
-      <div className="relative mx-auto w-full max-w-3xl">
+      {/* Fondo de pantalla de votación: imagen de los votantes */}
+      <div className="absolute inset-0 z-0">
+        <img
+          src={fondoVotantes}
+          alt=""
+          className="w-full h-full object-cover"
+          aria-hidden="true"
+          decoding="async"
+          loading="eager"
+        />
+        <div className="absolute inset-0 bg-[#02040a]/50" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(1,3,10,0.75)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(3,4,11,0.55),transparent_40%,rgba(3,4,11,0.7))]" />
+      </div>
+      <div className="relative z-10 mx-auto w-full max-w-3xl">
         <header className="mb-8 text-center">
           {status?.logoUrl && (
             <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-white/95 p-2 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.85)] sm:h-28 sm:w-28">
@@ -288,7 +302,7 @@ export default function VotingKioskPage() {
               Mesa {status.mesa.nombre}
             </p>
           )}
-          <p className="mt-3 text-sm text-slate-300">Sigue las indicaciones en pantalla. Tu voto es secreto.</p>
+          <p className="mt-3 text-sm text-white/90">Sigue las indicaciones en pantalla. Tu voto es secreto.</p>
         </header>
 
         <section
@@ -330,7 +344,7 @@ export default function VotingKioskPage() {
             <div className="mx-auto max-w-md space-y-6">
               <div className="text-center">
                 <h2 className="text-2xl font-semibold">Escribe tu DNI</h2>
-                <p className="mt-2 text-sm text-slate-300">
+                <p className="mt-2 text-sm text-white/90">
                   Solo los 8 números. Apenas termines, revisamos tu DNI automáticamente.
                 </p>
               </div>
@@ -366,7 +380,7 @@ export default function VotingKioskPage() {
                   ))}
                 </div>
 
-                <p id="dni-progress" className="mt-3 text-center text-sm text-slate-400" aria-live="polite">
+                <p id="dni-progress" className="mt-3 text-center text-sm text-slate-200" aria-live="polite">
                   {checking
                     ? 'Revisando tu DNI…'
                     : dniInput.length === 8
@@ -496,7 +510,7 @@ export default function VotingKioskPage() {
           )}
         </section>
 
-        <footer className="mt-5 text-center text-xs text-slate-500">
+        <footer className="mt-5 text-center text-xs text-slate-300">
           Si necesitas ayuda, no compartas tu DNI en voz alta y consulta al personal electoral.
         </footer>
       </div>
