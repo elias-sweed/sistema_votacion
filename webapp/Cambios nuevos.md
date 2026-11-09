@@ -2004,3 +2004,22 @@ npm run verify:prod
 6. Pulsar **Deploy**.
 
 Ese archivo se genera con `npm run build:function-dashboard` y contiene `handler.ts` + `index.ts` en un solo archivo, sin imports relativos.
+
+### 7. Flujo de votación simplificado para niños
+
+Se redujo el kiosco a tres pasos: DNI, candidato y confirmación.
+
+- **Pantalla de DNI:** solo el campo de DNI, sin botón. Ocho barras muestran cuántos dígitos faltan.
+- **Verificación automática:** al completar los 8 dígitos se consulta el padrón sin que el votante pulse nada.
+- **Resultados claros:** «Ya votó» y «No existe» aparecen con color e ícono; si el DNI es válido, pasa directo a los candidatos.
+- **Sin confirmación de identidad:** el nombre nunca se guarda en el estado del componente ni se muestra junto con la selección.
+- **Confirmación de voto:** al tocar un candidato aparece «¿Estás seguro?» con dos botones simples: «No, elegir otro» y «Sí, confirmar mi voto».
+- Las peticiones en curso se invalidan con un contador para evitar verificaciones duplicadas al seguir escribiendo.
+
+| Comprobación | Resultado |
+| --- | --- |
+| `npm run typecheck` | ✅ |
+| `npm run test:offline` | ✅ 31/31 |
+| `npm run build` | ✅ |
+
+**Se hizo commit y push. No se desplegó en Vercel.**

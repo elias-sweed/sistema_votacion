@@ -45,16 +45,29 @@ test('browser voting service never invokes the protected voting RPCs directly', 
   assert.doesNotMatch(service, /\.from\(['"]candidatos['"]\)/);
 });
 
-test('identity is cleared before displaying the candidate selection', () => {
-  const start = kiosk.indexOf('function continueToCandidates()');
-  const end = kiosk.indexOf('function confirmCandidate()', start);
-  assert.ok(start >= 0 && end > start, 'identity transition handler exists');
-  const transition = kiosk.slice(start, end);
-  assert.ok(transition.indexOf('setVoterName(null)') >= 0, 'identity is removed from component state');
-  assert.ok(
-    transition.indexOf("setStep('candidates')") > transition.indexOf('setVoterName(null)'),
-    'candidate selection is displayed after identity is cleared',
-  );
+test('kiosk verifies the DNI automatically at eight digits without an identity step', () => {
+  assert.match(kiosk, /dniInput\.length\s*!==\s*8/, 'auto verification waits for eight digits');
+  assert.match(kiosk, /void verifyDni\(dniInput\)/, 'verification starts without a submit button');
+  assert.doesNotMatch(kiosk, /setVoterName|voterName|identityConfirmed/, 'name is never kept in component state');
+
+  const start = kiosk.indexOf('async function verifyDni(');
+  const end = kiosk.indexOf('function chooseCandidate(', start);
+  assert.ok(start >= 0 && end > start, 'verify handler exists');
+  assert.match(kiosk.slice(start, end), /setStep\('candidates'\)/, 'eligible voter goes straight to candidates');
+});
+
+test('kiosk shows plain outcomes for already voted and unknown DNI', () => {
+  assert.match(kiosk, /title: 'Ya votó'/);
+  assert.match(kiosk, /title: 'No existe'/);
+});
+
+test('choosing a candidate asks for confirmation before recording the vote', () => {
+  const start = kiosk.indexOf('function chooseCandidate(');
+  const end = kiosk.indexOf('async function submitVote(', start);
+  assert.ok(start >= 0 && end > start, 'candidate handler exists');
+  const choose = kiosk.slice(start, end);
+  assert.match(choose, /setStep\('confirm'\)/, 'candidate selection opens confirmation');
+  assert.doesNotMatch(choose, /castVote/, 'vote is not recorded on candidate tap');
 });
 
 test('successful proxy response contains no voter or candidate identifier', () => {

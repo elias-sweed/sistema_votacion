@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   castVote,
@@ -12,10 +11,80 @@ import {
 import type { ElectionStatus } from './votingService'
 
 type Candidate = Awaited<ReturnType<typeof loadActiveCandidates>>[number]
-type Step = 'dni' | 'identity' | 'candidates' | 'confirm' | 'success' | 'notice' | 'ambiguous'
+type Step = 'dni' | 'candidates' | 'confirm' | 'success' | 'notice' | 'ambiguous'
+
+type DniResult = {
+  tone: 'error' | 'warning' | 'success'
+  title: string
+  detail: string
+}
+
+const toneStyles: Record<DniResult['tone'], { panel: string; title: string; detail: string; icon: string }> = {
+  error: {
+    panel: 'border-rose-400/30 bg-rose-500/10',
+    title: 'text-rose-200',
+    detail: 'text-rose-100/80',
+    icon: '✕',
+  },
+  warning: {
+    panel: 'border-amber-400/30 bg-amber-500/10',
+    title: 'text-amber-200',
+    detail: 'text-amber-100/80',
+    icon: '!',
+  },
+  success: {
+    panel: 'border-emerald-400/30 bg-emerald-500/10',
+    title: 'text-emerald-200',
+    detail: 'text-emerald-100/80',
+    icon: '✓',
+  },
+}
 
 function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('')
+}
+
+function dniResultFromError(error: unknown): DniResult {
+  const votingError = error instanceof VotingError ? error : null
+  switch (votingError?.kind) {
+    case 'already-voted':
+      return {
+        tone: 'warning',
+        title: 'Ya votó',
+        detail: 'Este DNI ya tiene un voto registrado. Gracias por participar.',
+      }
+    case 'not-found':
+      return {
+        tone: 'error',
+        title: 'No existe',
+        detail: 'Ese DNI no está en el padrón. Revisa los 8 números o pide ayuda al personal.',
+      }
+    case 'rate-limited':
+      return {
+        tone: 'warning',
+        title: 'Espera un momento',
+        detail: 'Se hicieron muchos intentos. Espera unos segundos o pide ayuda al personal.',
+      }
+    case 'invalid-mesa':
+      return {
+        tone: 'error',
+        title: 'Enlace no válido',
+        detail: 'Este enlace de mesa no sirve. Avisa al personal electoral.',
+      }
+    case 'unavailable':
+    case 'network':
+      return {
+        tone: 'error',
+        title: 'Sin conexión',
+        detail: 'No se pudo conectar con el sistema. Inténtalo otra vez.',
+      }
+    default:
+      return {
+        tone: 'error',
+        title: 'No se pudo verificar',
+        detail: votingError?.message ?? 'Inténtalo otra vez o pide ayuda al personal.',
+      }
+  }
 }
 
 export default function VotingKioskPage() {
@@ -23,19 +92,23 @@ export default function VotingKioskPage() {
   const token = tokenParam?.trim() ?? ''
   const dniRef = useRef('')
   const submittingRef = useRef(false)
+  const checkingRef = useRef(false)
+  const lastCheckedDni = useRef<string | null>(null)
+  const requestIdRef = useRef(0)
+  const inputRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<ElectionStatus | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [step, setStep] = useState<Step>('dni')
   const [dniInput, setDniInput] = useState('')
-  const [voterName, setVoterName] = useState<string | null>(null)
+  const [dniResult, setDniResult] = useState<DniResult | null>(null)
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [checking, setChecking] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [validationError, setValidationError] = useState<string | null>(null)
-  const [identityConfirmed, setIdentityConfirmed] = useState(false)
+
+  const canStart = !loading && !loadError && status?.open && candidates.length > 0
 
   async function loadOptions() {
     if (!token) {
@@ -73,53 +146,66 @@ export default function VotingKioskPage() {
     void loadOptions()
   }, [token])
 
+  useEffect(() => {
+    if (step === 'dni' && !loading) inputRef.current?.focus()
+  }, [step, loading])
+
   function clearVoterState() {
     dniRef.current = ''
+    lastCheckedDni.current = null
+    requestIdRef.current += 1
+    checkingRef.current = false
     setDniInput('')
-    setVoterName(null)
-    setIdentityConfirmed(false)
+    setDniResult(null)
     setSelectedCandidateId(null)
+    setChecking(false)
   }
 
-  async function handleVerify(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setValidationError(null)
-    setMessage(null)
-
-    const dni = dniInput.trim()
-    if (!dni) {
-      setValidationError('Ingresa tu DNI para continuar.')
-      return
-    }
-    if (!isValidDni(dni)) {
-      setValidationError('El DNI debe tener exactamente ocho dígitos.')
-      return
-    }
-    if (loading || !status?.open || candidates.length === 0 || checking) return
-
-    setChecking(true)
-    try {
-      const voter = await verifyVoter(token, dni)
-      dniRef.current = dni
-      setVoterName(voter.name)
-      setStep('identity')
-    } catch (error) {
-      const votingError = error instanceof VotingError ? error : null
-      setMessage(votingError?.message ?? 'No se pudo completar la verificación.')
-    } finally {
+  function handleDniChange(value: string) {
+    const digits = value.replace(/\D/g, '').slice(0, 8)
+    setDniInput(digits)
+    setDniResult(null)
+    if (digits !== lastCheckedDni.current) lastCheckedDni.current = null
+    requestIdRef.current += 1
+    if (checkingRef.current) {
+      checkingRef.current = false
       setChecking(false)
     }
   }
 
-  function continueToCandidates() {
-    if (!voterName || !dniRef.current) return
-    setIdentityConfirmed(true)
-    setVoterName(null)
-    setStep('candidates')
+  async function verifyDni(dni: string) {
+    if (checkingRef.current || !isValidDni(dni) || !canStart) return
+    const requestId = ++requestIdRef.current
+    checkingRef.current = true
+    lastCheckedDni.current = dni
+    setChecking(true)
+    setDniResult(null)
+    try {
+      await verifyVoter(token, dni)
+      if (requestId !== requestIdRef.current) return
+      dniRef.current = dni
+      setSelectedCandidateId(null)
+      setStep('candidates')
+    } catch (error) {
+      if (requestId !== requestIdRef.current) return
+      setDniResult(dniResultFromError(error))
+      requestAnimationFrame(() => inputRef.current?.select())
+    } finally {
+      if (requestId === requestIdRef.current) {
+        checkingRef.current = false
+        setChecking(false)
+      }
+    }
   }
 
-  function confirmCandidate() {
-    if (!selectedCandidateId || !identityConfirmed || !dniRef.current) return
+  useEffect(() => {
+    if (step !== 'dni' || !canStart || checking) return
+    if (dniInput.length !== 8 || lastCheckedDni.current === dniInput) return
+    void verifyDni(dniInput)
+  }, [dniInput, step, canStart, checking])
+
+  function chooseCandidate(candidateId: string) {
+    setSelectedCandidateId(candidateId)
     setStep('confirm')
   }
 
@@ -144,9 +230,6 @@ export default function VotingKioskPage() {
       setMessage(votingError.message)
       setStep(votingError.kind === 'unknown' || votingError.kind === 'network' ? 'ambiguous' : 'notice')
       if (votingError.kind === 'closed') setStatus(current => current ? { ...current, open: false } : current)
-      if (votingError.kind === 'invalid-candidate') {
-        setStep('notice')
-      }
     } finally {
       submittingRef.current = false
       setSubmitting(false)
@@ -156,14 +239,11 @@ export default function VotingKioskPage() {
   function resetFlow() {
     clearVoterState()
     setMessage(null)
-    setValidationError(null)
-    setIdentityConfirmed(false)
     setStep('dni')
     void loadOptions()
   }
 
   const selectedCandidate = candidates.find(candidate => candidate.id === selectedCandidateId) ?? null
-  const canStart = !loading && !loadError && status?.open && candidates.length > 0
 
   if (!token) {
     return (
@@ -247,72 +327,89 @@ export default function VotingKioskPage() {
           )}
 
           {canStart && step === 'dni' && (
-            <form onSubmit={handleVerify} className="mx-auto max-w-md space-y-5">
-              <div>
-                <h2 className="text-xl font-semibold">Verifica tu habilitación</h2>
-                <p className="mt-2 text-sm text-slate-300">Ingresa tu DNI. Solo se utilizará para comprobar tu habilitación y registrar que ya votaste.</p>
+            <div className="mx-auto max-w-md space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-semibold">Escribe tu DNI</h2>
+                <p className="mt-2 text-sm text-slate-300">
+                  Solo los 8 números. Apenas termines, revisamos tu DNI automáticamente.
+                </p>
               </div>
+
               <div>
-                <label htmlFor="voter-dni" className="mb-2 block text-sm font-medium text-slate-200">DNI</label>
+                <label htmlFor="voter-dni" className="mb-2 block text-center text-sm font-medium text-slate-200">
+                  DNI
+                </label>
                 <input
+                  ref={inputRef}
                   id="voter-dni"
                   name="dni"
                   type="text"
                   inputMode="numeric"
                   autoComplete="off"
-                  pattern="[0-9]{8}"
                   maxLength={8}
                   value={dniInput}
-                  onChange={event => setDniInput(event.target.value.replace(/\D/g, '').slice(0, 8))}
-                  aria-describedby={validationError ? 'dni-error' : undefined}
-                  aria-invalid={Boolean(validationError)}
-                  className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-4 text-center font-mono text-2xl tracking-[0.35em] text-white outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+                  onChange={event => handleDniChange(event.target.value)}
+                  aria-describedby="dni-progress"
+                  className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-5 text-center font-mono text-3xl tracking-[0.35em] text-white outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
                   placeholder="••••••••"
                   autoFocus
                 />
-                {validationError && <p id="dni-error" className="mt-2 text-sm text-rose-300">{validationError}</p>}
-              </div>
-              {message && <p className="rounded-xl bg-rose-500/10 p-3 text-sm text-rose-200">{message}</p>}
-              <button type="submit" disabled={checking} className="kiosk-button-primary w-full">
-                {checking ? 'Verificando…' : 'Verificar identidad'}
-              </button>
-              <p className="text-center text-xs text-slate-400">No se muestra tu mesa ni el estado individual de tu voto en las opciones electorales.</p>
-            </form>
-          )}
 
-          {step === 'identity' && voterName && (
-            <div className="mx-auto max-w-md space-y-6 py-4 text-center">
-              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-3xl text-emerald-300" aria-hidden="true">✓</span>
-              <div>
-                <h2 className="text-2xl font-semibold">Confirma tu identidad</h2>
-                <p className="mt-3 text-lg text-slate-200">{voterName}</p>
-                <p className="mt-2 text-sm text-slate-400">Si estos datos son tuyos, continúa. No mostraremos tus datos junto con tu selección.</p>
+                <div className="mt-3 flex justify-center gap-1.5" aria-hidden="true">
+                  {Array.from({ length: 8 }).map((_, index) => (
+                    <span
+                      key={index}
+                      className={`h-1.5 w-7 rounded-full transition-colors ${
+                        index < dniInput.length ? 'bg-sky-400' : 'bg-white/15'
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                <p id="dni-progress" className="mt-3 text-center text-sm text-slate-400" aria-live="polite">
+                  {checking
+                    ? 'Revisando tu DNI…'
+                    : dniInput.length === 8
+                      ? 'DNI completo'
+                      : `Faltan ${8 - dniInput.length} ${8 - dniInput.length === 1 ? 'número' : 'números'}`}
+                </p>
               </div>
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-                <button type="button" onClick={resetFlow} className="kiosk-button-secondary">No soy yo</button>
-                <button type="button" onClick={continueToCandidates} className="kiosk-button-primary">Continuar</button>
-              </div>
+
+              {dniResult && (
+                <div
+                  role="alert"
+                  className={`rounded-2xl border p-5 ${toneStyles[dniResult.tone].panel}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      aria-hidden="true"
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black/30 text-lg font-bold ${toneStyles[dniResult.tone].title}`}
+                    >
+                      {toneStyles[dniResult.tone].icon}
+                    </span>
+                    <div>
+                      <p className={`text-lg font-bold ${toneStyles[dniResult.tone].title}`}>{dniResult.title}</p>
+                      <p className={`mt-1 text-sm ${toneStyles[dniResult.tone].detail}`}>{dniResult.detail}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {step === 'candidates' && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-semibold">Elige una opción</h2>
-                <p className="mt-2 text-sm text-slate-300">Selecciona una sola opción. Aún no se ha registrado ningún voto.</p>
+              <div className="text-center">
+                <h2 className="text-2xl font-semibold">Elige a tu candidato</h2>
+                <p className="mt-2 text-sm text-slate-300">Toca una sola opción. Todavía no se ha registrado nada.</p>
               </div>
               <ul className="grid gap-4 sm:grid-cols-2">
                 {candidates.map(candidate => (
                   <li key={candidate.id}>
                     <button
                       type="button"
-                      onClick={() => setSelectedCandidateId(candidate.id)}
-                      aria-pressed={selectedCandidateId === candidate.id}
-                      className={`flex min-h-28 w-full items-center gap-4 rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 ${
-                        selectedCandidateId === candidate.id
-                          ? 'border-sky-300 bg-sky-400/15 ring-2 ring-sky-400/30'
-                          : 'border-white/10 bg-white/[0.04] hover:border-white/25 hover:bg-white/[0.08]'
-                      }`}
+                      onClick={() => chooseCandidate(candidate.id)}
+                      className="flex min-h-28 w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:border-sky-300/50 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
                     >
                       {candidate.foto_url ? (
                         <img
@@ -328,24 +425,21 @@ export default function VotingKioskPage() {
                         </span>
                       )}
                       <span className="text-lg font-semibold">{candidate.nombre}</span>
-                      {selectedCandidateId === candidate.id && <span className="ml-auto text-sm text-sky-200">Seleccionado</span>}
                     </button>
                   </li>
                 ))}
               </ul>
-              {message && <p className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-100">{message}</p>}
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-                <button type="button" onClick={resetFlow} className="kiosk-button-secondary">Cancelar</button>
-                <button type="button" onClick={confirmCandidate} disabled={!selectedCandidateId} className="kiosk-button-primary">
-                  Revisar selección
+              <div className="text-center">
+                <button type="button" onClick={resetFlow} className="kiosk-button-secondary">
+                  Volver
                 </button>
               </div>
             </div>
           )}
 
           {step === 'confirm' && selectedCandidate && (
-            <div className="mx-auto max-w-md space-y-6 py-4 text-center">
-              <h2 className="text-2xl font-semibold">Confirma tu opción</h2>
+            <div className="mx-auto max-w-md space-y-6 py-2 text-center">
+              <h2 className="text-2xl font-semibold">¿Estás seguro?</h2>
               <div className="rounded-2xl border border-sky-300/30 bg-sky-400/10 p-6">
                 {selectedCandidate.foto_url && (
                   <img
@@ -355,16 +449,17 @@ export default function VotingKioskPage() {
                     className="mx-auto mb-4 h-20 w-20 rounded-xl object-cover"
                   />
                 )}
-                <p className="text-xl font-bold">{selectedCandidate.nombre}</p>
+                <p className="text-sm text-slate-300">Vas a votar por</p>
+                <p className="mt-1 text-xl font-bold">{selectedCandidate.nombre}</p>
               </div>
-              <p className="text-sm text-slate-300">Al confirmar, el servidor registrará un único voto. No se mostrará tu identidad junto con esta opción.</p>
+              <p className="text-sm text-slate-300">Tu voto se guarda una sola vez y no se puede cambiar.</p>
               {message && <p className="text-sm text-rose-200">{message}</p>}
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-                <button type="button" disabled={submitting} onClick={() => setStep('candidates')} className="kiosk-button-secondary">
-                  Cambiar opción
+                <button type="button" disabled={submitting} onClick={() => { setMessage(null); setSelectedCandidateId(null); setStep('candidates') }} className="kiosk-button-secondary">
+                  No, elegir otro
                 </button>
                 <button type="button" disabled={submitting} onClick={() => void submitVote()} className="kiosk-button-primary">
-                  {submitting ? 'Enviando voto…' : 'Confirmar y emitir voto'}
+                  {submitting ? 'Guardando voto…' : 'Sí, confirmar mi voto'}
                 </button>
               </div>
             </div>
