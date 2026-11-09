@@ -246,7 +246,7 @@ export default function ConfiguracionPage() {
     setEliminandoTodoCargando(true)
     try {
       if (eliminandoTodo === 'votantes') {
-        const { error: err } = await supabase.rpc('borrar_todos_votantes')
+        const { error: err } = await supabase.from('votantes').delete()
         if (err) {
           setErrorEliminarTodo(mensajeDeError(err, 'No se pudieron eliminar los votantes.'))
           return
@@ -258,7 +258,7 @@ export default function ConfiguracionPage() {
           duration: 4000
         })
       } else if (eliminandoTodo === 'candidatos') {
-        const { error: err } = await supabase.rpc('borrar_todos_candidatos')
+        const { error: err } = await supabase.from('candidatos').delete()
         if (err) {
           setErrorEliminarTodo(mensajeDeError(err, 'No se pudieron eliminar los candidatos.'))
           return
@@ -355,11 +355,30 @@ export default function ConfiguracionPage() {
 
     setBorrandoTodo(true)
     try {
-      const { error: err } = await supabase.rpc('borrar_todo')
-      if (err) {
-        setErrorBorrarTodo(mensajeDeError(err, 'No se pudo borrar todo.'))
+      // Con RLS desactivado, se puede hacer DELETE directo en todas las tablas.
+      const orden = ['votos', 'votantes', 'candidatos', 'mesas']
+      for (const tabla of orden) {
+        const { error: err } = await supabase.from(tabla).delete()
+        if (err) {
+          setErrorBorrarTodo(mensajeDeError(err, `No se pudo borrar la tabla ${tabla}.`))
+          return
+        }
+      }
+
+      // Restablecer configuración a valores por defecto
+      const { error: errConf } = await supabase
+        .from('configuracion')
+        .update({ eleccion_abierta: false, titulo: 'Elección de Municipios Escolares', centro: 'I.E. Jimenez Pimentel', logo_url: null })
+        .eq('id', 1)
+      if (errConf) {
+        setErrorBorrarTodo(mensajeDeError(errConf, 'No se pudo restablecer la configuración.'))
         return
       }
+
+      setTitulo('Elección de Municipios Escolares')
+      setCentro('I.E. Jimenez Pimentel')
+      setLogoUrl(null)
+      setConfig(current => current ? { ...current, eleccion_abierta: false, titulo: 'Elección de Municipios Escolares', centro: 'I.E. Jimenez Pimentel', logo_url: null } : current)
 
       // También limpiar el modo ensayo si estaba activo
       limpiarEnsayo()

@@ -11,7 +11,6 @@ import {
   ensayoAgregarMesa,
   ensayoActualizarMesa,
   ensayoEliminarMesa,
-  ensayoEliminarTodasMesas,
   ensayoContarMesas,
   ensayoContarMesasActivas,
   ensayoContarVotos,
@@ -444,36 +443,17 @@ export default function MesasPage() {
         return
       }
 
-      // Refrescar la sesión para que el JWT incluya el rol de administrador
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-      const role = sessionData.session?.user.app_metadata?.role
-      if (sessionError || role !== 'admin') {
-        setErrorEliminar(
-          'Tu usuario no tiene rol de administrador. Aplica el script acceso_directo.sql en Supabase o asigna app_metadata {"role":"admin"} a tu usuario en Authentication → Users.'
-        )
-        return
-      }
-
-      if (estaActivoEnsayo()) {
-        ensayoEliminarTodasMesas()
-        toast({
-          title: 'Todas las mesas eliminadas (ensayo)',
-          description: 'Se borraron todas las mesas del modo ensayo.',
-          variant: 'success',
-          duration: 4000
-        })
-        setConfirmandoEliminarTodas(false)
-        setPasswordEliminar('')
-        await cargar()
-        return
-      }
-
+      // Con RLS desactivado, se puede hacer DELETE directo sin funciones RPC.
       // Primero borrar los votos (por la FK restrict), luego las mesas.
-      // Se usa una función RPC SECURITY DEFINER para evitar filtros WHERE
-      // en el endpoint REST que Supabase/PostgREST rechaza en DELETE masivo.
-      const { error: errVotos } = await supabase.rpc('borrar_todas_mesas')
+      const { error: errVotos } = await supabase.from('votos').delete()
       if (errVotos) {
         setErrorEliminar(mensajeDeError(errVotos, 'No se pudieron borrar los votos registrados.'))
+        return
+      }
+
+      const { error: errMesas } = await supabase.from('mesas').delete()
+      if (errMesas) {
+        setErrorEliminar(mensajeDeError(errMesas, 'No se pudieron eliminar las mesas.'))
         return
       }
 
