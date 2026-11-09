@@ -231,7 +231,7 @@ export default function ConfiguracionPage() {
     setEliminandoTodoCargando(true)
     try {
       if (eliminandoTodo === 'votantes') {
-        const { error: err } = await supabase.from('votantes').delete().is('dni', 'not.null')
+        const { error: err } = await supabase.from('votantes').delete()
         if (err) {
           setErrorEliminarTodo(mensajeDeError(err, 'No se pudieron eliminar los votantes.'))
           return
@@ -243,7 +243,7 @@ export default function ConfiguracionPage() {
           duration: 4000
         })
       } else if (eliminandoTodo === 'candidatos') {
-        const { error: err } = await supabase.from('candidatos').delete().is('id', 'not.null')
+        const { error: err } = await supabase.from('candidatos').delete()
         if (err) {
           setErrorEliminarTodo(mensajeDeError(err, 'No se pudieron eliminar los candidatos.'))
           return
