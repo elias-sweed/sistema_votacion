@@ -10,6 +10,7 @@ import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
 import { ConfiguracionSkeleton } from '../panel/PanelSkeletons'
 import { SectionHeader } from '../../components/ui/SectionHeader'
+import { AdminModal } from '../../components/ui/AdminModal'
 import {
   estaActivoEnsayo,
   activarEnsayo,
@@ -1049,166 +1050,109 @@ export default function ConfiguracionPage() {
       )}
 
       {eliminandoTodo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
-          <button
-            type="button"
-            aria-label="Cancelar eliminación masiva"
-            onClick={cerrarEliminarTodo}
-            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
+        <AdminModal
+          open={eliminandoTodo !== null}
+          onClose={cerrarEliminarTodo}
+          title="Confirmar eliminación masiva"
+          description={
+            eliminandoTodo === 'votantes'
+              ? 'Se borrarán todos los votantes del padrón. Esta acción no se puede deshacer.'
+              : eliminandoTodo === 'candidatos'
+              ? 'Se borrarán todos los candidatos. Esta acción no se puede deshacer.'
+              : 'Se restablecerán el título, el centro educativo y el logo a los valores por defecto.'
+          }
+          confirmLabel="Sí, eliminar todo"
+          confirmVariant="danger"
+          loading={eliminandoTodoCargando}
+          onConfirm={() => void ejecutarEliminarTodo()}
+        >
+          <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
+            Para confirmar, escribe la contraseña de tu cuenta de administrador.
+          </p>
+
+          <label htmlFor="password-eliminar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
+            Contraseña
+          </label>
+          <input
+            id="password-eliminar-todo"
+            type="password"
+            autoComplete="current-password"
+            value={passwordEliminarTodo}
+            onChange={(e) => setPasswordEliminarTodo(e.target.value)}
+            autoFocus
+            disabled={eliminandoTodoCargando}
+            className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
           />
-          <form
-            onSubmit={(e) => { e.preventDefault(); void ejecutarEliminarTodo() }}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="titulo-eliminar-todo"
-            className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]"
-          >
-            <h2 id="titulo-eliminar-todo" className="text-base font-semibold text-white">
-              Confirmar eliminación masiva
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              {eliminandoTodo === 'votantes'
-                ? 'Se borrarán todos los votantes del padrón. Esta acción no se puede deshacer.'
-                : eliminandoTodo === 'candidatos'
-                  ? 'Se borrarán todos los candidatos. Esta acción no se puede deshacer.'
-                  : 'Se restablecerán el título, el centro educativo y el logo a los valores por defecto.'}
-            </p>
-            <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
-              Para confirmar, escribe la contraseña de tu cuenta de administrador.
-            </p>
 
-            <label htmlFor="password-eliminar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
-              Contraseña
-            </label>
-            <input
-              id="password-eliminar-todo"
-              type="password"
-              autoComplete="current-password"
-              value={passwordEliminarTodo}
-              onChange={(e) => setPasswordEliminarTodo(e.target.value)}
-              autoFocus
-              disabled={eliminandoTodoCargando}
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
-            />
+          {errorPin && <p className="mt-3 text-sm text-red-400">{errorPin}</p>}
 
-            {errorPin && <p className="mt-3 text-sm text-red-400">{errorPin}</p>}
+          {errorEliminarTodo && <p className="mt-3 text-sm text-red-400">{errorEliminarTodo}</p>}
 
-            {errorEliminarTodo && <p className="mt-3 text-sm text-red-400">{errorEliminarTodo}</p>}
-
-            <label htmlFor="pin-eliminar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
-              PIN de seguridad
-            </label>
-            <input
-              id="pin-eliminar-todo"
-              type="password"
-              inputMode="numeric"
-              maxLength={4}
-              autoComplete="off"
-              value={pinAccion}
-              onChange={(e) => setPinAccion(e.target.value.replace(/\D/g, ''))}
-              disabled={eliminandoTodoCargando}
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
-            />
-
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={cerrarEliminarTodo}
-                disabled={eliminandoTodoCargando}
-                className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={eliminandoTodoCargando || passwordEliminarTodo.length === 0 || pinAccion.length < 4}
-                className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {eliminandoTodoCargando ? 'Procesando…' : 'Sí, eliminar todo'}
-              </button>
-            </div>
-          </form>
-        </div>
+          <label htmlFor="pin-eliminar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
+            PIN de seguridad
+          </label>
+          <input
+            id="pin-eliminar-todo"
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            autoComplete="off"
+            value={pinAccion}
+            onChange={(e) => setPinAccion(e.target.value.replace(/\D/g, ''))}
+            disabled={eliminandoTodoCargando}
+            className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
+          />
+        </AdminModal>
       )}
 
       {confirmandoBorrarTodo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
-          <button
-            type="button"
-            aria-label="Cancelar borrado total"
-            onClick={cerrarBorrarTodo}
-            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
+        <AdminModal
+          open={confirmandoBorrarTodo !== null}
+          onClose={cerrarBorrarTodo}
+          title="Borrar TODO de todo"
+          description="Se eliminarán votantes, candidatos, mesas y votos. La configuración volverá a los valores por defecto. Esta acción no se puede deshacer."
+          confirmLabel="Sí, borrar todo de todo"
+          confirmVariant="danger"
+          loading={borrandoTodo}
+          onConfirm={() => void ejecutarBorrarTodo()}
+        >
+          <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
+            Para confirmar, escribe la contraseña de tu cuenta de administrador.
+          </p>
+
+          <label htmlFor="password-borrar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
+            Contraseña
+          </label>
+          <input
+            id="password-borrar-todo"
+            type="password"
+            autoComplete="current-password"
+            value={passwordBorrarTodo}
+            onChange={(e) => setPasswordBorrarTodo(e.target.value)}
+            autoFocus
+            disabled={borrandoTodo}
+            className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
           />
-          <form
-            onSubmit={(e) => { e.preventDefault(); void ejecutarBorrarTodo() }}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="titulo-borrar-todo"
-            className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]"
-          >
-            <h2 id="titulo-borrar-todo" className="text-base font-semibold text-white">
-              Borrar TODO de todo
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              Se eliminarán votantes, candidatos, mesas y votos. La configuración volverá a los valores por defecto.
-              Esta acción no se puede deshacer.
-            </p>
-            <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
-              Para confirmar, escribe la contraseña de tu cuenta de administrador.
-            </p>
 
-            <label htmlFor="password-borrar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
-              Contraseña
-            </label>
-            <input
-              id="password-borrar-todo"
-              type="password"
-              autoComplete="current-password"
-              value={passwordBorrarTodo}
-              onChange={(e) => setPasswordBorrarTodo(e.target.value)}
-              autoFocus
-              disabled={borrandoTodo}
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
-            />
+          {errorPin && <p className="mt-3 text-sm text-red-400">{errorPin}</p>}
 
-            {errorPin && <p className="mt-3 text-sm text-red-400">{errorPin}</p>}
+          {errorBorrarTodo && <p className="mt-3 text-sm text-red-400">{errorBorrarTodo}</p>}
 
-            {errorBorrarTodo && <p className="mt-3 text-sm text-red-400">{errorBorrarTodo}</p>}
-
-            <label htmlFor="pin-borrar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
-              PIN de seguridad
-            </label>
-            <input
-              id="pin-borrar-todo"
-              type="password"
-              inputMode="numeric"
-              maxLength={4}
-              autoComplete="off"
-              value={pinAccion}
-              onChange={(e) => setPinAccion(e.target.value.replace(/\D/g, ''))}
-              disabled={borrandoTodo}
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
-            />
-
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={cerrarBorrarTodo}
-                disabled={borrandoTodo}
-                className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={borrandoTodo || passwordBorrarTodo.length === 0 || pinAccion.length < 4}
-                className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {borrandoTodo ? 'Borrando…' : 'Sí, borrar todo de todo'}
-              </button>
-            </div>
-          </form>
-        </div>
+          <label htmlFor="pin-borrar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
+            PIN de seguridad
+          </label>
+          <input
+            id="pin-borrar-todo"
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            autoComplete="off"
+            value={pinAccion}
+            onChange={(e) => setPinAccion(e.target.value.replace(/\D/g, ''))}
+            disabled={borrandoTodo}
+            className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
+          />
+        </AdminModal>
       )}
     </section>
   )
