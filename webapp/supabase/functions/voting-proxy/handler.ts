@@ -180,7 +180,7 @@ function mesaInvalida(): Response {
 async function handleStatus(supabase: SupabaseLike, body: StatusRequest): Promise<Response> {
   const { data, error } = await supabase
     .from("configuracion")
-    .select("eleccion_abierta, titulo, centro")
+    .select("*")
     .eq("id", 1)
     .maybeSingle();
 
@@ -208,6 +208,7 @@ async function handleStatus(supabase: SupabaseLike, body: StatusRequest): Promis
     eleccion_abierta: data.eleccion_abierta === true,
     titulo: typeof data.titulo === "string" ? data.titulo : "",
     centro: typeof data.centro === "string" ? data.centro : "",
+    logo_url: typeof data.logo_url === "string" && data.logo_url.length > 0 ? data.logo_url : null,
     mesa,
   });
 }

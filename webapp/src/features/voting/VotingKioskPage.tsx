@@ -189,6 +189,15 @@ export default function VotingKioskPage() {
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_12%,rgba(37,99,235,0.2),transparent_50%)]" />
       <div className="relative mx-auto w-full max-w-3xl">
         <header className="mb-8 text-center">
+          {status?.logoUrl && (
+            <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-white/95 p-2 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.85)] sm:h-28 sm:w-28">
+              <img
+                src={status.logoUrl}
+                alt={`Logo de ${status.centro || 'la institución educativa'}`}
+                className="h-full w-full object-contain"
+              />
+            </div>
+          )}
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-300">Kiosco electoral</p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
             {status?.title || 'Votación escolar'}

@@ -106,8 +106,28 @@ test('estado devuelve apertura y título', async () => {
     eleccion_abierta: true,
     titulo: 'Elección de prueba',
     centro: '',
+    logo_url: null,
     mesa: null,
   });
+});
+
+test('estado devuelve el logo de la I.E cuando está configurado', async () => {
+  const supabase = createFakeSupabase({
+    config: {
+      data: {
+        eleccion_abierta: true,
+        titulo: 'Elección de prueba',
+        centro: 'I.E. Jimenez Pimentel',
+        logo_url: 'data:image/webp;base64,AAAA',
+      },
+      error: null,
+    },
+  });
+  const response = await handleProxyRequest(proxyRequest({ action: 'estado' }), { supabase });
+  assert.equal(response.status, 200);
+  const body = await readJson(response);
+  assert.equal(body.logo_url, 'data:image/webp;base64,AAAA');
+  assert.equal(body.centro, 'I.E. Jimenez Pimentel');
 });
 
 test('estado informa configuración ausente', async () => {

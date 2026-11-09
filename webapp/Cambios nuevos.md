@@ -1902,3 +1902,66 @@ Todos usan `animate-pulse`, `role="status"` y `aria-busy`.
 | `npm run build` | ✅ |
 
 **Se hizo commit y push. No se desplegó en Vercel.**
+
+---
+
+## XX. FASE 16 — Imagen de la I.E en configuración y pantalla de votación
+
+**Fecha:** 2026-11-09
+**Objetivo:** Permitir configurar la imagen de la institución educativa y mostrarla en el kiosco cuando los votantes ingresan.
+
+### 1. Base de datos
+
+`supabase/migrations/007_configuracion_logo.sql`:
+
+- Agrega la columna `configuracion.logo_url text`.
+- La imagen se guarda como data URL comprimida, igual que las fotos de candidatos.
+- Si la migración no está aplicada, el sistema sigue funcionando sin logo.
+
+### 2. Configuración
+
+`src/features/configuracion/ConfiguracionPage.tsx`:
+
+- Nueva sección **«Imagen de la I.E»** debajo del nombre del centro.
+- Zona de carga con borde punteado y **arrastrar y soltar**.
+- Vista previa con miniatura, nombre del archivo y botones **Cambiar** y **Quitar**.
+- Redimensionado a **512 px** y conversión a **WebP**; si el navegador no lo soporta se conserva **PNG** para no perder transparencia.
+- Validación de imagen y tamaño máximo de 5 MB.
+- El logo se guarda junto con el título y el nombre del centro.
+
+### 3. Estado del kiosco
+
+`supabase/functions/voting-proxy/handler.ts`:
+
+- El estado consulta la configuración con `select("*")` para no exigir la columna nueva.
+- Devuelve `logo_url` como texto o `null`.
+
+`src/features/voting/votingService.ts`:
+
+- `ElectionStatus` incluye `logoUrl`.
+- El logo es opcional y tolerante: si falta o no es una imagen válida se ignora sin romper la pantalla.
+
+### 4. Pantalla de votación
+
+`src/features/voting/VotingKioskPage.tsx`:
+
+- El logo aparece centrado sobre el título de la elección.
+- Contenedor redondeado con fondo blanco y `object-contain` para no deformar el escudo.
+- Tamaño adaptable (96 px en móvil, 112 px en pantallas grandes).
+- Solo se muestra si está configurado; el resto del encabezado no cambia.
+
+### 5. Verificación en navegador
+
+| Comprobación | Resultado |
+|---|---|
+| La configuración muestra la imagen guardada | ✅ |
+| Botón Quitar vuelve a la zona de carga | ✅ |
+| Seleccionar imagen la optimiza | ✅ 1400×900 → 512×329 · WebP · 6 KB |
+| Guardar mantiene el logo | ✅ Aviso «Configuración guardada» |
+| El kiosco muestra el logo sobre el título | ✅ 94×94 · `object-contain` |
+| Texto alternativo del logo | ✅ «Logo de I.E. Jiménez Pimentel» |
+| `npm run typecheck` | ✅ |
+| `npm run test:offline` | ✅ 29/29 |
+| `npm run build` | ✅ |
+
+**Se hizo commit y push. No se desplegó en Vercel.**

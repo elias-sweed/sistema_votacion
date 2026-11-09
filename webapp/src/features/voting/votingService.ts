@@ -5,6 +5,7 @@ export type ElectionStatus = {
   open: boolean
   title: string
   centro: string
+  logoUrl: string | null
   mesa: { id: string; nombre: string } | null
 }
 
@@ -50,6 +51,7 @@ type StatusResponse = {
   eleccion_abierta?: unknown
   titulo?: unknown
   centro?: unknown
+  logo_url?: unknown
   mesa?: unknown
 }
 
@@ -106,6 +108,14 @@ function parseMesa(value: unknown): ElectionStatus['mesa'] {
   return { id: value.id, nombre: value.nombre }
 }
 
+// El logo es opcional: si falta o no es una imagen válida se ignora sin romper el kiosco.
+function parseLogo(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const logo = value.trim()
+  if (!logo) return null
+  return logo.startsWith('data:image/') || /^https?:\/\//i.test(logo) ? logo : null
+}
+
 export function isValidDni(dni: string): boolean {
   return /^\d{8}$/.test(dni)
 }
@@ -141,6 +151,7 @@ export async function loadElectionStatus(token: string): Promise<ElectionStatus>
     open: data.eleccion_abierta,
     title: data.titulo,
     centro: data.centro,
+    logoUrl: parseLogo(data.logo_url),
     mesa,
   }
 }

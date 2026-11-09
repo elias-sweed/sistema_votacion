@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { ChangeEvent, DragEvent, FormEvent } from 'react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
+import ImageAdd01Icon from '@hugeicons/core-free-icons/ImageAdd01Icon'
+import ImageUpload01Icon from '@hugeicons/core-free-icons/ImageUpload01Icon'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { useToast } from '../../components/ui/ToastProvider'
@@ -8,13 +12,50 @@ type Config = {
   eleccion_abierta: boolean
   titulo: string
   centro: string
+  logo_url?: string | null
+}
+
+const MAX_LOGO_BYTES = 5 * 1024 * 1024
+
+// Reduce el logo a 512 px. Se conserva PNG cuando el navegador no soporta WebP
+// para no perder la transparencia del escudo o logotipo.
+function comprimirLogo(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('No se pudo leer la imagen.'))
+    reader.onload = () => {
+      const img = new Image()
+      img.onerror = () => reject(new Error('La imagen no es válida.'))
+      img.onload = () => {
+        const MAX = 512
+        const escala = Math.min(1, MAX / Math.max(img.width, img.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(img.width * escala))
+        canvas.height = Math.max(1, Math.round(img.height * escala))
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('No se pudo procesar la imagen.'))
+          return
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        const webp = canvas.toDataURL('image/webp', 0.9)
+        resolve(webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/png'))
+      }
+      img.src = String(reader.result)
+    }
+    reader.readAsDataURL(file)
+  })
 }
 
 export default function ConfiguracionPage() {
   const toast = useToast()
+  const archivoRef = useRef<HTMLInputElement>(null)
   const [config, setConfig] = useState<Config | null>(null)
   const [titulo, setTitulo] = useState('')
   const [centro, setCentro] = useState('')
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [nombreArchivo, setNombreArchivo] = useState<string | null>(null)
+  const [arrastrando, setArrastrando] = useState(false)
   const [cargando, setCargando] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [cambiandoEstado, setCambiandoEstado] = useState(false)
@@ -26,7 +67,7 @@ export default function ConfiguracionPage() {
     setError(null)
     const { data, error: err } = await supabase
       .from('configuracion')
-      .select('eleccion_abierta, titulo, centro')
+      .select('*')
       .eq('id', 1)
       .maybeSingle()
 
@@ -44,11 +85,53 @@ export default function ConfiguracionPage() {
     setConfig(fila)
     setTitulo(fila.titulo)
     setCentro(fila.centro)
+    setLogoUrl(fila.logo_url ?? null)
+    setNombreArchivo(null)
   }
 
   useEffect(() => {
     void cargar()
   }, [])
+
+  async function procesarLogo(file: File) {
+    setError(null)
+
+    if (!file.type.startsWith('image/')) {
+      setError('El archivo debe ser una imagen (JPG, PNG o WebP).')
+      return
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setError('La imagen no debe superar 5 MB.')
+      return
+    }
+
+    try {
+      setLogoUrl(await comprimirLogo(file))
+      setNombreArchivo(file.name)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo procesar la imagen.')
+    }
+  }
+
+  async function seleccionarLogo(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    await procesarLogo(file)
+  }
+
+  async function soltarLogo(e: DragEvent<HTMLButtonElement>) {
+    e.preventDefault()
+    setArrastrando(false)
+    const file = e.dataTransfer.files?.[0]
+    if (!file) return
+    await procesarLogo(file)
+  }
+
+  function quitarLogo() {
+    setLogoUrl(null)
+    setNombreArchivo(null)
+  }
 
   async function guardar(e: FormEvent) {
     e.preventDefault()
@@ -69,7 +152,7 @@ export default function ConfiguracionPage() {
     setGuardando(true)
     const { error: err } = await supabase
       .from('configuracion')
-      .update({ titulo: tituloTrim, centro: centroTrim })
+      .update({ titulo: tituloTrim, centro: centroTrim, logo_url: logoUrl })
       .eq('id', 1)
     setGuardando(false)
 
@@ -79,7 +162,7 @@ export default function ConfiguracionPage() {
       return
     }
 
-    setConfig(current => current ? { ...current, titulo: tituloTrim, centro: centroTrim } : current)
+    setConfig(current => current ? { ...current, titulo: tituloTrim, centro: centroTrim, logo_url: logoUrl } : current)
     toast({ title: 'Configuración guardada', description: 'Los kioscos verán los cambios al refrescar.', variant: 'success', duration: 3500 })
   }
 
@@ -205,6 +288,102 @@ export default function ConfiguracionPage() {
                 className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
                 placeholder="I.E. Jimenez Pimentel"
               />
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className="text-xs text-slate-400">Imagen de la I.E</span>
+                <span className="text-[11px] text-slate-500">Opcional · se muestra en la pantalla de votación</span>
+              </div>
+
+              <input
+                ref={archivoRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={seleccionarLogo}
+                className="sr-only"
+                aria-label="Seleccionar imagen de la institución educativa"
+              />
+
+              {logoUrl ? (
+                <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 sm:flex-row sm:items-center">
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/95 p-1.5">
+                    <img
+                      src={logoUrl}
+                      alt="Imagen de la institución educativa"
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-white">
+                      {nombreArchivo ?? 'Imagen de la I.E'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Optimizada automáticamente · 512 px · se conserva la transparencia
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => archivoRef.current?.click()}
+                      className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/[0.12]"
+                    >
+                      Cambiar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={quitarLogo}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/20"
+                    >
+                      <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.8} />
+                      Quitar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => archivoRef.current?.click()}
+                  onDragEnter={(e) => {
+                    e.preventDefault()
+                    setArrastrando(true)
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDragLeave={(e) => {
+                    const siguiente = e.relatedTarget as Node | null
+                    if (!siguiente || !e.currentTarget.contains(siguiente)) setArrastrando(false)
+                  }}
+                  onDrop={soltarLogo}
+                  className={`group flex w-full flex-col items-center justify-center gap-2.5 rounded-2xl border border-dashed px-5 py-6 text-center transition ${
+                    arrastrando
+                      ? 'border-blue-400/70 bg-blue-500/10'
+                      : 'border-white/15 bg-black/20 hover:border-blue-300/40 hover:bg-white/[0.04]'
+                  }`}
+                >
+                  <span
+                    className={`grid h-11 w-11 place-items-center rounded-2xl border transition ${
+                      arrastrando
+                        ? 'border-blue-400/40 bg-blue-500/20 text-blue-200'
+                        : 'border-white/10 bg-white/[0.05] text-slate-300 group-hover:text-blue-200'
+                    }`}
+                  >
+                    <HugeiconsIcon icon={ImageUpload01Icon} size={20} strokeWidth={1.7} />
+                  </span>
+                  <span className="space-y-1">
+                    <span className="block text-sm font-medium text-white">
+                      {arrastrando ? 'Suelta la imagen aquí' : 'Arrastra el logo aquí'}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      o selecciona un archivo desde tu equipo
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-2 text-xs font-medium text-slate-200 transition group-hover:bg-white/[0.1]">
+                    <HugeiconsIcon icon={ImageAdd01Icon} size={15} strokeWidth={1.8} />
+                    Seleccionar imagen
+                  </span>
+                  <span className="text-[11px] text-slate-500">JPG, PNG o WebP · máx. 5 MB</span>
+                </button>
+              )}
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
