@@ -2083,6 +2083,13 @@ Se separó el padrón de las mesas para que agregar votantes sea más simple.
 
 - La tarjeta **«Eliminar todo (solo admin)»** quedó como la **última sección** de la página, al final, como zona de peligro.
 
+### 5. Fuentes
+
+- `webapp/src/index.css` declara `@font-face`:
+  - **Título** `Bungee Spice` desde `webapp/src/assets/Fonts/Tittle_Bungee_Spice/BungeeSpice-Regular.ttf`.
+  - **Texto** `Ubuntu Mono` desde `webapp/src/assets/Fonts/Text_Ubuntu_Mono/UbuntuMono-Regular.ttf` (+ Bold).
+- Los títulos (`h1`–`h6`) usan **Bungee Spice**; los textos usan **Ubuntu Mono**. Solo se combinan estas dos fuentes.
+
 ### 3. Verificación
 
 | Comprobación | Resultado |
