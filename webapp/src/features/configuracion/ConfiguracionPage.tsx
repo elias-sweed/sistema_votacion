@@ -9,6 +9,7 @@ import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
 import { ConfiguracionSkeleton } from '../panel/PanelSkeletons'
+import { SectionHeader } from '../../components/ui/SectionHeader'
 import {
   estaActivoEnsayo,
   activarEnsayo,
@@ -90,6 +91,9 @@ export default function ConfiguracionPage() {
   const [pinSeguridad, setPinSeguridad] = useState<string | null>(() => localStorage.getItem('sv-pin-seguridad'))
   const [pinAccion, setPinAccion] = useState('')
   const [errorPin, setErrorPin] = useState<string | null>(null)
+
+  // Pestañas de configuración
+  const [pestaniaActiva, setPestaniaActiva] = useState<'general' | 'seguridad' | 'peligro'>('general')
 
   async function cargar() {
     setCargando(true)
@@ -442,10 +446,32 @@ export default function ConfiguracionPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center gap-3">
-        <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
-        <h2 className="text-xl font-bold text-white">Configuración de la elección</h2>
-      </div>
+      <SectionHeader
+        title="Configuración de la elección"
+        description="Administra el estado de la elección, los datos del centro y las acciones de seguridad."
+        actions={
+          <div className="flex gap-1">
+            <button
+              onClick={() => setPestaniaActiva('general')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pestaniaActiva === 'general' ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30' : 'text-slate-400 hover:bg-white/[0.05] hover:text-white border border-transparent'}`}
+            >
+              General
+            </button>
+            <button
+              onClick={() => setPestaniaActiva('seguridad')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pestaniaActiva === 'seguridad' ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30' : 'text-slate-400 hover:bg-white/[0.05] hover:text-white border border-transparent'}`}
+            >
+              Seguridad
+            </button>
+            <button
+              onClick={() => setPestaniaActiva('peligro')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pestaniaActiva === 'peligro' ? 'bg-red-500/20 text-red-200 border border-red-500/30' : 'text-slate-400 hover:bg-white/[0.05] hover:text-white border border-transparent'}`}
+            >
+              Zona peligrosa
+            </button>
+          </div>
+        }
+      />
 
       {cargando && <ConfiguracionSkeleton />}
 
