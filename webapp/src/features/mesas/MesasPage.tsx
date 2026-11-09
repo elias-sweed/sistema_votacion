@@ -168,7 +168,7 @@ export default function MesasPage() {
     setSeccion('')
     const mensajeCambio = `se agregó la mesa ${nombreMesa}`
     setExito(mensajeCambio)
-    toast({ title: 'mesa agregada', description: mensajeCambio, variant: 'success', duration: 3000 })
+    toast({ title: 'Mesa agregada', description: mensajeCambio, variant: 'success', duration: 3000 })
     await cargar()
   }
 
@@ -349,7 +349,7 @@ export default function MesasPage() {
         ensayoEliminarMesa(confirmandoEliminar.id)
         const mensajeCambio = `se eliminó la mesa ${confirmandoEliminar.nombre}`
         setExito(mensajeCambio)
-        toast({ title: 'mesa eliminada', description: mensajeCambio, variant: 'success', duration: 3000 })
+        toast({ title: 'Mesa eliminada', description: mensajeCambio, variant: 'success', duration: 3000 })
         setConfirmandoEliminar(null)
         setPasswordEliminar('')
         await cargar()
@@ -372,7 +372,7 @@ export default function MesasPage() {
 
       const mensajeCambio = `se eliminó la mesa ${confirmandoEliminar.nombre}`
       setExito(mensajeCambio)
-      toast({ title: 'mesa eliminada', description: mensajeCambio, variant: 'success', duration: 3000 })
+      toast({ title: 'Mesa eliminada', description: mensajeCambio, variant: 'success', duration: 3000 })
       setConfirmandoEliminar(null)
       setPasswordEliminar('')
       await cargar()
