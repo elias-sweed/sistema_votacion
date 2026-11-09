@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { CSSProperties } from 'react'
-import { HugeiconsIcon } from '@hugeicons/react'
-import BoltIcon from '@hugeicons/core-free-icons/BoltIcon'
-import IdCardIcon from '@hugeicons/core-free-icons/IdCardIcon'
-import Table01Icon from '@hugeicons/core-free-icons/Table01Icon'
-import UserCheck01Icon from '@hugeicons/core-free-icons/UserCheck01Icon'
-import UserGroupIcon from '@hugeicons/core-free-icons/UserGroupIcon'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
-import MagicBento, { type MagicBentoItem } from '../../components/ui/MagicBento'
 import { DashboardSkeleton } from '../panel/PanelSkeletons'
+import { StatCard } from '../../components/ui/StatCard'
+import { SectionHeader } from '../../components/ui/SectionHeader'
+import { Badge } from '../../components/ui/Badge'
+import { AdminCard } from '../../components/ui/AdminCard'
+import { AdminButton } from '../../components/ui/AdminButton'
 
 type Vista = 'candidatos' | 'mesas' | 'padron' | 'configuracion'
 
@@ -117,156 +114,29 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
     month: 'long'
   })
 
-  const accesos: Array<{ label: string; vista: Vista; glyph: typeof UserGroupIcon }> = [
-    { label: 'Candidatos', vista: 'candidatos', glyph: UserGroupIcon },
-    { label: 'Mesas', vista: 'mesas', glyph: Table01Icon },
-    { label: 'Padrón', vista: 'padron', glyph: IdCardIcon }
-  ]
-
-  const items: MagicBentoItem[] = [
-    {
-      id: 'participacion',
-      label: 'Padrón electoral',
-      title: 'Participación general',
-      description: `${participacion}% del padrón · ${resumen.votaron} de ${resumen.votantes} votantes`,
-      visual: 'analytics',
-      colSpan: 2,
-      rowSpan: 2
-    },
-    {
-      id: 'votaron',
-      label: 'Avance',
-      title: `${resumen.votaron}`,
-      description: 'Votantes que ya emitieron su voto',
-      visual: 'dashboard'
-    },
-    {
-      id: 'pendientes',
-      content: (
-        <div className="flex h-full flex-col gap-3">
-          <div className="flex items-center gap-2 text-xs font-medium text-[color:var(--mb-muted)]">
-            <HugeiconsIcon icon={UserCheck01Icon} size={15} strokeWidth={1.8} />
-            Por sufragar
-          </div>
-          <div className="mt-auto">
-            <p className="text-4xl font-semibold tracking-tight text-[color:var(--mb-ink)] tabular-nums">
-              {resumen.pendientes}
-            </p>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-blue-400 to-sky-500"
-                style={{ width: `${Math.min(100, Math.max(0, 100 - resumen.participacion))}%` }}
-              />
-            </div>
-            <p className="mt-2 text-xs text-[color:var(--mb-muted)]">{participacion}% del padrón ya votó</p>
-          </div>
-        </div>
-      )
-    },
-    {
-      id: 'candidatos',
-      content: (
-        <div className="flex h-full flex-col gap-3">
-          <div className="flex items-center gap-2 text-xs font-medium text-[color:var(--mb-muted)]">
-            <HugeiconsIcon icon={UserGroupIcon} size={15} strokeWidth={1.8} />
-            Candidatos
-          </div>
-          <div className="mt-auto">
-            <p className="text-3xl font-semibold tracking-tight text-[color:var(--mb-ink)] tabular-nums">
-              {resumen.candidatosActivos}
-            </p>
-            <p className="text-xs text-[color:var(--mb-muted)]">
-              activos de {resumen.candidatosTotal} registrados
-            </p>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-blue-400 to-sky-500"
-                style={{
-                  width: `${
-                    resumen.candidatosTotal > 0
-                      ? (resumen.candidatosActivos / resumen.candidatosTotal) * 100
-                      : 0
-                  }%`
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      ),
-      colSpan: 2,
-      onClick: () => onNavigate('candidatos')
-    },
-    {
-      id: 'mesas',
-      label: 'Mesas',
-      title: `${resumen.mesasActivas} activas`,
-      description: `de ${resumen.mesasTotal} mesas registradas`,
-      visual: 'integration',
-      onClick: () => onNavigate('mesas')
-    },
-    {
-      id: 'padron',
-      content: (
-        <div className="flex h-full flex-col gap-3">
-          <div className="flex items-center gap-2 text-xs font-medium text-[color:var(--mb-muted)]">
-            <HugeiconsIcon icon={IdCardIcon} size={15} strokeWidth={1.8} />
-            Padrón
-          </div>
-          <div className="mt-auto">
-            <p className="text-3xl font-semibold tracking-tight text-[color:var(--mb-ink)] tabular-nums">
-              {resumen.votantes}
-            </p>
-            <p className="text-xs text-[color:var(--mb-muted)]">votantes registrados</p>
-          </div>
-        </div>
-      ),
-      onClick: () => onNavigate('padron')
-    },
-    {
-      id: 'accesos',
-      content: (
-        <div className="flex h-full flex-col gap-4">
-          <div className="flex items-center gap-2 text-xs font-medium text-[color:var(--mb-muted)]">
-            <HugeiconsIcon icon={BoltIcon} size={15} strokeWidth={1.8} />
-            Accesos rápidos
-          </div>
-          <div className="mt-auto grid grid-cols-3 gap-2">
-            {accesos.map(acceso => (
-              <button
-                key={acceso.vista}
-                type="button"
-                onClick={() => onNavigate(acceso.vista)}
-                className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-2 py-4 text-[11px] font-medium text-[color:var(--mb-ink)] transition hover:border-blue-300/30 hover:bg-white/[0.1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400/60"
-              >
-                <HugeiconsIcon icon={acceso.glyph} size={18} strokeWidth={1.8} />
-                {acceso.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      ),
-      colSpan: 2
-    }
-  ]
+  const estadoEleccion = resumen.eleccionAbierta ? 'abierta' : 'cerrada'
+  const estadoClase = resumen.eleccionAbierta
+    ? 'border-emerald-400/30 bg-emerald-500/[0.07]'
+    : 'border-amber-400/30 bg-amber-500/[0.07]'
+  const estadoColor = resumen.eleccionAbierta ? 'bg-emerald-400' : 'bg-amber-400'
 
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
-          <h2 className="text-xl font-bold text-white">Resumen general</h2>
-          {cargando && <span className="text-xs uppercase tracking-widest text-blue-200/50">Actualizando…</span>}
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs capitalize text-slate-500">{fecha}</span>
-          <button
-            type="button"
-            onClick={() => void cargar()}
-            className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/[0.1]"
-          >
-            Actualizar
-          </button>
-        </div>
+        <SectionHeader
+          title="Resumen general"
+          description={fecha}
+          actions={
+            <AdminButton
+              variant="secondary"
+              size="sm"
+              onClick={() => void cargar()}
+              disabled={cargando}
+            >
+              {cargando ? 'Actualizando…' : 'Actualizar'}
+            </AdminButton>
+          }
+        />
       </div>
 
       {error && (
@@ -275,34 +145,70 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
         </p>
       )}
 
+      <div className={`rounded-2xl border p-4 px-5 backdrop-blur-md flex items-center justify-between gap-3 ${estadoClase}`}>
+        <div className="flex items-center gap-2">
+          <span className={`h-2.5 w-2.5 rounded-full ${estadoColor}`} aria-hidden="true" />
+          <p className="text-sm font-semibold text-white">Elección {estadoEleccion}</p>
+          <p className="text-xs text-slate-400">{resumen.titulo}</p>
+        </div>
+        <p className="text-xs text-slate-500">{resumen.centro}</p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Votantes en padrón" value={resumen.votantes} subtitle={`Pendientes: ${resumen.pendientes}`} />
+        <StatCard label="Ya votaron" value={resumen.votaron} subtitle={`${participacion}% de participación`} />
+        <StatCard label="Candidatos activos" value={resumen.candidatosActivos} subtitle={`de ${resumen.candidatosTotal}`} />
+        <StatCard label="Mesas activas" value={resumen.mesasActivas} subtitle={`de ${resumen.mesasTotal}`} />
+      </div>
+
       {cargando && !tieneDatos ? (
         <DashboardSkeleton />
       ) : (
-        <MagicBento
-          items={items}
-          columns={4}
-          rowHeight={170}
-          gap={14}
-          radius={22}
-          glowColor="#3b82f6"
-          spotlightRadius={320}
-          enableBorderGlow
-          enableSpotlight
-          clickEffect
-          enableStars={false}
-          enableTilt={false}
-          enableMagnetism={false}
-          textAutoHide
-          intro
-          style={
-            {
-              '--mb-surface':
-                'linear-gradient(180deg, rgba(13, 22, 43, 0.72) 0%, rgba(7, 12, 26, 0.66) 100%)',
-              '--mb-shadow':
-                '0 30px 70px -40px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.06)'
-            } as CSSProperties
-          }
-        />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+          <AdminCard className="hover:border-blue-400/40 transition border-transparent" onClick={() => onNavigate('candidatos')}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Candidatos</p>
+                <p className="text-2xl font-bold text-white">{resumen.candidatosActivos}</p>
+                <p className="text-xs text-slate-400">activos de {resumen.candidatosTotal} registrados</p>
+              </div>
+              <Badge variant="info">Gestionar</Badge>
+            </div>
+          </AdminCard>
+
+          <AdminCard className="hover:border-blue-400/40 transition border-transparent" onClick={() => onNavigate('mesas')}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Mesas</p>
+                <p className="text-2xl font-bold text-white">{resumen.mesasActivas}</p>
+                <p className="text-xs text-slate-400">activas de {resumen.mesasTotal} registradas</p>
+              </div>
+              <Badge variant="info">Gestionar</Badge>
+            </div>
+          </AdminCard>
+
+          <AdminCard className="hover:border-blue-400/40 transition border-transparent" onClick={() => onNavigate('padron')}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Padrón</p>
+                <p className="text-2xl font-bold text-white">{resumen.votantes}</p>
+                <p className="text-xs text-slate-400">votantes registrados</p>
+              </div>
+              <Badge variant="info">Gestionar</Badge>
+            </div>
+          </AdminCard>
+
+          <AdminCard className="hover:border-blue-400/40 transition border-transparent" onClick={() => onNavigate('configuracion')}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Configuración</p>
+                <p className="text-2xl font-bold text-white">{estadoEleccion}</p>
+                <p className="text-xs text-slate-400">Estado de la elección</p>
+              </div>
+              <Badge variant="info">Gestionar</Badge>
+            </div>
+          </AdminCard>
+        </div>
       )}
     </section>
   )

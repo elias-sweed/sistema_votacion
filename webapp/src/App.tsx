@@ -7,7 +7,6 @@ import { ENTORNO_VALIDO, PROBLEMAS_ENTORNO } from './lib/env'
 import { esSesionAdmin } from './lib/session'
 import { limpiarCacheLegado, limpiarCachePanel } from './lib/panelCache'
 import ConfigErrorPage from './components/ConfigErrorPage'
-import GradientASCIIBackground from './components/ui/GradientASCIIBackground'
 import { ToastProvider } from './components/ui/ToastProvider'
 import AccessDeniedPage from './features/auth/AccessDeniedPage'
 import LoginPage from './features/auth/LoginPage'
@@ -57,7 +56,6 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <GradientASCIIBackground />
       <div className="relative z-10">
         {cargando ? (
           <main className="min-h-screen flex items-center justify-center text-slate-400">

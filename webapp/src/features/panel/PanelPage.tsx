@@ -10,8 +10,9 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { limpiarCachePanel } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
+import { SectionHeader } from '../../components/ui/SectionHeader'
+import { AdminCard } from '../../components/ui/AdminCard'
 import Dock, { type DockItemData } from '../../components/ui/Dock'
-import MaskedHeading from '../../components/ui/MaskedHeading'
 import CandidatosPage from '../candidatos/CandidatosPage'
 import ConfiguracionPage from '../configuracion/ConfiguracionPage'
 import DashboardPage from '../dashboard/DashboardPage'
@@ -127,33 +128,19 @@ export default function PanelPage() {
     <main className="min-h-screen text-white px-5 py-8 pb-40 sm:px-8">
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
-          <MaskedHeading
-            tag="h1"
-            text="Panel de Control"
-            mediaType="mesh"
-            fillScale={1.25}
-            parallax={26}
-            reveal="scale"
-            trigger="mount"
-            duration={1.1}
-            stagger={0.09}
-            drift={18}
-            align="left"
-            brightness={1.15}
-            saturation={1.2}
-            weight={800}
-            tracking={-0.04}
-            lineHeight={1}
-            textScale={0.075}
+          <SectionHeader
+            title="Panel de Control"
+            description={SUBTITULOS[vista]}
           />
-          <p className="mt-2 text-sm text-slate-400">{SUBTITULOS[vista]}</p>
         </div>
 
-        {vista === 'inicio' && <DashboardPage onNavigate={setVista} />}
-        {vista === 'candidatos' && <CandidatosPage />}
-        {vista === 'mesas' && <MesasPage />}
-        {vista === 'padron' && <PadronPage />}
-        {vista === 'configuracion' && <ConfiguracionPage />}
+        <AdminCard>
+          {vista === 'inicio' && <DashboardPage onNavigate={setVista} />}
+          {vista === 'candidatos' && <CandidatosPage />}
+          {vista === 'mesas' && <MesasPage />}
+          {vista === 'padron' && <PadronPage />}
+          {vista === 'configuracion' && <ConfiguracionPage />}
+        </AdminCard>
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 px-4 pointer-events-none">
