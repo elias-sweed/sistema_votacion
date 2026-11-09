@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.edge.json --noEmit",
     "test:offline": "node --test tests/voting-static.test.js tests/voting-proxy-handler.test.js",
     "verify:prod": "node supabase/scripts/verificar_produccion.mjs",
-    "deploy:function": "npx --yes supabase@latest functions deploy voting-proxy --project-ref msnvemicsuyaaqmwjvhi --no-verify-jwt"
+    "deploy:function": "npx --yes supabase@latest functions deploy voting-proxy --project-ref msnvemicsuyaaqmwjvhi --no-verify-jwt --use-api --yes"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.3.5",
