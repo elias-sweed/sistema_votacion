@@ -5,6 +5,16 @@ import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
 import { MesasSkeleton } from '../panel/PanelSkeletons'
+import { SectionHeader } from '../../components/ui/SectionHeader'
+import { AdminCard } from '../../components/ui/AdminCard'
+import { AdminButton } from '../../components/ui/AdminButton'
+import { Badge } from '../../components/ui/Badge'
+import { HugeiconsIcon } from '@hugeicons/react'
+import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
+import Edit02Icon from '@hugeicons/core-free-icons/Edit02Icon'
+import Rotate01Icon from '@hugeicons/core-free-icons/Rotate01Icon'
+import Link01Icon from '@hugeicons/core-free-icons/Link01Icon'
+
 import {
   estaActivoEnsayo,
   ensayoListarMesas,
@@ -57,7 +67,6 @@ export default function MesasPage() {
   const [grado, setGrado] = useState('')
   const [seccion, setSeccion] = useState('')
   const [guardando, setGuardando] = useState(false)
-  const [confirmandoAgregar, setConfirmandoAgregar] = useState(false)
 
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [editNombre, setEditNombre] = useState('')
@@ -68,6 +77,7 @@ export default function MesasPage() {
   const [passwordEliminar, setPasswordEliminar] = useState('')
   const [eliminando, setEliminando] = useState(false)
   const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
+  const [menuAbierto, setMenuAbierto] = useState<string | null>(null)
 
   async function cargar() {
     setCargando(true)
@@ -121,7 +131,7 @@ export default function MesasPage() {
 
   useEffect(() => { void cargar() }, [])
 
-  function handleAgregar(e: FormEvent) {
+  async function agregarMesa(e: FormEvent) {
     e.preventDefault()
     setError(null)
     setExito(null)
@@ -129,12 +139,7 @@ export default function MesasPage() {
       setError('Escribe el grado y la sección.')
       return
     }
-    setConfirmandoAgregar(true)
-  }
-
-  async function confirmarAgregar() {
     const nombreMesa = `${grado.trim()} ${seccion.trim()}`
-    setConfirmandoAgregar(false)
     setGuardando(true)
 
     if (estaActivoEnsayo()) {
@@ -171,6 +176,7 @@ export default function MesasPage() {
     setEditNombre(m.nombre)
     setError(null)
     setExito(null)
+    setMenuAbierto(null)
   }
 
   function cancelarEdicion() {
@@ -211,6 +217,7 @@ export default function MesasPage() {
   async function alternarActivo(m: Mesa) {
     setError(null)
     setExito(null)
+    setMenuAbierto(null)
 
     if (estaActivoEnsayo()) {
       ensayoActualizarMesa(m.id, m.nombre, !m.activo)
@@ -277,6 +284,7 @@ export default function MesasPage() {
     setRotandoId(m.id)
     setError(null)
     setExito(null)
+    setMenuAbierto(null)
     const { data, error: err } = await supabase.rpc('rotar_token_mesa', { p_mesa_id: m.id })
     setRotandoId(null)
     setConfirmandoRotar(null)
@@ -386,91 +394,122 @@ export default function MesasPage() {
     votos: estaActivoEnsayo() ? ensayoContarVotos() : totalVotos
   }
 
-  const nombreMesa = `${grado.trim()} ${seccion.trim()}`.trim()
+  return (    <section className="space-y-6">
+      <SectionHeader
+        title="Mesas / Salones"
+        description="Administra las mesas, sus enlaces y la participación."
+        actions={
+          <AdminButton variant="secondary" size="sm" onClick={() => void cargar()} disabled={cargando}>
+            {cargando ? 'Actualizando…' : 'Actualizar'}
+          </AdminButton>
+        }
+      />
 
-  return (
-    <section className="space-y-6">
-      <div className="flex items-center gap-3">
-        <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
-        <h2 className="text-xl font-bold text-white">Mesas / Salones</h2>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <ResumenTarjeta label="Mesas activas" value={`${totales.activas}/${totales.mesas}`} />
-        <ResumenTarjeta label="En padrón" value={totales.padron} />
-        <ResumenTarjeta label="Ya votaron" value={totales.votaron} />
-        <ResumenTarjeta label="Votos registrados" value={totales.votos} />
-      </div>
-
-      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4">
-        <p className="text-sm text-slate-400">
-          Escribe el grado y la sección de la mesa. Puedes usar cualquier valor, no solo los de la lista.
-        </p>
-        <p className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3 text-xs leading-relaxed text-amber-100/80">
-          Privacidad: el sistema cuenta cuántos votos hay por mesa, pero no guarda qué votante eligió a qué candidato. El voto sigue siendo secreto.
-        </p>
-
-        <form onSubmit={handleAgregar} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="sm:w-40">
-            <label htmlFor="mesa-grado" className="mb-1 block text-xs text-slate-400">Grado</label>
-            <input
-              id="mesa-grado"
-              type="text"
-              list="grados-lista"
-              value={grado}
-              onChange={(e) => setGrado(e.target.value)}
-              placeholder="Seleccionar el grado"
-              autoComplete="off"
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-            />
-            <datalist id="grados-lista">
-              <option value="1°" />
-              <option value="2°" />
-              <option value="3°" />
-              <option value="4°" />
-              <option value="5°" />
-              <option value="6°" />
-            </datalist>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <AdminCard>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Mesas activas</p>
+              <p className="text-2xl font-bold text-white">{totales.activas}</p>
+              <p className="text-xs text-slate-400">de {totales.mesas} registradas</p>
+            </div>
+            <Badge variant="info">Gestionar</Badge>
           </div>
-
-          <div className="sm:w-40">
-            <label htmlFor="mesa-seccion" className="mb-1 block text-xs text-slate-400">Sección</label>
-            <input
-              id="mesa-seccion"
-              type="text"
-              list="secciones-lista"
-              value={seccion}
-              onChange={(e) => setSeccion(e.target.value)}
-              placeholder="Seleccionar la sección"
-              autoComplete="off"
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-            />
-            <datalist id="secciones-lista">
-              <option value="A" />
-              <option value="B" />
-              <option value="C" />
-              <option value="D" />
-              <option value="E" />
-              <option value="F" />
-            </datalist>
+        </AdminCard>
+        <AdminCard>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">En padrón</p>
+              <p className="text-2xl font-bold text-white">{totales.padron}</p>
+            </div>
           </div>
-
-          <button
-            type="submit"
-            disabled={guardando}
-            className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {guardando ? 'Agregando…' : 'Agregar mesa'}
-          </button>
-        </form>
-
-        <p className="text-xs text-slate-500">
-          Cada mesa recibe un enlace único. Ábrelo en la máquina de ese salón y el voto quedará registrado en esa mesa.
-        </p>
-
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        {exito && <p className="text-sm text-emerald-400">{exito}</p>}
+        </AdminCard>
+        <AdminCard>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Ya votaron</p>
+              <p className="text-2xl font-bold text-white">{totales.votaron}</p>
+            </div>
+          </div>
+        </AdminCard>
+        <AdminCard>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Votos registrados</p>
+              <p className="text-2xl font-bold text-white">{totales.votos}</p>
+            </div>
+          </div>
+        </AdminCard>
       </div>
+
+      <AdminCard>
+        <div className="space-y-3">
+          <p className="text-sm text-slate-400">
+            Escribe el grado y la sección de la mesa. Puedes usar cualquier valor, no solo los de la lista.
+          </p>
+
+          <form onSubmit={agregarMesa} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="sm:w-40">
+              <label htmlFor="mesa-grado" className="mb-1 block text-xs text-slate-400">Grado</label>
+              <input
+                id="mesa-grado"
+                type="text"
+                list="grados-lista"
+                value={grado}
+                onChange={(e) => setGrado(e.target.value)}
+                placeholder="Seleccionar el grado"
+                autoComplete="off"
+                className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+              />
+              <datalist id="grados-lista">
+                <option value="1°" />
+                <option value="2°" />
+                <option value="3°" />
+                <option value="4°" />
+                <option value="5°" />
+                <option value="6°" />
+              </datalist>
+            </div>
+
+            <div className="sm:w-40">
+              <label htmlFor="mesa-seccion" className="mb-1 block text-xs text-slate-400">Sección</label>
+              <input
+                id="mesa-seccion"
+                type="text"
+                list="secciones-lista"
+                value={seccion}
+                onChange={(e) => setSeccion(e.target.value)}
+                placeholder="Seleccionar la sección"
+                autoComplete="off"
+                className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+              />
+              <datalist id="secciones-lista">
+                <option value="A" />
+                <option value="B" />
+                <option value="C" />
+                <option value="D" />
+                <option value="E" />
+                <option value="F" />
+              </datalist>
+            </div>
+
+            <button
+              type="submit"
+              disabled={guardando}
+              className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {guardando ? 'Agregando…' : 'Agregar mesa'}
+            </button>
+          </form>
+
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          {exito && <p className="text-sm text-emerald-400">{exito}</p>}
+
+          <p className="text-xs text-slate-500">
+            Cada mesa recibe un enlace único. Ábrelo en la máquina de ese salón y el voto quedará registrado en esa mesa.
+          </p>
+        </div>
+      </AdminCard>
 
       {cargando && !tieneDatos && <MesasSkeleton />}
       {tieneDatos && mesas.length === 0 && (
@@ -483,9 +522,12 @@ export default function MesasPage() {
           const votosMesa = Number(r?.votos_emitidos ?? 0)
           const porcentajeVotos = totalVotos > 0 ? (votosMesa / totalVotos) * 100 : 0
           const enlace = enlaceDeMesa(m)
+          const estaEditando = editandoId === m.id
+          const menuEstaAbierto = menuAbierto === m.id
+
           return (
             <li key={m.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl space-y-3">
-              {editandoId === m.id ? (
+              {estaEditando ? (
                 <form onSubmit={(e) => { e.preventDefault(); void guardarEdicion(m); }} className="flex flex-col gap-2">
                   <input value={editNombre} onChange={(e) => setEditNombre(e.target.value)}
                     className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15" />
@@ -544,6 +586,7 @@ export default function MesasPage() {
                       disabled={!enlace}
                       className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-100 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                     >
+                      <HugeiconsIcon icon={Link01Icon} size={13} strokeWidth={1.8} />
                       {copiadoId === m.id ? 'Copiado' : 'Copiar enlace'}
                     </button>
                     <button
@@ -552,40 +595,62 @@ export default function MesasPage() {
                       disabled={!enlace || !m.activo}
                       className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-40"
                     >
+                      <HugeiconsIcon icon={Link01Icon} size={13} strokeWidth={1.8} />
                       Abrir kiosco
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmandoRotar(m)}
-                      className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/[0.1]"
-                    >
-                      Regenerar enlace
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => iniciarEdicion(m)}
-                      className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/[0.1]"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void alternarActivo(m)}
-                      className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/[0.1]"
-                    >
-                      {m.activo ? 'Desactivar' : 'Activar'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setConfirmandoEliminar(m)
-                        setPasswordEliminar('')
-                        setErrorEliminar(null)
-                      }}
-                      className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-200 transition hover:bg-red-500/20"
-                    >
-                      Eliminar
-                    </button>
+
+                    {/* Menú de acciones secundarias */}
+                    <div className="relative inline-block">
+                      <button
+                        type="button"
+                        onClick={() => setMenuAbierto(menuEstaAbierto ? null : m.id)}
+                        className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/[0.1]"
+                      >
+                        <HugeiconsIcon icon={Edit02Icon} size={13} strokeWidth={1.8} />
+                        Más
+                      </button>
+                      {menuEstaAbierto && (
+                        <div className="absolute right-0 mt-1.5 w-48 rounded-xl border border-white/10 bg-slate-950/95 p-2 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)] backdrop-blur-xl z-50">
+                          <button
+                            type="button"
+                            onClick={() => { setMenuAbierto(null); void rotarEnlace(m) }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.05] hover:text-white transition"
+                          >
+                            <HugeiconsIcon icon={Rotate01Icon} size={13} strokeWidth={1.8} />
+                            Regenerar enlace
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setMenuAbierto(null); iniciarEdicion(m) }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.05] hover:text-white transition"
+                          >
+                            <HugeiconsIcon icon={Edit02Icon} size={13} strokeWidth={1.8} />
+                            Editar nombre
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setMenuAbierto(null); void alternarActivo(m) }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.05] hover:text-white transition"
+                          >
+                            {m.activo ? 'Desactivar' : 'Activar'}
+                          </button>
+                          <hr className="my-1 border-white/5" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMenuAbierto(null)
+                              setConfirmandoEliminar(m)
+                              setPasswordEliminar('')
+                              setErrorEliminar(null)
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-red-200 hover:bg-red-500/10 transition"
+                          >
+                            <HugeiconsIcon icon={Delete02Icon} size={13} strokeWidth={1.8} />
+                            Eliminar mesa
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
@@ -593,47 +658,6 @@ export default function MesasPage() {
           )
         })}
       </ul>
-
-      {confirmandoAgregar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
-          <button
-            type="button"
-            aria-label="Cancelar agregar mesa"
-            onClick={() => setConfirmandoAgregar(false)}
-            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="titulo-confirmar-agregar"
-            className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]"
-          >
-            <h2 id="titulo-confirmar-agregar" className="text-base font-semibold text-white">
-              ¿Estás seguro?
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              Vas a agregar la mesa <strong className="text-white">{nombreMesa}</strong>.
-            </p>
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => setConfirmandoAgregar(false)}
-                className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12]"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                autoFocus
-                onClick={() => void confirmarAgregar()}
-                className="flex-1 rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
-              >
-                Sí, agregar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {confirmandoRotar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
@@ -740,14 +764,5 @@ export default function MesasPage() {
         </div>
       )}
     </section>
-  )
-}
-
-function ResumenTarjeta({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 backdrop-blur-xl">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums text-white">{value}</p>
-    </div>
   )
 }
