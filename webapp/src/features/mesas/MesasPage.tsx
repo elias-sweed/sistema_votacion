@@ -365,13 +365,13 @@ export default function MesasPage() {
       }
 
       // Primero borrar los votos (por la FK restrict), luego las mesas.
-      const { error: errVotos } = await supabase.from('votos').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      const { error: errVotos } = await supabase.from('votos').delete().gt('id', 0)
       if (errVotos) {
         setErrorEliminar(mensajeDeError(errVotos, 'No se pudieron borrar los votos registrados.'))
         return
       }
 
-      const { error: errMesas } = await supabase.from('mesas').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      const { error: errMesas } = await supabase.from('mesas').delete().is('id', 'not.null')
       if (errMesas) {
         setErrorEliminar(mensajeDeError(errMesas, 'No se pudieron eliminar las mesas.'))
         return
