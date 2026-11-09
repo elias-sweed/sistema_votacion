@@ -2081,6 +2081,8 @@ Se separó el padrón de las mesas para que agregar votantes sea más simple.
 - Tras configurar el PIN, se muestran las acciones destructivas (votantes, candidatos, centro) y el botón **«Borrar TODO de todo»**.
 - Los modales de confirmación piden además el **PIN de seguridad** (segundo factor, aparte del login) antes de ejecutar el borrado.
 
+- La tarjeta **«Eliminar todo (solo admin)»** quedó como la **última sección** de la página, al final, como zona de peligro.
+
 ### 3. Verificación
 
 | Comprobación | Resultado |
