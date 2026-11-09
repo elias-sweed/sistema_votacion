@@ -153,6 +153,7 @@ grant execute on function public.emitir_voto_con_limite(text, uuid, uuid, inet, 
 -- ------------------------------------------------------------
 
 -- borrar_todas_mesas
+drop function if exists public.borrar_todas_mesas();
 create or replace function public.borrar_todas_mesas()
 returns void
 language plpgsql
@@ -169,6 +170,7 @@ end;
 $$;
 
 -- borrar_todos_votantes
+drop function if exists public.borrar_todos_votantes();
 create or replace function public.borrar_todos_votantes()
 returns void
 language plpgsql
@@ -184,6 +186,7 @@ end;
 $$;
 
 -- borrar_todos_candidatos
+drop function if exists public.borrar_todos_candidatos();
 create or replace function public.borrar_todos_candidatos()
 returns void
 language plpgsql
@@ -199,6 +202,7 @@ end;
 $$;
 
 -- borrar_todo
+drop function if exists public.borrar_todo();
 create or replace function public.borrar_todo()
 returns void
 language plpgsql
@@ -224,6 +228,9 @@ end;
 $$;
 
 -- Funciones de listado y estadísticas también usan es_admin_uuid()
+-- Importante: listar_votantes cambió su tipo de retorno en la migración 010
+-- (agregó grado y seccion), por eso hay que DROP antes de CREATE OR REPLACE.
+drop function if exists public.listar_votantes(text, boolean, int, int);
 create or replace function public.listar_votantes(
   p_busqueda text default null,
   p_solo_pendientes boolean default false,
@@ -279,6 +286,7 @@ begin
 end;
 $$;
 
+drop function if exists public.obtener_estadisticas_padron();
 create or replace function public.obtener_estadisticas_padron()
 returns table (
   total_votantes bigint,
@@ -336,6 +344,7 @@ begin
 end;
 $$;
 
+drop function if exists public.obtener_resumen_mesas();
 create or replace function public.obtener_resumen_mesas()
 returns table (
   mesa_id uuid,
