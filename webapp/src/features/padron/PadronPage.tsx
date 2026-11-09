@@ -5,6 +5,7 @@ import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
 import { PadronSkeleton } from '../panel/PanelSkeletons'
+import { AdminCard } from '../../components/ui/AdminCard'
 import {
   estaActivoEnsayo,
   ensayoListarVotantes,
@@ -477,15 +478,14 @@ export default function PadronPage() {
       </div>
 
       {/* Alta manual de votante */}
-      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 space-y-4 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
-        <div>
-          <h3 className="text-lg font-semibold text-white">Agregar votante manualmente</h3>
-          <p className="text-sm text-slate-400">
-            DNI de 8 dígitos, nombre y apellido. Grado y sección son solo referencia del estudiante; la mesa se elige al abrir el enlace del salón.
-          </p>
-        </div>
+        <AdminCard>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-white">Agregar votante</h3>
+              <p className="text-xs text-slate-400">DNI de 8 dígitos, nombre y apellido. Grado y sección son referencia del estudiante.</p>
+            </div>
 
-        <form onSubmit={agregarVotanteManual} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+        <form onSubmit={agregarVotanteManual} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <div className="mb-1 flex items-center justify-between">
               <label className="text-xs text-slate-400">DNI</label>
@@ -559,7 +559,8 @@ export default function PadronPage() {
 
         {errorManual && <p className="text-sm text-red-400">{errorManual}</p>}
         {exitoManual && <p className="text-sm text-emerald-400">{exitoManual}</p>}
-      </div>
+          </div>
+        </AdminCard>
 
       {/* Importación */}
       <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 space-y-4 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
