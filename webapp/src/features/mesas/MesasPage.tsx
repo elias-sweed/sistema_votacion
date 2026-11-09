@@ -443,17 +443,12 @@ export default function MesasPage() {
         return
       }
 
-      // Con RLS desactivado, se puede hacer DELETE directo sin funciones RPC.
-      // Primero borrar los votos (por la FK restrict), luego las mesas.
-      const { error: errVotos } = await supabase.from('votos').delete()
+      // Se usa una función RPC SECURITY DEFINER basada en auth.uid().
+      // PostgREST rechaza DELETE sin filtro WHERE, por eso no se puede
+      // hacer .delete() directo para borrados masivos.
+      const { error: errVotos } = await supabase.rpc('borrar_todas_mesas')
       if (errVotos) {
-        setErrorEliminar(mensajeDeError(errVotos, 'No se pudieron borrar los votos registrados.'))
-        return
-      }
-
-      const { error: errMesas } = await supabase.from('mesas').delete()
-      if (errMesas) {
-        setErrorEliminar(mensajeDeError(errMesas, 'No se pudieron eliminar las mesas.'))
+        setErrorEliminar(mensajeDeError(errVotos, 'No se pudieron borrar las mesas y votos.'))
         return
       }
 

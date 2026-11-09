@@ -246,7 +246,7 @@ export default function ConfiguracionPage() {
     setEliminandoTodoCargando(true)
     try {
       if (eliminandoTodo === 'votantes') {
-        const { error: err } = await supabase.from('votantes').delete()
+        const { error: err } = await supabase.rpc('borrar_todos_votantes')
         if (err) {
           setErrorEliminarTodo(mensajeDeError(err, 'No se pudieron eliminar los votantes.'))
           return
@@ -258,7 +258,7 @@ export default function ConfiguracionPage() {
           duration: 4000
         })
       } else if (eliminandoTodo === 'candidatos') {
-        const { error: err } = await supabase.from('candidatos').delete()
+        const { error: err } = await supabase.rpc('borrar_todos_candidatos')
         if (err) {
           setErrorEliminarTodo(mensajeDeError(err, 'No se pudieron eliminar los candidatos.'))
           return
@@ -355,23 +355,12 @@ export default function ConfiguracionPage() {
 
     setBorrandoTodo(true)
     try {
-      // Con RLS desactivado, se puede hacer DELETE directo en todas las tablas.
-      const orden = ['votos', 'votantes', 'candidatos', 'mesas']
-      for (const tabla of orden) {
-        const { error: err } = await supabase.from(tabla).delete()
-        if (err) {
-          setErrorBorrarTodo(mensajeDeError(err, `No se pudo borrar la tabla ${tabla}.`))
-          return
-        }
-      }
-
-      // Restablecer configuración a valores por defecto
-      const { error: errConf } = await supabase
-        .from('configuracion')
-        .update({ eleccion_abierta: false, titulo: 'Elección de Municipios Escolares', centro: 'I.E. Jimenez Pimentel', logo_url: null })
-        .eq('id', 1)
-      if (errConf) {
-        setErrorBorrarTodo(mensajeDeError(errConf, 'No se pudo restablecer la configuración.'))
+      // Se usa la función RPC borrar_todo() que está SECURITY DEFINER
+      // y verifica es_admin_uuid() internamente. PostgREST no permite
+      // DELETE masivo sin filtro WHERE, por eso se usa RPC.
+      const { error: err } = await supabase.rpc('borrar_todo')
+      if (err) {
+        setErrorBorrarTodo(mensajeDeError(err, 'No se pudo borrar todo.'))
         return
       }
 
