@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import fondoVotantes from '../../assets/votantes.jpg'
+import fondo from '../../assets/fondo.jpg'
 import {
   castVote,
   isValidDni,
@@ -270,7 +270,7 @@ export default function VotingKioskPage() {
       {/* Fondo de pantalla de votación: imagen de los votantes */}
       <div className="absolute inset-0 z-0">
         <img
-          src={fondoVotantes}
+          src={fondo}
           alt=""
           className="w-full h-full object-cover"
           aria-hidden="true"
