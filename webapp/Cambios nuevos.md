@@ -2023,3 +2023,24 @@ Se redujo el kiosco a tres pasos: DNI, candidato y confirmación.
 | `npm run build` | ✅ |
 
 **Se hizo commit y push. No se desplegó en Vercel.**
+
+### 8. Padrón global y mesas solo como enlace
+
+Se separó el padrón de las mesas para que agregar votantes sea más simple.
+
+- **Alta de votante:** solo pide DNI, nombre y apellido. Ya no pide mesa.
+- **Importación CSV:** ahora usa las columnas `dni,nombre`. La vista previa y la tabla del padrón ya no muestran mesa.
+- **Padrón global:** un votante puede usar el enlace de cualquier mesa activa. La restricción de doble voto sigue siendo global.
+- **Mesa del voto:** al votar, la mesa se toma del enlace abierto y se guarda en `votos.mesa_id`. Así se sabe en qué salón se emitió cada voto sin asignar estudiantes manualmente.
+- **Resumen de mesas:** la participación es global; cada mesa muestra cuántos votos se registraron en ella.
+- **Eliminar mesa:** cada tarjeta tiene un botón «Eliminar» que abre un modal y pide la contraseña de la cuenta de administrador antes de borrar. Si la mesa ya tiene votos registrados, se bloquea y se sugiere desactivarla.
+
+**Migración nueva:** `supabase/migrations/008_padron_global.sql`. Elimina `votantes.mesa_id` y reemplaza las funciones `verificar_votante_en_mesa`, `emitir_voto_en_mesa`, `listar_votantes`, `obtener_estadisticas_padron`, `obtener_resumen_mesas`, `importar_votantes` y `validar_importacion_votantes`.
+
+| Comprobación | Resultado |
+| --- | --- |
+| `npm run typecheck` | ✅ |
+| `npm run test:offline` | ✅ 31/31 |
+| `npm run build` | ✅ |
+
+**Se hizo commit y push. No se desplegó en Vercel.**

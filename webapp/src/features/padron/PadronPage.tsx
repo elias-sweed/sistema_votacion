@@ -9,8 +9,6 @@ import { PadronSkeleton } from '../panel/PanelSkeletons'
 type Votante = {
   dni: string
   nombre: string
-  mesa_id: string
-  mesa_nombre: string
   ha_votado: boolean
   creado_en: string
 }
@@ -34,8 +32,6 @@ type ImportPreviewItem = {
   fila: number
   dni: string
   nombre: string
-  mesa_id: string
-  mesa_nombre: string
   valido: boolean
   motivo: string | null
 }
@@ -43,11 +39,9 @@ type ImportPreviewItem = {
 type ImportResult = {
   insertados: number
   duplicados: number
-  errores: Array<{ fila: number; dni: string; nombre: string; mesa_id: string; error: string }>
-  detalle: Array<{ dni: string; nombre: string; mesa_id: string; estado: string }>
+  errores: Array<{ fila: number; dni: string; nombre: string; error: string }>
+  detalle: Array<{ dni: string; nombre: string; estado: string }>
 }
-
-type MesaOption = { id: string; nombre: string }
 
 type ListaCache = { votantes: Votante[]; totalCount: number }
 
@@ -67,7 +61,6 @@ export default function PadronPage() {
   const [nuevoDni, setNuevoDni] = useState('')
   const [nuevoNombre, setNuevoNombre] = useState('')
   const [nuevoApellido, setNuevoApellido] = useState('')
-  const [nuevaMesaId, setNuevaMesaId] = useState('')
   const [guardandoVotante, setGuardandoVotante] = useState(false)
   const [errorManual, setErrorManual] = useState<string | null>(null)
   const [exitoManual, setExitoManual] = useState<string | null>(null)
@@ -75,14 +68,11 @@ export default function PadronPage() {
   // Datos
   const [votantes, setVotantes] = useState<Votante[]>(() => listaInicial?.votantes ?? [])
   const [totalCount, setTotalCount] = useState(() => listaInicial?.totalCount ?? 0)
-  const [mesasInicial] = useState(() => leerCache<MesaOption[]>(CLAVES_CACHE.padronMesas))
-  const [mesas, setMesas] = useState<MesaOption[]>(mesasInicial ?? [])
   const [estadisticasInicial] = useState(() => leerCache<Estadisticas>(CLAVES_CACHE.padronEstadisticas))
   const [estadisticas, setEstadisticas] = useState<Estadisticas | null>(estadisticasInicial)
 
   // Filtros y paginación
   const [busqueda, setBusqueda] = useState('')
-  const [mesaFiltro, setMesaFiltro] = useState<string>('')
   const [soloPendientes, setSoloPendientes] = useState(false)
   const [pagina, setPagina] = useState(1)
   const [pageSize] = useState(50)
@@ -96,17 +86,6 @@ export default function PadronPage() {
   const [previewValidos, setPreviewValidos] = useState(0)
   const [previewInvalidos, setPreviewInvalidos] = useState(0)
   const [resultadoImportacion, setResultadoImportacion] = useState<ImportResult | null>(null)
-
-  // Cargar mesas para select
-  const cargarMesas = useCallback(async () => {
-    const { data, error: err } = await supabase
-      .from('mesas').select('id, nombre').eq('activo', true).order('nombre')
-    if (!err && data) {
-      const lista = data.map(m => ({ id: m.id, nombre: m.nombre }))
-      setMesas(lista)
-      guardarCache(CLAVES_CACHE.padronMesas, lista)
-    }
-  }, [])
 
   // Cargar estadísticas
   const cargarEstadisticas = useCallback(async () => {
@@ -127,9 +106,8 @@ export default function PadronPage() {
   const cargarVotantes = useCallback(async () => {
     setCargando(true)
     setError(null)
-    const vistaPorDefecto = !mesaFiltro && !busqueda && !soloPendientes && pagina === 1
+    const vistaPorDefecto = !busqueda && !soloPendientes && pagina === 1
     const { data, error: err } = await supabase.rpc('listar_votantes', {
-      p_mesa_id: mesaFiltro || null,
       p_busqueda: busqueda || null,
       p_solo_pendientes: soloPendientes,
       p_limit: pageSize,
@@ -141,8 +119,6 @@ export default function PadronPage() {
       const lista: Votante[] = data.map((v: any) => ({
         dni: v.dni,
         nombre: v.nombre,
-        mesa_id: v.mesa_id,
-        mesa_nombre: v.mesa_nombre,
         ha_votado: v.ha_votado,
         creado_en: v.creado_en,
       }))
@@ -156,12 +132,11 @@ export default function PadronPage() {
         guardarCache(CLAVES_CACHE.padronLista, { votantes: lista, totalCount: total })
       }
     }
-  }, [mesaFiltro, busqueda, soloPendientes, pagina, pageSize])
+  }, [busqueda, soloPendientes, pagina, pageSize])
 
   useEffect(() => {
-    cargarMesas()
     cargarEstadisticas()
-  }, [cargarMesas, cargarEstadisticas])
+  }, [cargarEstadisticas])
 
   useEffect(() => {
     cargarVotantes()
@@ -190,16 +165,11 @@ export default function PadronPage() {
       setErrorManual('El apellido debe tener al menos 2 letras (solo letras y espacios).')
       return
     }
-    if (!nuevaMesaId) {
-      setErrorManual('Selecciona una mesa: cada votante necesita una mesa para poder votar.')
-      return
-    }
 
     setGuardandoVotante(true)
     const { error: err } = await supabase.from('votantes').insert({
       dni,
-      nombre: `${nombre} ${apellido}`,
-      mesa_id: nuevaMesaId
+      nombre: `${nombre} ${apellido}`
     })
     setGuardandoVotante(false)
 
@@ -208,10 +178,8 @@ export default function PadronPage() {
         setErrorManual(`El DNI ${dni} ya está registrado en el padrón.`)
       } else if (err.code === '23514') {
         setErrorManual('El DNI debe tener exactamente 8 dígitos numéricos.')
-      } else if (err.code === '23503') {
-        setErrorManual('La mesa seleccionada ya no existe. Recarga la página.')
       } else if (err.code === '23502') {
-        setErrorManual('Falta un dato obligatorio (DNI, nombre o mesa).')
+        setErrorManual('Falta un dato obligatorio (DNI o nombre).')
       } else {
         setErrorManual(mensajeDeError(err, 'No se pudo agregar al votante.'))
       }
@@ -228,7 +196,6 @@ export default function PadronPage() {
     setNuevoDni('')
     setNuevoNombre('')
     setNuevoApellido('')
-    setNuevaMesaId('')
     await cargarVotantes()
     await cargarEstadisticas()
   }
@@ -347,18 +314,16 @@ export default function PadronPage() {
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
     const dniIdx = headers.indexOf('dni')
     const nombreIdx = headers.indexOf('nombre')
-    const mesaIdx = headers.indexOf('mesa_id') >= 0 ? headers.indexOf('mesa_id') : headers.indexOf('mesa')
-    if (dniIdx === -1 || nombreIdx === -1 || mesaIdx === -1) {
-      throw new Error('CSV debe tener columnas: dni, nombre, mesa_id')
+    if (dniIdx === -1 || nombreIdx === -1) {
+      throw new Error('CSV debe tener columnas: dni, nombre')
     }
     const rows: any[] = []
     for (let i = 1; i < lines.length; i++) {
       const cols = lines[i].split(',').map(c => c.trim())
-      if (cols.length < 3) continue
+      if (cols.length < 2) continue
       rows.push({
         dni: cols[dniIdx],
-        nombre: cols[nombreIdx],
-        mesa_id: cols[mesaIdx]
+        nombre: cols[nombreIdx]
       })
     }
     return rows
@@ -411,17 +376,6 @@ export default function PadronPage() {
               className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
             />
           </div>
-          <div className="sm:w-48">
-            <label className="block text-xs text-slate-400 mb-1">Mesa</label>
-            <select
-              value={mesaFiltro}
-              onChange={(e) => { setMesaFiltro(e.target.value); setPagina(1); }}
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-            >
-              <option value="">Todas las mesas</option>
-              {mesas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-            </select>
-          </div>
           <label className="flex items-center gap-2 text-sm text-slate-300 self-end">
             <input
               type="checkbox"
@@ -439,11 +393,11 @@ export default function PadronPage() {
         <div>
           <h3 className="text-lg font-semibold text-white">Agregar votante manualmente</h3>
           <p className="text-sm text-slate-400">
-            DNI de 8 dígitos, nombre, apellido y mesa. El DNI solo acepta números.
+            DNI de 8 dígitos, nombre y apellido. El padrón es general; la mesa se elige al abrir el enlace del salón.
           </p>
         </div>
 
-        <form onSubmit={agregarVotanteManual} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <form onSubmit={agregarVotanteManual} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
             <div className="mb-1 flex items-center justify-between">
               <label className="text-xs text-slate-400">DNI</label>
@@ -482,17 +436,6 @@ export default function PadronPage() {
               className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
             />
           </div>
-          <div>
-            <label className="mb-1 block text-xs text-slate-400">Mesa</label>
-            <select
-              value={nuevaMesaId}
-              onChange={(e) => setNuevaMesaId(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-            >
-              <option value="">Selecciona una mesa</option>
-              {mesas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-            </select>
-          </div>
           <div className="flex flex-col justify-end">
             <button
               type="submit"
@@ -515,7 +458,7 @@ export default function PadronPage() {
         {pasoImportacion === 'archivo' && (
           <div>
             <p className="text-sm text-slate-400 mb-3">
-              Formato CSV requerido: columnas <code className="text-blue-300">dni,nombre,mesa_id</code>.
+              Formato CSV requerido: columnas <code className="text-blue-300">dni,nombre</code>.
               El archivo debe tener encabezados. Máx. recomendado: 500 filas.
             </p>
             <input
@@ -546,7 +489,6 @@ export default function PadronPage() {
                     <th className="p-2">Fila</th>
                     <th className="p-2">DNI</th>
                     <th className="p-2">Nombre</th>
-                    <th className="p-2">Mesa</th>
                     <th className="p-2">Estado</th>
                   </tr>
                 </thead>
@@ -556,7 +498,6 @@ export default function PadronPage() {
                       <td className="p-2 text-slate-400">{item.fila}</td>
                       <td className="p-2 font-mono">{item.dni}</td>
                       <td className="p-2">{item.nombre}</td>
-                      <td className="p-2 text-slate-300">{item.mesa_nombre}</td>
                       <td className="p-2">
                         <span className={`px-2 py-0.5 rounded text-xs ${item.valido ? 'bg-emerald-900/30 text-emerald-400' : 'bg-red-900/30 text-red-400'}`}>
                           {item.valido ? '✓ Válido' : item.motivo}
@@ -566,7 +507,7 @@ export default function PadronPage() {
                   ))}
                   {previewData.length > 100 && (
                     <tr>
-                      <td colSpan={5} className="p-2 text-center text-slate-500">
+                      <td colSpan={4} className="p-2 text-center text-slate-500">
                         … y {previewData.length - 100} filas más
                       </td>
                     </tr>
@@ -623,7 +564,6 @@ export default function PadronPage() {
               <tr>
                 <th className="p-3">DNI</th>
                 <th className="p-3">Nombre</th>
-                <th className="p-3">Mesa</th>
                 <th className="p-3">Estado</th>
                 <th className="p-3">Registrado</th>
               </tr>
@@ -631,7 +571,7 @@ export default function PadronPage() {
             <tbody className="divide-y divide-white/10">
               {votantes.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-slate-500">
+                  <td colSpan={4} className="p-8 text-center text-slate-500">
                     No hay votantes que coincidan con los filtros.
                   </td>
                 </tr>
@@ -640,7 +580,6 @@ export default function PadronPage() {
                   <tr key={v.dni} className={v.ha_votado ? 'bg-emerald-900/10' : ''}>
                     <td className="p-3 font-mono text-sky-300">{v.dni}</td>
                     <td className="p-3">{v.nombre}</td>
-                    <td className="p-3 text-slate-300">{v.mesa_nombre}</td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded text-xs ${v.ha_votado ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-900/30 text-blue-300'}`}>
                         {v.ha_votado ? 'Votó' : 'Pendiente'}

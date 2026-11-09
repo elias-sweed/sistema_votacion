@@ -55,6 +55,10 @@ export default function MesasPage() {
   const [rotandoId, setRotandoId] = useState<string | null>(null)
   const [confirmandoRotar, setConfirmandoRotar] = useState<Mesa | null>(null)
   const [copiadoId, setCopiadoId] = useState<string | null>(null)
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState<Mesa | null>(null)
+  const [passwordEliminar, setPasswordEliminar] = useState('')
+  const [eliminando, setEliminando] = useState(false)
+  const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
 
   async function cargar() {
     setCargando(true)
@@ -261,18 +265,86 @@ export default function MesasPage() {
     toast({ title: 'Enlace regenerado', description: 'El enlace anterior dejó de funcionar.', variant: 'success', duration: 4000 })
   }
 
-  const totales = mesas.reduce(
-    (acc, m) => {
-      const r = resumenes[m.id]
-      acc.mesas += 1
-      if (m.activo) acc.activas += 1
-      acc.padron += Number(r?.total_padron ?? 0)
-      acc.votaron += Number(r?.votaron ?? 0)
-      acc.votos += Number(r?.votos_emitidos ?? 0)
-      return acc
-    },
-    { mesas: 0, activas: 0, padron: 0, votaron: 0, votos: 0 }
+  function cerrarEliminar() {
+    if (eliminando) return
+    setConfirmandoEliminar(null)
+    setPasswordEliminar('')
+    setErrorEliminar(null)
+  }
+
+  async function eliminarMesa(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!confirmandoEliminar || eliminando) return
+
+    setErrorEliminar(null)
+
+    if (!passwordEliminar) {
+      setErrorEliminar('Escribe la contraseña de tu cuenta para confirmar.')
+      return
+    }
+
+    setEliminando(true)
+    try {
+      // La contraseña de la cuenta se pide como confirmación extra antes de
+      // borrar datos. No se guarda en ningún lado.
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      const email = userData.user?.email
+
+      if (userError || !email) {
+        setErrorEliminar('No se pudo comprobar tu cuenta. Vuelve a iniciar sesión.')
+        return
+      }
+
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password: passwordEliminar
+      })
+
+      if (authError) {
+        setErrorEliminar('La contraseña no es correcta. Inténtalo otra vez.')
+        return
+      }
+
+      const { error: err } = await supabase
+        .from('mesas')
+        .delete()
+        .eq('id', confirmandoEliminar.id)
+
+      if (err) {
+        if (err.code === '23503') {
+          setErrorEliminar('Esta mesa ya tiene votos registrados. Para dejar de usarla, desactívala.')
+        } else {
+          setErrorEliminar(mensajeDeError(err, 'No se pudo eliminar la mesa.'))
+        }
+        return
+      }
+
+      toast({
+        title: 'Mesa eliminada',
+        description: `${confirmandoEliminar.nombre} y su enlace fueron eliminados.`,
+        variant: 'success',
+        duration: 4000
+      })
+      setConfirmandoEliminar(null)
+      setPasswordEliminar('')
+      await cargar()
+    } finally {
+      setEliminando(false)
+    }
+  }
+
+  const resumenGlobal = (mesas.length > 0 ? resumenes[mesas[0].id] : null) ?? null
+  const totalVotos = mesas.reduce(
+    (acc, m) => acc + Number(resumenes[m.id]?.votos_emitidos ?? 0),
+    0
   )
+  const totales = {
+    mesas: mesas.length,
+    activas: mesas.filter((m) => m.activo).length,
+    padron: Number(resumenGlobal?.total_padron ?? 0),
+    votaron: Number(resumenGlobal?.votaron ?? 0),
+    votos: totalVotos
+  }
 
   return (
     <section className="space-y-6">
@@ -283,8 +355,8 @@ export default function MesasPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <ResumenTarjeta label="Mesas activas" value={`${totales.activas}/${totales.mesas}`} />
-        <ResumenTarjeta label="Padrón" value={totales.padron} />
-        <ResumenTarjeta label="Votaron" value={totales.votaron} />
+        <ResumenTarjeta label="En padrón" value={totales.padron} />
+        <ResumenTarjeta label="Ya votaron" value={totales.votaron} />
         <ResumenTarjeta label="Votos registrados" value={totales.votos} />
       </div>
 
@@ -326,13 +398,13 @@ export default function MesasPage() {
         </form>
 
         <p className="text-xs text-slate-500">
-          Cada mesa recibe un enlace único. Ábrelo en la máquina de ese salón: los votos quedan
-          registrados en esa mesa. «Generar todas» crea 1° a 6° grado en las secciones A–F sin duplicar.
+          Cada mesa recibe un enlace único. Ábrelo en la máquina de ese salón: el padrón es general y el
+          voto queda registrado en la mesa del enlace. «Generar todas» crea 1° a 6° grado en las secciones A–F sin duplicar.
         </p>
 
         <p className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3 text-xs leading-relaxed text-amber-100/80">
-          Privacidad: el sistema cuenta cuántos votaron y cuántos votos hay por mesa, pero no guarda
-          qué votante eligió a qué candidato. El voto sigue siendo secreto.
+          Privacidad: el sistema cuenta cuántos votos hay por mesa, pero no guarda qué votante eligió a
+          qué candidato. El voto sigue siendo secreto.
         </p>
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
@@ -347,7 +419,8 @@ export default function MesasPage() {
       <ul className="grid gap-3 sm:grid-cols-2">
         {mesas.map((m) => {
           const r = resumenes[m.id]
-          const participacion = Number(r?.participacion_pct ?? 0)
+          const votosMesa = Number(r?.votos_emitidos ?? 0)
+          const porcentajeVotos = totalVotos > 0 ? (votosMesa / totalVotos) * 100 : 0
           const enlace = enlaceDeMesa(m)
           return (
             <li key={m.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl space-y-3">
@@ -385,26 +458,22 @@ export default function MesasPage() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <DatoMesa label="Padrón" value={Number(r?.total_padron ?? 0)} />
-                    <DatoMesa label="Votaron" value={Number(r?.votaron ?? 0)} />
-                    <DatoMesa label="Votos" value={Number(r?.votos_emitidos ?? 0)} />
+                  <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Votos registrados aquí</p>
+                    <p className="mt-1 text-2xl font-semibold tabular-nums text-white">{votosMesa}</p>
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>Participación</span>
-                      <span className="tabular-nums">{participacion.toFixed(1)}%</span>
+                      <span>Del total de votos</span>
+                      <span className="tabular-nums">{porcentajeVotos.toFixed(1)}%</span>
                     </div>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-blue-400 to-sky-500"
-                        style={{ width: `${Math.min(100, Math.max(0, participacion))}%` }}
+                        style={{ width: `${Math.min(100, Math.max(0, porcentajeVotos))}%` }}
                       />
                     </div>
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      {Number(r?.pendientes ?? 0)} pendientes de votar
-                    </p>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -444,6 +513,17 @@ export default function MesasPage() {
                       className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/[0.1]"
                     >
                       {m.activo ? 'Desactivar' : 'Activar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmandoEliminar(m)
+                        setPasswordEliminar('')
+                        setErrorEliminar(null)
+                      }}
+                      className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-200 transition hover:bg-red-500/20"
+                    >
+                      Eliminar
                     </button>
                   </div>
                 </>
@@ -496,6 +576,68 @@ export default function MesasPage() {
           </div>
         </div>
       )}
+
+      {confirmandoEliminar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+          <button
+            type="button"
+            aria-label="Cancelar eliminación de mesa"
+            onClick={cerrarEliminar}
+            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
+          />
+          <form
+            onSubmit={(e) => void eliminarMesa(e)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-eliminar-mesa"
+            className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]"
+          >
+            <h2 id="titulo-eliminar-mesa" className="text-base font-semibold text-white">
+              Eliminar mesa {confirmandoEliminar.nombre}
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Se borrará la mesa y su enlace de acceso. Esta acción no se puede deshacer.
+            </p>
+            <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
+              Para confirmar, escribe la contraseña de tu cuenta de administrador.
+            </p>
+
+            <label htmlFor="password-eliminar" className="mt-4 mb-1 block text-xs text-slate-400">
+              Contraseña
+            </label>
+            <input
+              id="password-eliminar"
+              type="password"
+              autoComplete="current-password"
+              value={passwordEliminar}
+              onChange={(e) => setPasswordEliminar(e.target.value)}
+              autoFocus
+              disabled={eliminando}
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
+            />
+
+            {errorEliminar && <p className="mt-3 text-sm text-red-400">{errorEliminar}</p>}
+
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={cerrarEliminar}
+                disabled={eliminando}
+                className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={eliminando || passwordEliminar.length === 0}
+                className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {eliminando ? 'Eliminando…' : 'Eliminar mesa'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </section>
   )
 }
@@ -505,15 +647,6 @@ function ResumenTarjeta({ label, value }: { label: string; value: string | numbe
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 backdrop-blur-xl">
       <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums text-white">{value}</p>
-    </div>
-  )
-}
-
-function DatoMesa({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-black/20 px-2 py-2">
-      <p className="text-[10px] uppercase tracking-wider text-slate-500">{label}</p>
-      <p className="text-lg font-semibold tabular-nums text-white">{value}</p>
     </div>
   )
 }

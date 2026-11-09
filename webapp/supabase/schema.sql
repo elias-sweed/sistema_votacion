@@ -20,11 +20,12 @@ create table if not exists public.mesas (
   creado_en   timestamptz not null default now()
 );
 
--- Padrón: quién puede votar (un alumno = un voto)
+-- Padrón: quién puede votar (un alumno = un voto).
+-- Sin mesa_id: el padrón es global. La mesa se registra en el voto
+-- según el enlace de acceso usado en el kiosco, no según el votante.
 create table if not exists public.votantes (
   dni         text primary key,                     -- DNI normalizado, solo dígitos
   nombre      text not null,
-  mesa_id     uuid not null references public.mesas(id) on delete restrict,
   ha_votado   boolean not null default false,
   creado_en   timestamptz not null default now(),
   constraint dni_formato check (dni ~ '^[0-9]{8}$')
