@@ -5,6 +5,19 @@ import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
 import { MesasSkeleton } from '../panel/PanelSkeletons'
+import {
+  estaActivoEnsayo,
+  ensayoListarMesas,
+  ensayoAgregarMesa,
+  ensayoActualizarMesa,
+  ensayoEliminarMesa,
+  ensayoEliminarTodasMesas,
+  ensayoContarMesas,
+  ensayoContarMesasActivas,
+  ensayoContarVotos,
+  ensayoContarVotantes,
+  ensayoContarVotaron,
+} from '../../lib/ensayoStore'
 
 type Mesa = {
   id: string
@@ -65,6 +78,23 @@ export default function MesasPage() {
     setCargando(true)
     setError(null)
 
+    if (estaActivoEnsayo()) {
+      const mesasEnsayo = ensayoListarMesas()
+      const lista: Mesa[] = mesasEnsayo.map((m) => ({
+        id: m.id,
+        nombre: m.nombre,
+        activo: m.activo,
+        creado_en: m.creado_en,
+        token_acceso: m.token_acceso,
+      }))
+      setMesas(lista)
+      guardarCache(CLAVES_CACHE.mesas, lista)
+      setTieneDatos(true)
+      setResumenes({})
+      setCargando(false)
+      return
+    }
+
     const [mesasRes, resumenRes] = await Promise.all([
       supabase.from('mesas').select('*').order('creado_en', { ascending: true }),
       supabase.rpc('obtener_resumen_mesas')
@@ -100,6 +130,14 @@ export default function MesasPage() {
     e.preventDefault()
     setError(null); setExito(null)
     const nombreMesa = `${grado} ${seccion}`
+
+    if (estaActivoEnsayo()) {
+      ensayoAgregarMesa({ nombre: nombreMesa, activo: true, token_acceso: null })
+      setExito(`Mesa ${nombreMesa} agregada (modo ensayo).`)
+      toast({ title: 'Mesa agregada (ensayo)', description: `${nombreMesa} · enlace generado`, variant: 'success', duration: 3000 })
+      await cargar()
+      return
+    }
 
     setGuardando(true)
     const { error: err } = await supabase.from('mesas')
@@ -173,6 +211,15 @@ export default function MesasPage() {
     if (nombreTrim.length < 2) { setError('El nombre debe tener al menos 2 caracteres.'); return }
     if (nombreTrim === m.nombre) { setEditandoId(null); return }
 
+    if (estaActivoEnsayo()) {
+      ensayoActualizarMesa(m.id, nombreTrim, m.activo)
+      setEditandoId(null)
+      setEditNombre('')
+      setExito('Mesa actualizada (ensayo).')
+      await cargar()
+      return
+    }
+
     const { error: err } = await supabase.from('mesas')
       .update({ nombre: nombreTrim }).eq('id', m.id)
     if (err) {
@@ -189,6 +236,25 @@ export default function MesasPage() {
 
   async function alternarActivo(m: Mesa) {
     setError(null); setExito(null)
+
+    if (estaActivoEnsayo()) {
+      ensayoActualizarMesa(m.id, m.nombre, !m.activo)
+      setMesas((prev) => {
+        const siguiente = prev.map((x) => (x.id === m.id ? { ...x, activo: !x.activo } : x))
+        guardarCache(CLAVES_CACHE.mesas, siguiente)
+        return siguiente
+      })
+      toast({
+        title: m.activo ? 'Mesa desactivada (ensayo)' : 'Mesa activada (ensayo)',
+        description: m.activo
+          ? `${m.nombre}: su enlace dejará de aceptar votos.`
+          : `${m.nombre}: su enlace vuelve a estar operativo.`,
+        variant: 'success',
+        duration: 3500
+      })
+      return
+    }
+
     const { error: err } = await supabase.from('mesas')
       .update({ activo: !m.activo }).eq('id', m.id)
     if (err) {
@@ -305,6 +371,20 @@ export default function MesasPage() {
         return
       }
 
+      if (estaActivoEnsayo()) {
+        ensayoEliminarMesa(confirmandoEliminar.id)
+        toast({
+          title: 'Mesa eliminada (ensayo)',
+          description: `${confirmandoEliminar.nombre} fue eliminada.`,
+          variant: 'success',
+          duration: 4000
+        })
+        setConfirmandoEliminar(null)
+        setPasswordEliminar('')
+        await cargar()
+        return
+      }
+
       const { error: err } = await supabase
         .from('mesas')
         .delete()
@@ -374,6 +454,20 @@ export default function MesasPage() {
         return
       }
 
+      if (estaActivoEnsayo()) {
+        ensayoEliminarTodasMesas()
+        toast({
+          title: 'Todas las mesas eliminadas (ensayo)',
+          description: 'Se borraron todas las mesas del modo ensayo.',
+          variant: 'success',
+          duration: 4000
+        })
+        setConfirmandoEliminarTodas(false)
+        setPasswordEliminar('')
+        await cargar()
+        return
+      }
+
       // Primero borrar los votos (por la FK restrict), luego las mesas.
       // Se usa una función RPC SECURITY DEFINER para evitar filtros WHERE
       // en el endpoint REST que Supabase/PostgREST rechaza en DELETE masivo.
@@ -403,11 +497,11 @@ export default function MesasPage() {
     0
   )
   const totales = {
-    mesas: mesas.length,
-    activas: mesas.filter((m) => m.activo).length,
-    padron: Number(resumenGlobal?.total_padron ?? 0),
-    votaron: Number(resumenGlobal?.votaron ?? 0),
-    votos: totalVotos
+    mesas: estaActivoEnsayo() ? ensayoContarMesas() : mesas.length,
+    activas: estaActivoEnsayo() ? ensayoContarMesasActivas() : mesas.filter((m) => m.activo).length,
+    padron: estaActivoEnsayo() ? ensayoContarVotantes() : Number(resumenGlobal?.total_padron ?? 0),
+    votaron: estaActivoEnsayo() ? ensayoContarVotaron() : Number(resumenGlobal?.votaron ?? 0),
+    votos: estaActivoEnsayo() ? ensayoContarVotos() : totalVotos
   }
 
   return (

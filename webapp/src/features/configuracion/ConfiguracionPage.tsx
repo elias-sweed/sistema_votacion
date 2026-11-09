@@ -7,6 +7,12 @@ import ImageUpload01Icon from '@hugeicons/core-free-icons/ImageUpload01Icon'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { useToast } from '../../components/ui/ToastProvider'
+import {
+  estaActivoEnsayo,
+  activarEnsayo,
+  desactivarEnsayo,
+  limpiarEnsayo,
+} from '../../lib/ensayoStore'
 
 type Config = {
   eleccion_abierta: boolean
@@ -67,6 +73,15 @@ export default function ConfiguracionPage() {
   const [passwordEliminarTodo, setPasswordEliminarTodo] = useState('')
   const [eliminandoTodoCargando, setEliminandoTodoCargando] = useState(false)
   const [errorEliminarTodo, setErrorEliminarTodo] = useState<string | null>(null)
+
+  // Modo ensayo (pruebas en memoria, se borra al salir)
+  const [modoEnsayo, setModoEnsayo] = useState(estaActivoEnsayo())
+
+  // Borrar TODO de todo
+  const [borrandoTodo, setBorrandoTodo] = useState(false)
+  const [confirmandoBorrarTodo, setConfirmandoBorrarTodo] = useState(false)
+  const [passwordBorrarTodo, setPasswordBorrarTodo] = useState('')
+  const [errorBorrarTodo, setErrorBorrarTodo] = useState<string | null>(null)
 
   async function cargar() {
     setCargando(true)
@@ -278,6 +293,88 @@ export default function ConfiguracionPage() {
       await cerrarEliminarTodo()
     } finally {
       setEliminandoTodoCargando(false)
+    }
+  }
+
+  // --- MODO ENSAYO ---
+
+  async function toggleModoEnsayo(activar: boolean) {
+    setErrorEliminarTodo(null)
+
+    if (activar) {
+      activarEnsayo()
+      setModoEnsayo(true)
+      toast({
+        title: 'Modo ensayo activado',
+        description: 'Los cambios se guardan solo en memoria. Al recargar, todo se borra.',
+        variant: 'info',
+        duration: 5000,
+      })
+    } else {
+      desactivarEnsayo()
+      setModoEnsayo(false)
+      toast({
+        title: 'Modo ensayo desactivado',
+        description: 'Se limpiaron los datos de prueba.',
+        variant: 'info',
+        duration: 4000,
+      })
+    }
+  }
+
+  // --- BORRAR TODO DE TODO ---
+
+  async function cerrarBorrarTodo() {
+    setConfirmandoBorrarTodo(false)
+    setPasswordBorrarTodo('')
+    setErrorBorrarTodo(null)
+  }
+
+  async function autenticarAdminBorrarTodo(): Promise<string | null> {
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+    const email = userData.user?.email
+    if (userError || !email) return null
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password: passwordBorrarTodo,
+    })
+    if (authError) return null
+    return email
+  }
+
+  async function ejecutarBorrarTodo() {
+    if (borrandoTodo) return
+
+    setErrorBorrarTodo(null)
+
+    const email = await autenticarAdminBorrarTodo()
+    if (!email) {
+      setErrorBorrarTodo('La contraseña no es correcta. Inténtalo otra vez.')
+      return
+    }
+
+    setBorrandoTodo(true)
+    try {
+      const { error: err } = await supabase.rpc('borrar_todo')
+      if (err) {
+        setErrorBorrarTodo(mensajeDeError(err, 'No se pudo borrar todo.'))
+        return
+      }
+
+      // También limpiar el modo ensayo si estaba activo
+      limpiarEnsayo()
+      setModoEnsayo(false)
+
+      toast({
+        title: 'Todo eliminado',
+        description: 'Se borraron votantes, candidatos, mesas, votos y se restableció la configuración.',
+        variant: 'success',
+        duration: 5000,
+      })
+      await cerrarBorrarTodo()
+      await cargar()
+    } finally {
+      setBorrandoTodo(false)
     }
   }
 
@@ -649,6 +746,127 @@ export default function ConfiguracionPage() {
                 className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {eliminandoTodoCargando ? 'Procesando…' : 'Sí, eliminar todo'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modo ensayo y Borrar todo de todo */}
+      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4">
+        <div className="flex items-center gap-3">
+          <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
+          <h3 className="text-lg font-semibold text-white">Modo Ensayo y Restablecimiento</h3>
+        </div>
+
+        {/* Toggle Modo Ensayo */}
+        <div className="flex items-center justify-between p-4 rounded-2xl border border-white/10 bg-black/20 backdrop-blur-md">
+          <div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={modoEnsayo}
+                onChange={(e) => toggleModoEnsayo(e.target.checked)}
+                className="rounded border-white/20 bg-black/25 text-blue-300 focus:ring-blue-500/40"
+              />
+              <span className={`text-sm font-semibold ${modoEnsayo ? 'text-blue-300' : 'text-slate-400'}`}>
+                {modoEnsayo ? 'Modo Ensayo ACTIVO' : 'Modo Ensayo'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              {modoEnsayo
+                ? 'Los cambios se guardan solo en memoria RAM. Al recargar o cerrar la pestaña, todo se borra.'
+                : 'Cuando está activo, los cambios no se guardan en Supabase. Solo para pruebas.'}
+            </p>
+          </div>
+        </div>
+
+        {modoEnsayo && (
+          <p className="rounded-xl border border-blue-400/20 bg-blue-500/[0.06] px-4 py-3 text-xs leading-relaxed text-blue-100/80">
+            ⚠️ Modo ensayo activo: nada de lo que hagas aquí se guarda permanentemente.
+          </p>
+        )}
+
+        {/* Borrar TODO de todo */}
+        <div className="flex items-center gap-3">
+          <span className="h-px w-8 bg-gradient-to-r from-red-400/80 to-transparent" />
+          <h4 className="text-base font-semibold text-white">Borrar TODO de todo</h4>
+        </div>
+        <p className="text-sm text-slate-400">
+          Borra votantes, candidatos, mesas, votos y restablece la configuración. No se puede deshacer.
+        </p>
+        <button
+          type="button"
+          onClick={() => { setConfirmandoBorrarTodo(true); setPasswordBorrarTodo(''); setErrorBorrarTodo(null) }}
+          disabled={borrandoTodo}
+          className="w-full rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-left transition hover:bg-red-500/20 disabled:opacity-50"
+        >
+          <div className="flex items-center gap-2">
+            <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />
+            <span>Borrar TODO de todo</span>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">Padrón, candidatos, mesas, votos y configuración</p>
+        </button>
+        {errorBorrarTodo && <p className="mt-3 text-sm text-red-400">{errorBorrarTodo}</p>}
+      </div>
+
+      {confirmandoBorrarTodo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+          <button
+            type="button"
+            aria-label="Cancelar borrado total"
+            onClick={cerrarBorrarTodo}
+            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
+          />
+          <form
+            onSubmit={(e) => { e.preventDefault(); void ejecutarBorrarTodo() }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-borrar-todo"
+            className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]"
+          >
+            <h2 id="titulo-borrar-todo" className="text-base font-semibold text-white">
+              Borrar TODO de todo
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Se eliminarán votantes, candidatos, mesas y votos. La configuración volverá a los valores por defecto.
+              Esta acción no se puede deshacer.
+            </p>
+            <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
+              Para confirmar, escribe la contraseña de tu cuenta de administrador.
+            </p>
+
+            <label htmlFor="password-borrar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
+              Contraseña
+            </label>
+            <input
+              id="password-borrar-todo"
+              type="password"
+              autoComplete="current-password"
+              value={passwordBorrarTodo}
+              onChange={(e) => setPasswordBorrarTodo(e.target.value)}
+              autoFocus
+              disabled={borrandoTodo}
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
+            />
+
+            {errorBorrarTodo && <p className="mt-3 text-sm text-red-400">{errorBorrarTodo}</p>}
+
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={cerrarBorrarTodo}
+                disabled={borrandoTodo}
+                className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={borrandoTodo || passwordBorrarTodo.length === 0}
+                className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {borrandoTodo ? 'Borrando…' : 'Sí, borrar todo de todo'}
               </button>
             </div>
           </form>

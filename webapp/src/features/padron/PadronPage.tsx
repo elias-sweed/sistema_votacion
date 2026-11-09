@@ -5,6 +5,13 @@ import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
 import { PadronSkeleton } from '../panel/PanelSkeletons'
+import {
+  estaActivoEnsayo,
+  ensayoListarVotantes,
+  ensayoAgregarVotante,
+  ensayoContarVotantes,
+  ensayoContarVotaron,
+} from '../../lib/ensayoStore'
 
 type Votante = {
   dni: string
@@ -99,6 +106,19 @@ export default function PadronPage() {
 
   // Cargar estadísticas
   const cargarEstadisticas = useCallback(async () => {
+    if (estaActivoEnsayo()) {
+      const total = ensayoContarVotantes()
+      const votaron = ensayoContarVotaron()
+      setEstadisticas({
+        total_votantes: total,
+        total_votaron: votaron,
+        total_pendientes: total - votaron,
+        participacion_pct: total > 0 ? Math.round((votaron / total) * 100 * 100) / 100 : 0,
+        por_mesa: [],
+      })
+      return
+    }
+
     const { data, error: err } = await supabase.rpc('obtener_estadisticas_padron')
     if (err) {
       console.error('Error cargando estadísticas:', err)
@@ -116,6 +136,29 @@ export default function PadronPage() {
   const cargarVotantes = useCallback(async () => {
     setCargando(true)
     setError(null)
+
+    if (estaActivoEnsayo()) {
+      const { votantes: listaEnsayo, total } = ensayoListarVotantes({
+        busqueda,
+        soloPendientes,
+        pagina,
+        pageSize,
+      })
+      const lista: Votante[] = listaEnsayo.map((v) => ({
+        dni: v.dni,
+        nombre: v.nombre,
+        grado: v.grado ?? null,
+        seccion: v.seccion ?? null,
+        ha_votado: v.ha_votado,
+        creado_en: v.creado_en,
+      }))
+      setVotantes(lista)
+      setTotalCount(total)
+      setTieneDatos(true)
+      setCargando(false)
+      return
+    }
+
     const vistaPorDefecto = !busqueda && !soloPendientes && pagina === 1
     const { data, error: err } = await supabase.rpc('listar_votantes', {
       p_busqueda: busqueda || null,
@@ -138,8 +181,6 @@ export default function PadronPage() {
       setVotantes(lista)
       setTotalCount(total)
       setTieneDatos(true)
-      // Solo guardamos la vista por defecto para que al volver se vea
-      // el padrón completo y no una búsqueda filtrada anterior.
       if (vistaPorDefecto) {
         guardarCache(CLAVES_CACHE.padronLista, { votantes: lista, totalCount: total })
       }
@@ -179,6 +220,33 @@ export default function PadronPage() {
     }
 
     setGuardandoVotante(true)
+
+    if (estaActivoEnsayo()) {
+      ensayoAgregarVotante({
+        dni,
+        nombre: `${nombre} ${apellido}`,
+        grado: nuevoGrado || null,
+        seccion: nuevaSeccion || null,
+        ha_votado: false,
+      })
+      setGuardandoVotante(false)
+      setExitoManual(`Votante ${dni} agregado correctamente (modo ensayo).`)
+      toast({
+        title: 'Votante agregado (ensayo)',
+        description: `${nombre} ${apellido} · DNI ${dni}`,
+        variant: 'success',
+        duration: 4000,
+      })
+      setNuevoDni('')
+      setNuevoNombre('')
+      setNuevoApellido('')
+      setNuevoGrado('')
+      setNuevaSeccion('')
+      await cargarVotantes()
+      await cargarEstadisticas()
+      return
+    }
+
     const { error: err } = await supabase.from('votantes').insert({
       dni,
       nombre: `${nombre} ${apellido}`,
