@@ -18,6 +18,7 @@ import { SectionHeader } from '../../components/ui/SectionHeader'
 import { AdminCard } from '../../components/ui/AdminCard'
 import { AdminButton } from '../../components/ui/AdminButton'
 import { Badge } from '../../components/ui/Badge'
+import { AdminModal } from '../../components/ui/AdminModal'
 
 type Candidato = { id: string; nombre: string; foto_url: string | null; activo: boolean }
 
@@ -461,28 +462,16 @@ export default function CandidatosPage() {
       </AdminCard>
 
       {confirmandoEliminar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
-          <button
-            type="button"
-            aria-label="Cancelar eliminación de candidato"
-            onClick={() => setConfirmandoEliminar(null)}
-            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
-          />
-          <form onSubmit={(e) => { e.preventDefault(); void eliminarCandidato(confirmandoEliminar); }} role="dialog" aria-modal="true" className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]">
-            <h2 className="text-base font-semibold text-white">Eliminar candidato</h2>
-            <p className="mt-2 text-sm text-slate-400">
-              Se eliminará <strong className="text-white">{confirmandoEliminar.nombre}</strong>. Esta acción no se puede deshacer.
-            </p>
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              <button type="button" onClick={() => setConfirmandoEliminar(null)} className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12]">
-                Cancelar
-              </button>
-              <button type="submit" disabled={eliminando} className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
-                {eliminando ? 'Eliminando…' : 'Confirmar eliminación'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <AdminModal
+          open={confirmandoEliminar !== null}
+          onClose={() => setConfirmandoEliminar(null)}
+          title={`Eliminar candidato ${confirmandoEliminar.nombre}`}
+          description="Se eliminará el candidato de la papeleta. Esta acción no se puede deshacer."
+          confirmLabel="Confirmar eliminación"
+          confirmVariant="danger"
+          loading={eliminando}
+          onConfirm={() => void eliminarCandidato(confirmandoEliminar)}
+        />
       )}
     </section>
   )

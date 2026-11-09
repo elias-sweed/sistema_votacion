@@ -13,7 +13,7 @@ type Props = {
   /** Descripción opcional debajo del título */
   description?: ReactNode
   /** Contenido principal del modal */
-  children: ReactNode
+  children?: ReactNode
   /** Etiqueta del botón de acción primaria */
   confirmLabel?: string
   /** Etiqueta del botón de cancelar */
