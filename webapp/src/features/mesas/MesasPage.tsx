@@ -14,6 +14,7 @@ import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
 import Edit02Icon from '@hugeicons/core-free-icons/Edit02Icon'
 import Rotate01Icon from '@hugeicons/core-free-icons/Rotate01Icon'
 import Link01Icon from '@hugeicons/core-free-icons/Link01Icon'
+import { AdminModal } from '../../components/ui/AdminModal'
 
 import {
   estaActivoEnsayo,
@@ -314,8 +315,7 @@ export default function MesasPage() {
     setErrorEliminar(null)
   }
 
-  async function eliminarMesa(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  async function eliminarMesa() {
     if (!confirmandoEliminar || eliminando) return
 
     setErrorEliminar(null)
@@ -703,65 +703,36 @@ export default function MesasPage() {
       )}
 
       {confirmandoEliminar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
-          <button
-            type="button"
-            aria-label="Cancelar eliminación de mesa"
-            onClick={cerrarEliminar}
-            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
+        <AdminModal
+          open={confirmandoEliminar !== null}
+          onClose={cerrarEliminar}
+          title={`Eliminar mesa ${confirmandoEliminar.nombre}`}
+          description="Se borrará la mesa y su enlace. Esta acción no se puede deshacer."
+          confirmLabel="Eliminar mesa"
+          confirmVariant="danger"
+          loading={eliminando}
+          onConfirm={() => void eliminarMesa()}
+        >
+          <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
+            Escribe tu contraseña para confirmar.
+          </p>
+
+          <label htmlFor="password-eliminar" className="mt-4 mb-1 block text-xs text-slate-400">
+            Contraseña
+          </label>
+          <input
+            id="password-eliminar"
+            type="password"
+            autoComplete="current-password"
+            value={passwordEliminar}
+            onChange={(e) => setPasswordEliminar(e.target.value)}
+            autoFocus
+            disabled={eliminando}
+            className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
           />
-          <form
-            onSubmit={(e) => void eliminarMesa(e)}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="titulo-eliminar-mesa"
-            className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]"
-          >
-            <h2 id="titulo-eliminar-mesa" className="text-base font-semibold text-white">
-              Eliminar mesa {confirmandoEliminar.nombre}
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              Se borrará la mesa y su enlace. Esta acción no se puede deshacer.
-            </p>
-            <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
-              Escribe tu contraseña para confirmar.
-            </p>
 
-            <label htmlFor="password-eliminar" className="mt-4 mb-1 block text-xs text-slate-400">
-              Contraseña
-            </label>
-            <input
-              id="password-eliminar"
-              type="password"
-              autoComplete="current-password"
-              value={passwordEliminar}
-              onChange={(e) => setPasswordEliminar(e.target.value)}
-              autoFocus
-              disabled={eliminando}
-              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
-            />
-
-            {errorEliminar && <p className="mt-3 text-sm text-red-400">{errorEliminar}</p>}
-
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={cerrarEliminar}
-                disabled={eliminando}
-                className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={eliminando || passwordEliminar.length === 0}
-                className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {eliminando ? 'Eliminando…' : 'Eliminar mesa'}
-              </button>
-            </div>
-          </form>
-        </div>
+          {errorEliminar && <p className="mt-3 text-sm text-red-400">{errorEliminar}</p>}
+        </AdminModal>
       )}
     </section>
   )
