@@ -83,6 +83,11 @@ export default function ConfiguracionPage() {
   const [passwordBorrarTodo, setPasswordBorrarTodo] = useState('')
   const [errorBorrarTodo, setErrorBorrarTodo] = useState<string | null>(null)
 
+  // PIN de seguridad (segundo factor, aparte del login) para acciones destructivas
+  const [pinSeguridad, setPinSeguridad] = useState<string | null>(() => localStorage.getItem('sv-pin-seguridad'))
+  const [pinAccion, setPinAccion] = useState('')
+  const [errorPin, setErrorPin] = useState<string | null>(null)
+
   async function cargar() {
     setCargando(true)
     setError(null)
@@ -230,6 +235,7 @@ export default function ConfiguracionPage() {
     setEliminandoTodo(null)
     setPasswordEliminarTodo('')
     setErrorEliminarTodo(null)
+    setPinAccion('')
   }
 
   async function ejecutarEliminarTodo() {
@@ -240,6 +246,11 @@ export default function ConfiguracionPage() {
     const email = await autenticarAdmin()
     if (!email) {
       setErrorEliminarTodo('La contraseña no es correcta. Inténtalo otra vez.')
+      return
+    }
+
+    if (!pinCorrecto(pinAccion)) {
+      setErrorEliminarTodo('El PIN de seguridad no es correcto o no está configurado.')
       return
     }
 
@@ -328,6 +339,38 @@ export default function ConfiguracionPage() {
     setConfirmandoBorrarTodo(false)
     setPasswordBorrarTodo('')
     setErrorBorrarTodo(null)
+    setPinAccion('')
+  }
+
+  function guardarPinSeguridad(pin: string) {
+    const pinLimpio = pin.replace(/\D/g, '').slice(0, 4)
+    if (pinLimpio.length < 4) {
+      setErrorPin('El PIN debe tener 4 dígitos.')
+      return
+    }
+    setPinSeguridad(pinLimpio)
+    localStorage.setItem('sv-pin-seguridad', pinLimpio)
+    setErrorPin(null)
+    setPinAccion('')
+    toast({
+      title: 'PIN configurado',
+      description: 'El PIN de seguridad quedó activo para las acciones destructivas.',
+      variant: 'success',
+      duration: 3000,
+    })
+  }
+
+  function pinCorrecto(pin: string): boolean {
+    if (!pinSeguridad) {
+      setErrorPin('Configura el PIN de seguridad en esta sección antes de continuar.')
+      return false
+    }
+    if (pin !== pinSeguridad) {
+      setErrorPin('El PIN de seguridad no es correcto.')
+      return false
+    }
+    setErrorPin(null)
+    return true
   }
 
   async function autenticarAdminBorrarTodo(): Promise<string | null> {
@@ -350,6 +393,11 @@ export default function ConfiguracionPage() {
     const email = await autenticarAdminBorrarTodo()
     if (!email) {
       setErrorBorrarTodo('La contraseña no es correcta. Inténtalo otra vez.')
+      return
+    }
+
+    if (!pinCorrecto(pinAccion)) {
+      setErrorBorrarTodo('El PIN de seguridad no es correcto o no está configurado.')
       return
     }
 
@@ -653,10 +701,39 @@ export default function ConfiguracionPage() {
         <p className="text-sm text-slate-400">
           Estas acciones borran datos permanentemente. Se requiere tu contraseña de administrador.
         </p>
+
+        {pinSeguridad === null ? (
+          <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-4 space-y-3">
+            <p className="text-sm text-amber-100/80">
+              Configura el PIN de seguridad (doble factor de seguridad) para las acciones destructivas.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                autoComplete="off"
+                value={pinAccion}
+                onChange={(e) => setPinAccion(e.target.value.replace(/\D/g, ''))}
+                placeholder="PIN de seguridad"
+                className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-amber-400/60 focus:outline-none focus:ring-2 focus:ring-amber-500/15"
+              />
+              <button
+                type="button"
+                onClick={() => guardarPinSeguridad(pinAccion)}
+                className="rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+              >
+                Configurar PIN
+              </button>
+            </div>
+            {errorPin && <p className="text-sm text-red-400">{errorPin}</p>}
+          </div>
+        ) : (
+          <>
         <div className="grid gap-3 sm:grid-cols-3">
           <button
             type="button"
-            onClick={() => { setEliminandoTodo('votantes'); setPasswordEliminarTodo(''); setErrorEliminarTodo(null) }}
+            onClick={() => { setEliminandoTodo('votantes'); setPasswordEliminarTodo(''); setErrorEliminarTodo(null); setPinAccion('') }}
             disabled={eliminandoTodoCargando}
             className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-left transition hover:bg-red-500/20 disabled:opacity-50"
           >
@@ -668,7 +745,7 @@ export default function ConfiguracionPage() {
           </button>
           <button
             type="button"
-            onClick={() => { setEliminandoTodo('candidatos'); setPasswordEliminarTodo(''); setErrorEliminarTodo(null) }}
+            onClick={() => { setEliminandoTodo('candidatos'); setPasswordEliminarTodo(''); setErrorEliminarTodo(null); setPinAccion('') }}
             disabled={eliminandoTodoCargando}
             className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-left transition hover:bg-red-500/20 disabled:opacity-50"
           >
@@ -680,7 +757,7 @@ export default function ConfiguracionPage() {
           </button>
           <button
             type="button"
-            onClick={() => { setEliminandoTodo('centro'); setPasswordEliminarTodo(''); setErrorEliminarTodo(null) }}
+            onClick={() => { setEliminandoTodo('centro'); setPasswordEliminarTodo(''); setErrorEliminarTodo(null); setPinAccion('') }}
             disabled={eliminandoTodoCargando}
             className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-left transition hover:bg-red-500/20 disabled:opacity-50"
           >
@@ -691,6 +768,29 @@ export default function ConfiguracionPage() {
             <p className="mt-1 text-xs text-slate-500">Título, I.E y logo por defecto</p>
           </button>
         </div>
+
+            {/* Borrar TODO de todo */}
+            <div className="flex items-center gap-3">
+              <span className="h-px w-8 bg-gradient-to-r from-red-400/80 to-transparent" />
+              <h4 className="text-base font-semibold text-white">Borrar TODO de todo</h4>
+            </div>
+            <p className="text-sm text-slate-400">
+              Borra votantes, candidatos, mesas, votos y restablece la configuración. No se puede deshacer.
+            </p>
+            <button
+              type="button"
+              onClick={() => { setConfirmandoBorrarTodo(true); setPasswordBorrarTodo(''); setErrorBorrarTodo(null); setPinAccion('') }}
+              disabled={borrandoTodo}
+              className="w-full rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-left transition hover:bg-red-500/20 disabled:opacity-50"
+            >
+              <div className="flex items-center gap-2">
+                <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />
+                <span>Borrar TODO de todo</span>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">Padrón, candidatos, mesas, votos y configuración</p>
+            </button>
+          </>
+        )}
         {errorEliminarTodo && <p className="mt-3 text-sm text-red-400">{errorEliminarTodo}</p>}
       </div>
 
@@ -737,7 +837,24 @@ export default function ConfiguracionPage() {
               className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
             />
 
+            {errorPin && <p className="mt-3 text-sm text-red-400">{errorPin}</p>}
+
             {errorEliminarTodo && <p className="mt-3 text-sm text-red-400">{errorEliminarTodo}</p>}
+
+            <label htmlFor="pin-eliminar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
+              PIN de seguridad
+            </label>
+            <input
+              id="pin-eliminar-todo"
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              autoComplete="off"
+              value={pinAccion}
+              onChange={(e) => setPinAccion(e.target.value.replace(/\D/g, ''))}
+              disabled={eliminandoTodoCargando}
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
+            />
 
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <button
@@ -750,7 +867,7 @@ export default function ConfiguracionPage() {
               </button>
               <button
                 type="submit"
-                disabled={eliminandoTodoCargando || passwordEliminarTodo.length === 0}
+                disabled={eliminandoTodoCargando || passwordEliminarTodo.length === 0 || pinAccion.length < 4}
                 className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {eliminandoTodoCargando ? 'Procesando…' : 'Sí, eliminar todo'}
@@ -795,27 +912,6 @@ export default function ConfiguracionPage() {
           </p>
         )}
 
-        {/* Borrar TODO de todo */}
-        <div className="flex items-center gap-3">
-          <span className="h-px w-8 bg-gradient-to-r from-red-400/80 to-transparent" />
-          <h4 className="text-base font-semibold text-white">Borrar TODO de todo</h4>
-        </div>
-        <p className="text-sm text-slate-400">
-          Borra votantes, candidatos, mesas, votos y restablece la configuración. No se puede deshacer.
-        </p>
-        <button
-          type="button"
-          onClick={() => { setConfirmandoBorrarTodo(true); setPasswordBorrarTodo(''); setErrorBorrarTodo(null) }}
-          disabled={borrandoTodo}
-          className="w-full rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-left transition hover:bg-red-500/20 disabled:opacity-50"
-        >
-          <div className="flex items-center gap-2">
-            <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />
-            <span>Borrar TODO de todo</span>
-          </div>
-          <p className="mt-1 text-xs text-slate-500">Padrón, candidatos, mesas, votos y configuración</p>
-        </button>
-        {errorBorrarTodo && <p className="mt-3 text-sm text-red-400">{errorBorrarTodo}</p>}
       </div>
 
       {confirmandoBorrarTodo && (
@@ -858,7 +954,24 @@ export default function ConfiguracionPage() {
               className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
             />
 
+            {errorPin && <p className="mt-3 text-sm text-red-400">{errorPin}</p>}
+
             {errorBorrarTodo && <p className="mt-3 text-sm text-red-400">{errorBorrarTodo}</p>}
+
+            <label htmlFor="pin-borrar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
+              PIN de seguridad
+            </label>
+            <input
+              id="pin-borrar-todo"
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              autoComplete="off"
+              value={pinAccion}
+              onChange={(e) => setPinAccion(e.target.value.replace(/\D/g, ''))}
+              disabled={borrandoTodo}
+              className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
+            />
 
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <button
@@ -871,7 +984,7 @@ export default function ConfiguracionPage() {
               </button>
               <button
                 type="submit"
-                disabled={borrandoTodo || passwordBorrarTodo.length === 0}
+                disabled={borrandoTodo || passwordBorrarTodo.length === 0 || pinAccion.length < 4}
                 className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {borrandoTodo ? 'Borrando…' : 'Sí, borrar todo de todo'}

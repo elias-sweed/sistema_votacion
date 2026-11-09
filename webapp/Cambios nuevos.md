@@ -2072,6 +2072,15 @@ Se separó el padrón de las mesas para que agregar votantes sea más simple.
 
 `webapp/supabase/migrations/013_admin_uuid_permisos_completos.sql` se actualizó con la misma versión corregida.
 
+### 4. Configuración — «Borrar TODO de todo» y PIN de seguridad
+
+`webapp/src/features/configuracion/ConfiguracionPage.tsx`:
+
+- El botón y el título **«Borrar TODO de todo»** se movieron desde la tarjeta «Modo Ensayo y Restablecimiento» a la tarjeta **«Eliminar todo (solo admin)»**.
+- La tarjeta «Eliminar todo (solo admin)» ahora muestra, la primera vez que se entra, el formulario para **configurar el PIN de seguridad** (4 dígitos).
+- Tras configurar el PIN, se muestran las acciones destructivas (votantes, candidatos, centro) y el botón **«Borrar TODO de todo»**.
+- Los modales de confirmación piden además el **PIN de seguridad** (segundo factor, aparte del login) antes de ejecutar el borrado.
+
 ### 3. Verificación
 
 | Comprobación | Resultado |
