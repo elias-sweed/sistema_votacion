@@ -2090,6 +2090,14 @@ Se separó el padrón de las mesas para que agregar votantes sea más simple.
   - **Texto** `Ubuntu Mono` desde `webapp/src/assets/Fonts/Text_Ubuntu_Mono/UbuntuMono-Regular.ttf` (+ Bold).
 - Los títulos (`h1`–`h6`) usan **Bungee Spice**; los textos usan **Ubuntu Mono**. Solo se combinan estas dos fuentes.
 
+### 6. Carga con skeleton y caché en Configuración
+
+- `webapp/src/lib/panelCache.ts`: nueva clave de caché `configuracion`.
+- `webapp/src/features/panel/PanelSkeletons.tsx`: nuevo skeleton `ConfiguracionSkeleton`.
+- `webapp/src/features/configuracion/ConfiguracionPage.tsx`: hidrata la configuración desde caché en el primer render y muestra `ConfiguracionSkeleton` solo cuando no hay caché; guarda la configuración en caché al cargar/guardar.
+
+Con esto, **Padrón** y **Configuración** se comportan como Inicio, Candidatos y Mesa: skeleton solo en la primera entrada y carga directa (caché) en reentradas.
+
 ### 3. Verificación
 
 | Comprobación | Resultado |

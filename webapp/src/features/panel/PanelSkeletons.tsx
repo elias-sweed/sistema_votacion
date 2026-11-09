@@ -104,3 +104,16 @@ export function PadronSkeleton() {
     </section>
   )
 }
+
+export function ConfiguracionSkeleton() {
+  return (
+    <div className="space-y-6" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">Cargando configuración…</span>
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-6 w-72" />
+      </div>
+      <Skeleton className="h-[104px] rounded-3xl" />
+      <Skeleton className="h-[340px] rounded-3xl" />
+    </div>
+  )
+}

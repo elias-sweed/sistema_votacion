@@ -12,6 +12,7 @@ export const CLAVES_CACHE = {
   dashboard: 'dashboard',
   candidatos: 'candidatos',
   mesas: 'mesas',
+  configuracion: 'configuracion',
   padronLista: 'padron:lista',
   padronMesas: 'padron:mesas',
   padronEstadisticas: 'padron:estadisticas'

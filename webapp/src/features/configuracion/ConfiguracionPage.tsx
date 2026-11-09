@@ -6,7 +6,9 @@ import ImageAdd01Icon from '@hugeicons/core-free-icons/ImageAdd01Icon'
 import ImageUpload01Icon from '@hugeicons/core-free-icons/ImageUpload01Icon'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
+import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
+import { ConfiguracionSkeleton } from '../panel/PanelSkeletons'
 import {
   estaActivoEnsayo,
   activarEnsayo,
@@ -56,13 +58,14 @@ function comprimirLogo(file: File): Promise<string> {
 export default function ConfiguracionPage() {
   const toast = useToast()
   const archivoRef = useRef<HTMLInputElement>(null)
-  const [config, setConfig] = useState<Config | null>(null)
-  const [titulo, setTitulo] = useState('')
-  const [centro, setCentro] = useState('')
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [configInicial] = useState<Config | null>(() => leerCache<Config>(CLAVES_CACHE.configuracion))
+  const [config, setConfig] = useState<Config | null>(configInicial)
+  const [titulo, setTitulo] = useState(configInicial?.titulo ?? '')
+  const [centro, setCentro] = useState(configInicial?.centro ?? '')
+  const [logoUrl, setLogoUrl] = useState<string | null>(configInicial?.logo_url ?? null)
   const [nombreArchivo, setNombreArchivo] = useState<string | null>(null)
   const [arrastrando, setArrastrando] = useState(false)
-  const [cargando, setCargando] = useState(true)
+  const [cargando, setCargando] = useState(configInicial === null)
   const [guardando, setGuardando] = useState(false)
   const [cambiandoEstado, setCambiandoEstado] = useState(false)
   const [confirmando, setConfirmando] = useState<boolean | null>(null)
@@ -113,6 +116,7 @@ export default function ConfiguracionPage() {
     setCentro(fila.centro)
     setLogoUrl(fila.logo_url ?? null)
     setNombreArchivo(null)
+    guardarCache(CLAVES_CACHE.configuracion, fila)
   }
 
   useEffect(() => {
@@ -443,11 +447,7 @@ export default function ConfiguracionPage() {
         <h2 className="text-xl font-bold text-white">Configuración de la elección</h2>
       </div>
 
-      {cargando && (
-        <p className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-6 text-sm text-slate-400">
-          Cargando configuración…
-        </p>
-      )}
+      {cargando && <ConfiguracionSkeleton />}
 
       {error && (
         <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
