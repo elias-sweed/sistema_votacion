@@ -1965,3 +1965,31 @@ Todos usan `animate-pulse`, `role="status"` y `aria-busy`.
 | `npm run build` | ✅ |
 
 **Se hizo commit y push. No se desplegó en Vercel.**
+
+### 6. Diagnóstico de CORS y despliegue de la función
+
+Al abrir un enlace de mesa en desarrollo, el navegador mostró:
+
+```
+Access to fetch at '.../functions/v1/voting-proxy' from origin 'http://localhost:5173'
+has been blocked by CORS policy: Response to preflight request doesn't pass access control check:
+It does not have HTTP ok status.
+```
+
+**Causa:** la Edge Function `voting-proxy` no está desplegada. Una petición `OPTIONS` directa al endpoint devuelve `404 NOT_FOUND`, por eso el preflight no tiene estado 2xx y el navegador bloquea la llamada. Sin función no se obtiene el estado, y por eso tampoco aparecen el título, el nombre de la I.E ni el logo.
+
+**Correcciones:**
+
+- `supabase/config.toml` fija `verify_jwt = false` para `voting-proxy`, de modo que el gateway no rechace el preflight del kiosco público.
+- `votingService.ts` ahora trata `FunctionsFetchError` (fallo de red/CORS) como servicio no disponible y muestra un mensaje accionable en lugar de «revisa la conexión».
+
+**Para completar el arreglo hay que desplegar la función:**
+
+```bash
+cd webapp
+npx supabase login
+npm run deploy:function
+npm run verify:prod
+```
+
+`deploy:function` ya usa `--no-verify-jwt`, y `verify:prod` confirma que el endpoint responde. Este paso requiere el token de acceso de Supabase; no se ejecutó desde el agente.

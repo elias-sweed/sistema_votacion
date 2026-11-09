@@ -1,0 +1,10 @@
+# Configuración de Supabase para este proyecto.
+# La función voting-proxy atiende al kiosco público: el navegador envía un
+# preflight OPTIONS sin Authorization, por lo que la verificación JWT del
+# gateway debe estar desactivada. La función valida el token de mesa y usa la
+# service role key solo del lado servidor.
+
+project_id = "msnvemicsuyaaqmwjvhi"
+
+[functions.voting-proxy]
+verify_jwt = false

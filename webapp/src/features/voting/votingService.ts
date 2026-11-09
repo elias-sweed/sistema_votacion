@@ -1,4 +1,4 @@
-import { FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js'
+import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 
 export type ElectionStatus = {
@@ -90,7 +90,9 @@ function isFunctionUnavailable(error: unknown): boolean {
     const context = error.context
     return context instanceof Response && (context.status === 404 || context.status === 503)
   }
-  return error instanceof FunctionsRelayError
+  // Un fallo de red o de CORS al invocar la función casi siempre significa que
+  // voting-proxy no está desplegada o que el gateway rechazó el preflight.
+  return error instanceof FunctionsRelayError || error instanceof FunctionsFetchError
 }
 
 function invalidMesaError(): VotingError {
