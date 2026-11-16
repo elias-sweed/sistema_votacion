@@ -18,6 +18,7 @@ import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
 import Edit02Icon from '@hugeicons/core-free-icons/Edit02Icon'
 import Rotate01Icon from '@hugeicons/core-free-icons/Rotate01Icon'
 import Link01Icon from '@hugeicons/core-free-icons/Link01Icon'
+import CommandLineIcon from '@hugeicons/core-free-icons/CommandLineIcon'
 import Table01Icon from '@hugeicons/core-free-icons/Table01Icon'
 
 import {
@@ -61,6 +62,17 @@ function enlaceDeMesa(mesa: Mesa): string {
   return `${window.location.origin}/votar/${mesa.token_acceso}`
 }
 
+/**
+ * Comando para abrir la mesa a pantalla completa en la máquina del salón.
+ * Usa la ruta estándar de Chrome en Windows; la guía MODO_KIOSCO.md incluye
+ * alternativas para Edge, macOS y Linux.
+ */
+function comandoKiosco(mesa: Mesa): string {
+  const enlace = enlaceDeMesa(mesa)
+  if (!enlace) return ''
+  return `& "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --kiosk "${enlace}"`
+}
+
 export default function MesasPage() {
   const toast = useToast()
   const [mesasInicial] = useState(() => leerCache<Mesa[]>(CLAVES_CACHE.mesas))
@@ -81,6 +93,7 @@ export default function MesasPage() {
   const [rotandoId, setRotandoId] = useState<string | null>(null)
   const [confirmandoRotar, setConfirmandoRotar] = useState<Mesa | null>(null)
   const [copiadoId, setCopiadoId] = useState<string | null>(null)
+  const [copiadoComandoId, setCopiadoComandoId] = useState<string | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<Mesa | null>(null)
   const [passwordEliminar, setPasswordEliminar] = useState('')
   const [eliminando, setEliminando] = useState(false)
@@ -286,6 +299,30 @@ export default function MesasPage() {
       return
     }
     window.open(enlace, '_blank', 'noopener,noreferrer')
+  }
+
+  async function copiarComandoKiosco(m: Mesa) {
+    const comando = comandoKiosco(m)
+    if (!comando) {
+      setError('Esta mesa no tiene enlace.')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(comando)
+      setCopiadoComandoId(m.id)
+      toast({
+        title: 'Comando kiosco copiado',
+        description: m.nombre,
+        variant: 'success',
+        duration: 2500
+      })
+      window.setTimeout(
+        () => setCopiadoComandoId((actual) => actual === m.id ? null : actual),
+        2500
+      )
+    } catch {
+      setError('No se pudo copiar el comando.')
+    }
   }
 
   async function rotarEnlace(m: Mesa) {
@@ -494,10 +531,24 @@ export default function MesasPage() {
             <summary className="cursor-pointer select-none font-medium text-slate-400 transition hover:text-white">
               ℹ️ Cómo funciona el enlace de cada mesa
             </summary>
-            <p className="mt-1.5 leading-relaxed">
-              Cada mesa recibe un enlace único. Ábrelo en la máquina de ese salón y el voto quedará
-              registrado en esa mesa. Si regeneras el enlace, el anterior deja de funcionar.
-            </p>
+            <div className="mt-1.5 space-y-2 leading-relaxed">
+              <p>
+                Cada mesa recibe un enlace único. Ábrelo en la máquina de ese salón y el voto quedará
+                registrado en esa mesa. Si regeneras el enlace, el anterior deja de funcionar.
+              </p>
+              <p>
+                Para dejarla a pantalla completa, abre Chrome así en la máquina del salón:
+              </p>
+              <code className="block overflow-x-auto rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-[11px] text-slate-300">
+                chrome --kiosk "https://tu-dominio/votar/TOKEN"
+              </code>
+              <p>
+                En el menú <span className="text-slate-300">Más</span> de cada mesa tienes{' '}
+                <span className="text-slate-300">Copiar comando kiosco</span>. La guía completa
+                (Edge, macOS, Linux e inicio automático) está en{' '}
+                <span className="text-slate-300">MODO_KIOSCO.md</span>.
+              </p>
+            </div>
           </details>
         </div>
       </AdminCard>
@@ -623,6 +674,15 @@ export default function MesasPage() {
                           >
                             <HugeiconsIcon icon={Rotate01Icon} size={13} strokeWidth={1.8} />
                             Regenerar enlace
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setMenuAbierto(null); void copiarComandoKiosco(m) }}
+                            disabled={!enlace}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.05] hover:text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <HugeiconsIcon icon={CommandLineIcon} size={13} strokeWidth={1.8} />
+                            {copiadoComandoId === m.id ? 'Comando copiado' : 'Copiar comando kiosco'}
                           </button>
                           <button
                             type="button"

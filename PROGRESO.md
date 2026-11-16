@@ -49,8 +49,9 @@ sistema_votacion/
 | 8. Pantalla kiosco `/votar` | ✅ | DNI con numpad → verificación → candidatos → confirmación → agradecimiento |
 | 9. Resultados en vivo | ✅ | Conteo por candidato, podio, participación por mesa, actualización Realtime + sondeo de respaldo y acta imprimible en PDF |
 | 10. Robustez offline | ✅ | PWA instalable con shell cacheado e iconos; aviso global sin conexión y bloqueo del voto en kiosco. Sin cola local de votos (privacidad e integridad) |
+| 11. Modo kiosco | ✅ | Guía `webapp/MODO_KIOSCO.md`, script `scripts/kiosco-windows.ps1` y comando kiosco copiable desde Mesas |
 
-**Pendiente manual del usuario:** ejecutar `webapp/supabase/schema.sql` en SQL Editor y crear el usuario admin en Authentication → Users. Tener `webapp/.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. Para resultados en vivo, ejecutar además `webapp/supabase/migrations/014_resultados_realtime.sql`.
+**Pendiente manual del usuario:** ejecutar `webapp/supabase/schema.sql` en SQL Editor y crear el usuario admin en Authentication → Users. Tener `webapp/.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. Para resultados en vivo, ejecutar además `webapp/supabase/migrations/014_resultados_realtime.sql`. Para el modo kiosco, seguir `webapp/MODO_KIOSCO.md`.
 
 ## Plan UI/UX (`webapp/PLAN_UI_UX.md`)
 
@@ -73,8 +74,7 @@ sistema_votacion/
 
 | Fase | Descripción |
 |---|---|
-| 11. Modo quiosco | Instrucciones: `chrome --kiosk <url>/votar`, pantalla completa |
-| 12. Deploy | Vercel con Root Directory = `webapp`, variables de entorno, dominio |
+| 12. Deploy | Vercel con Root Directory = `webapp`, variables de entorno, dominio. `vercel.json` ya incluye cabeceras PWA y de seguridad; falta ejecutar el despliegue remoto con las credenciales del usuario |
 | 13. Datos de menores | Cumplir Ley 29733: borrar padrón post-elección, mínimizar datos |
 
 ## Comandos útiles
