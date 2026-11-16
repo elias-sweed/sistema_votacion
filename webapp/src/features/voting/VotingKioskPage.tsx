@@ -10,6 +10,7 @@ import {
   VotingError,
 } from './votingService'
 import type { ElectionStatus } from './votingService'
+import { useOnlineStatus } from '../../lib/useOnlineStatus'
 
 type Candidate = Awaited<ReturnType<typeof loadActiveCandidates>>[number]
 type Step = 'dni' | 'candidates' | 'confirm' | 'success' | 'notice' | 'ambiguous'
@@ -108,8 +109,10 @@ export default function VotingKioskPage() {
   const [submitting, setSubmitting] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const enLinea = useOnlineStatus()
 
-  const canStart = !loading && !loadError && status?.open && candidates.length > 0
+  const eleccionLista = !loading && !loadError && status?.open && candidates.length > 0
+  const canStart = enLinea && eleccionLista
 
   async function loadOptions() {
     if (!token) {
@@ -215,6 +218,10 @@ export default function VotingKioskPage() {
     const candidateId = selectedCandidateId
     const dni = dniRef.current
     if (!candidateId || !dni) return
+    if (!enLinea) {
+      setMessage('Sin conexión. Tu selección sigue en pantalla: espera a que vuelva internet y confirma de nuevo.')
+      return
+    }
 
     submittingRef.current = true
     setSubmitting(true)
@@ -305,6 +312,27 @@ export default function VotingKioskPage() {
           <p className="mt-3 text-sm text-white/90">Sigue las indicaciones en pantalla. Tu voto es secreto.</p>
         </header>
 
+        {!enLinea && (
+          <div
+            role="alert"
+            className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-400/40 bg-amber-500/15 px-4 py-3 text-left text-sm text-amber-100"
+          >
+            <span
+              aria-hidden="true"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/25 font-bold"
+            >
+              !
+            </span>
+            <div>
+              <p className="font-semibold">Sin conexión a internet</p>
+              <p className="mt-0.5 text-amber-100/85">
+                No se puede verificar el DNI ni registrar votos. Avisa al personal electoral y espera a
+                que vuelva la conexión.
+              </p>
+            </div>
+          </div>
+        )}
+
         <section
           className="rounded-3xl border border-white/10 bg-slate-950/75 p-5 shadow-2xl backdrop-blur-xl sm:p-8"
           aria-live="polite"
@@ -340,7 +368,7 @@ export default function VotingKioskPage() {
             </div>
           )}
 
-          {canStart && step === 'dni' && (
+          {eleccionLista && step === 'dni' && (
             <div className="mx-auto max-w-md space-y-6">
               <div className="text-center">
                 <h2 className="text-2xl font-semibold">Escribe tu DNI</h2>
@@ -472,7 +500,7 @@ export default function VotingKioskPage() {
                 <button type="button" disabled={submitting} onClick={() => { setMessage(null); setSelectedCandidateId(null); setStep('candidates') }} className="kiosk-button-secondary">
                   No, elegir otro
                 </button>
-                <button type="button" disabled={submitting} onClick={() => void submitVote()} className="kiosk-button-primary">
+                <button type="button" disabled={submitting || !enLinea} onClick={() => void submitVote()} className="kiosk-button-primary">
                   {submitting ? 'Guardando voto…' : 'Sí, confirmar mi voto'}
                 </button>
               </div>

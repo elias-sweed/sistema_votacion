@@ -8,6 +8,7 @@ import { esSesionAdmin } from './lib/session'
 import { limpiarCacheLegado, limpiarCachePanel } from './lib/panelCache'
 import ConfigErrorPage from './components/ConfigErrorPage'
 import { ToastProvider } from './components/ui/ToastProvider'
+import { EstadoConexion } from './components/ui/EstadoConexion'
 import AccessDeniedPage from './features/auth/AccessDeniedPage'
 import LoginPage from './features/auth/LoginPage'
 import PanelPage from './features/panel/PanelPage'
@@ -63,6 +64,7 @@ export default function App() {
           </main>
         ) : (
           <BrowserRouter>
+            <EstadoConexion />
             <Routes>
               <Route path="/votar/:token" element={<VotingKioskPage />} />
               <Route path="/votar" element={<VotingKioskPage />} />

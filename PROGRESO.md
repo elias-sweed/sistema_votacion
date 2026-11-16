@@ -48,6 +48,7 @@ sistema_votacion/
 | 7. Configuración elección | ✅ | Abrir/cerrar votación, título, centro, logo, PIN de seguridad y zona peligrosa |
 | 8. Pantalla kiosco `/votar` | ✅ | DNI con numpad → verificación → candidatos → confirmación → agradecimiento |
 | 9. Resultados en vivo | ✅ | Conteo por candidato, podio, participación por mesa, actualización Realtime + sondeo de respaldo y acta imprimible en PDF |
+| 10. Robustez offline | ✅ | PWA instalable con shell cacheado e iconos; aviso global sin conexión y bloqueo del voto en kiosco. Sin cola local de votos (privacidad e integridad) |
 
 **Pendiente manual del usuario:** ejecutar `webapp/supabase/schema.sql` en SQL Editor y crear el usuario admin en Authentication → Users. Tener `webapp/.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. Para resultados en vivo, ejecutar además `webapp/supabase/migrations/014_resultados_realtime.sql`.
 
@@ -72,7 +73,6 @@ sistema_votacion/
 
 | Fase | Descripción |
 |---|---|
-| 10. Robustez offline | vite-plugin-pwa + cola de votos en IndexedDB si se cae internet |
 | 11. Modo quiosco | Instrucciones: `chrome --kiosk <url>/votar`, pantalla completa |
 | 12. Deploy | Vercel con Root Directory = `webapp`, variables de entorno, dominio |
 | 13. Datos de menores | Cumplir Ley 29733: borrar padrón post-elección, mínimizar datos |

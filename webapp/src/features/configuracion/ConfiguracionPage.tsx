@@ -12,6 +12,7 @@ import { ConfiguracionSkeleton } from '../panel/PanelSkeletons'
 import { SectionHeader } from '../../components/ui/SectionHeader'
 import { AdminModal } from '../../components/ui/AdminModal'
 import { PasswordInput } from '../../components/ui/PasswordInput'
+import candadoImg from '../../assets/candado.png'
 import {
   estaActivoEnsayo,
   activarEnsayo,
@@ -27,7 +28,7 @@ type Config = {
 }
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024
-const CANDADO_IMG = '/assets/candado.png'
+const CANDADO_IMG = candadoImg
 
 // Reduce el logo a 512 px. Se conserva PNG cuando el navegador no soporta WebP
 // para no perder la transparencia del escudo o logotipo.
