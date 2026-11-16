@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Bungee Spice";
+  src: url("./assets/Fonts/Tittle_Bungee_Spice/BungeeSpice-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Ubuntu Mono";
+  src: url("./assets/Fonts/Text_Ubuntu_Mono/UbuntuMono-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Ubuntu Mono";
+  src: url("./assets/Fonts/Text_Ubuntu_Mono/UbuntuMono-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background-color: #03040b;
+  font-family: "Ubuntu Mono", monospace;
+}
+
+/*
+ * En el panel admin los títulos deben ser legibles y rápidos de escanear.
+ * "Bungee Spice" queda reservada para el kiosco mediante .font-display.
+ */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Ubuntu Mono", monospace;
+}
+
+.font-display {
+  font-family: "Bungee Spice", sans-serif;
+}
+
+/* Focus visible consistente en todos los controles interactivos. */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 3px;
+}
+
+.kiosk-button-primary,
+.kiosk-button-secondary {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  font-weight: 700;
+  transition: background-color 150ms ease, border-color 150ms ease, opacity 150ms ease;
+}
+
+.kiosk-button-primary {
+  border: 1px solid rgb(125 211 252 / 0.4);
+  background: linear-gradient(110deg, #2563eb, #0284c7);
+  color: white;
+}
+
+.kiosk-button-primary:hover:not(:disabled) {
+  background: linear-gradient(110deg, #1d4ed8, #0369a1);
+}
+
+.kiosk-button-secondary {
+  border: 1px solid rgb(255 255 255 / 0.16);
+  background: rgb(255 255 255 / 0.05);
+  color: #e2e8f0;
+}
+
+.kiosk-button-secondary:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.kiosk-button-primary:disabled,
+.kiosk-button-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.kiosk-button-primary:focus-visible,
+.kiosk-button-secondary:focus-visible {
+  outline: 2px solid #7dd3fc;
+  outline-offset: 3px;
+}
+
+@keyframes mh-mesh {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes mh-mesh-reverse {
+  0%,
+  100% {
+    background-position: 100% 0%;
+  }
+  50% {
+    background-position: 0% 100%;
+  }
+}
+
+.seccion-entrada {
+  animation: fadeIn 0.35s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Acta de resultados: oculta en pantalla, visible al imprimir o guardar como PDF. */
+.acta-imprimible {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 16mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .acta-imprimible,
+  .acta-imprimible * {
+    visibility: visible;
+  }
+
+  .acta-imprimible {
+    display: block !important;
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    color: #111111;
+    background: #ffffff;
+    font-family: "Ubuntu Mono", monospace;
+  }
+}
