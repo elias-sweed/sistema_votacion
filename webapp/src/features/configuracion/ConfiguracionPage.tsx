@@ -506,19 +506,19 @@ export default function ConfiguracionPage() {
           <div className="flex gap-1">
             <button
               onClick={() => setPestaniaActiva('general')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pestaniaActiva === 'general' ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30' : 'text-slate-400 hover:bg-white/[0.05] hover:text-white border border-transparent'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pestaniaActiva === 'general' ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white border border-transparent'}`}
             >
               General
             </button>
             <button
               onClick={() => setPestaniaActiva('seguridad')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pestaniaActiva === 'seguridad' ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30' : 'text-slate-400 hover:bg-white/[0.05] hover:text-white border border-transparent'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pestaniaActiva === 'seguridad' ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white border border-transparent'}`}
             >
               Seguridad
             </button>
             <button
               onClick={() => setPestaniaActiva('peligro')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pestaniaActiva === 'peligro' ? 'bg-red-500/20 text-red-200 border border-red-500/30' : 'text-slate-400 hover:bg-white/[0.05] hover:text-white border border-transparent'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pestaniaActiva === 'peligro' ? 'bg-red-500/20 text-red-200 border border-red-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white border border-transparent'}`}
             >
               Zona peligrosa
             </button>
@@ -566,8 +566,8 @@ export default function ConfiguracionPage() {
                     disabled={cambiandoEstado}
                     className={`rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 ${
                       abierta
-                        ? 'bg-gradient-to-r from-red-500 via-rose-500 to-red-600'
-                        : 'bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-600'
+                        ? 'bg-linear-to-r from-red-500 via-rose-500 to-red-600'
+                        : 'bg-linear-to-r from-emerald-400 via-teal-400 to-emerald-600'
                     }`}
                   >
                     {cambiandoEstado ? 'Aplicando…' : abierta ? 'Cerrar elección' : 'Abrir elección'}
@@ -577,7 +577,7 @@ export default function ConfiguracionPage() {
 
               <form
                 onSubmit={guardar}
-                className="space-y-5 rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl"
+                className="space-y-5 rounded-3xl border border-white/10 bg-white/4 p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl"
               >
                 <div>
                   <h3 className="text-lg font-semibold text-white">Datos que verán los votantes</h3>
@@ -650,7 +650,7 @@ export default function ConfiguracionPage() {
                         <button
                           type="button"
                           onClick={() => archivoRef.current?.click()}
-                          className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/[0.12]"
+                          className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/12"
                         >
                           Cambiar
                         </button>
@@ -681,14 +681,14 @@ export default function ConfiguracionPage() {
                       className={`group flex w-full flex-col items-center justify-center gap-2.5 rounded-2xl border border-dashed px-5 py-6 text-center transition ${
                         arrastrando
                           ? 'border-blue-400/70 bg-blue-500/10'
-                          : 'border-white/15 bg-black/20 hover:border-blue-300/40 hover:bg-white/[0.04]'
+                          : 'border-white/15 bg-black/20 hover:border-blue-300/40 hover:bg-white/4'
                       }`}
                     >
                       <span
                         className={`grid h-11 w-11 place-items-center rounded-2xl border transition ${
                           arrastrando
                             ? 'border-blue-400/40 bg-blue-500/20 text-blue-200'
-                            : 'border-white/10 bg-white/[0.05] text-slate-300 group-hover:text-blue-200'
+                            : 'border-white/10 bg-white/5 text-slate-300 group-hover:text-blue-200'
                         }`}
                       >
                         <HugeiconsIcon icon={ImageUpload01Icon} size={20} strokeWidth={1.7} />
@@ -701,7 +701,7 @@ export default function ConfiguracionPage() {
                           o selecciona un archivo desde tu equipo
                         </span>
                       </span>
-                      <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-2 text-xs font-medium text-slate-200 transition group-hover:bg-white/[0.1]">
+                      <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3.5 py-2 text-xs font-medium text-slate-200 transition group-hover:bg-white/10">
                         <HugeiconsIcon icon={ImageAdd01Icon} size={15} strokeWidth={1.8} />
                         Seleccionar imagen
                       </span>
@@ -717,7 +717,7 @@ export default function ConfiguracionPage() {
                   <button
                     type="submit"
                     disabled={guardando}
-                    className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-xl bg-linear-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {guardando ? 'Guardando…' : 'Guardar cambios'}
                   </button>
@@ -730,9 +730,9 @@ export default function ConfiguracionPage() {
           {pestaniaActiva === 'seguridad' && (
             <>
               {/* Toggle Modo Ensayo */}
-              <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4">
+              <div className="rounded-3xl border border-white/10 bg-white/4 p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4">
                 <div className="flex items-center gap-3">
-                  <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
+                  <span className="h-px w-8 bg-linear-to-r from-blue-400/80 to-transparent" />
                   <h3 className="text-lg font-semibold text-white">Modo Ensayo</h3>
                 </div>
 
@@ -758,15 +758,15 @@ export default function ConfiguracionPage() {
                 </div>
 
                 {modoEnsayo && (
-                  <p className="rounded-xl border border-blue-400/20 bg-blue-500/[0.06] px-4 py-3 text-xs leading-relaxed text-blue-100/80">
+                  <p className="rounded-xl border border-blue-400/20 bg-blue-500/6 px-4 py-3 text-xs leading-relaxed text-blue-100/80">
                     ⚠️ Modo ensayo activo: nada de lo que hagas aquí se guarda permanentemente.
                   </p>
                 )}
 
                 {/* Configuración de PIN */}
-                <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4 mt-6">
+                <div className="rounded-3xl border border-white/10 bg-white/4 p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4 mt-6">
                   <div className="flex items-center gap-3">
-                    <span className="h-px w-8 bg-gradient-to-r from-amber-400/80 to-transparent" />
+                    <span className="h-px w-8 bg-linear-to-r from-amber-400/80 to-transparent" />
                     <h3 className="text-lg font-semibold text-white">PIN de seguridad</h3>
                   </div>
                   <p className="text-sm text-slate-400">
@@ -774,7 +774,7 @@ export default function ConfiguracionPage() {
                   </p>
 
                   {pinSeguridad === null ? (
-                    <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-4 space-y-3">
+                    <div className="rounded-2xl border border-amber-400/20 bg-amber-400/6 p-4 space-y-3">
                       <p className="text-sm text-amber-100/80">
                         Configura el PIN de seguridad (doble factor de seguridad) para las acciones destructivas.
                       </p>
@@ -792,7 +792,7 @@ export default function ConfiguracionPage() {
                         <button
                           type="button"
                           onClick={() => guardarPinSeguridad(pinAccion)}
-                          className="rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+                          className="rounded-xl bg-linear-to-r from-amber-400 via-amber-500 to-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
                         >
                           Configurar PIN
                         </button>
@@ -818,7 +818,7 @@ export default function ConfiguracionPage() {
                         <button
                           type="button"
                           onClick={() => guardarPinSeguridad(pinAccion)}
-                          className="rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+                          className="rounded-xl bg-linear-to-r from-amber-400 via-amber-500 to-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
                         >
                           Actualizar PIN
                         </button>
@@ -835,18 +835,18 @@ export default function ConfiguracionPage() {
           {pestaniaActiva === 'peligro' && (
             <>
               <div
-                className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4"
+                className="relative rounded-3xl border border-white/10 bg-white/4 p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4"
               >
                 <div className="flex items-center gap-3">
-                  <span className="h-px w-8 bg-gradient-to-r from-red-400/80 to-transparent" />
-                  <h3 className="text-lg font-semibold text-white text-red-300">⚠️ Zona peligrosa</h3>
+                  <span className="h-px w-8 bg-linear-to-r from-red-400/80 to-transparent" />
+                  <h3 className="text-lg font-semibold text-white">⚠️ Zona peligrosa</h3>
                 </div>
                 <p className="text-sm text-slate-400">
                   Estas acciones borran datos permanentemente. Requieren tu contraseña de administrador y el PIN de seguridad.
                 </p>
 
                 {zonaPeligroBloqueada && (
-                  <div className="flex items-center gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3">
+                  <div className="flex items-center gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/6 px-4 py-3">
                     <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-400/25 bg-amber-400/10">
                       <img src={CANDADO_IMG} alt="" className="h-6 w-6 object-contain" />
                     </span>
@@ -858,7 +858,7 @@ export default function ConfiguracionPage() {
 
                 {/* Cuando está bloqueado, mostrar formulario de desbloqueo debajo del candado */}
                 {zonaPeligroBloqueada ? (
-                  <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-6 space-y-4">
+                  <div className="rounded-2xl border border-amber-400/20 bg-amber-400/6 p-6 space-y-4">
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div>
                         <label htmlFor="zona-peligro-pin" className="mb-1 block text-xs text-slate-400">PIN de seguridad</label>
@@ -913,7 +913,7 @@ export default function ConfiguracionPage() {
                         type="button"
                         onClick={() => void desbloquearZonaPeligro()}
                         disabled={zonaPeligroPin.length < 4 || zonaPeligroEmail.trim().length === 0 || zonaPeligroPassword.length === 0}
-                        className="rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-xl bg-linear-to-r from-amber-400 via-amber-500 to-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Desbloquear zona
                       </button>
@@ -962,8 +962,8 @@ export default function ConfiguracionPage() {
 
                     {/* Borrar TODO de todo */}
                     <div className="flex items-center gap-3">
-                      <span className="h-px w-8 bg-gradient-to-r from-red-400/80 to-transparent" />
-                      <h4 className="text-base font-semibold text-white text-red-300">Reinicio total del sistema</h4>
+                      <span className="h-px w-8 bg-linear-to-r from-red-400/80 to-transparent" />
+                      <h4 className="text-base font-semibold text-white">Reinicio total del sistema</h4>
                     </div>
                     <p className="text-sm text-slate-400">
                       Borra votantes, candidatos, mesas, votos y restablece la configuración. No se puede deshacer.
@@ -989,7 +989,7 @@ export default function ConfiguracionPage() {
                           setZonaPeligroBloqueada(true)
                           cerrarDesbloqueo()
                         }}
-                        className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
+                        className="rounded-xl border border-white/10 bg-white/4 px-4 py-2 text-xs font-medium text-slate-400 transition hover:bg-white/8 hover:text-white"
                       >
                         Bloquear zona de nuevo
                       </button>
@@ -1036,7 +1036,7 @@ export default function ConfiguracionPage() {
           loading={eliminandoTodoCargando}
           onConfirm={() => void ejecutarEliminarTodo()}
         >
-          <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
+          <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/6 px-3 py-2 text-xs text-amber-100/80">
             Para confirmar, escribe la contraseña de tu cuenta de administrador.
           </p>
 
@@ -1083,7 +1083,7 @@ export default function ConfiguracionPage() {
           loading={borrandoTodo}
           onConfirm={() => void ejecutarBorrarTodo()}
         >
-          <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
+          <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/6 px-3 py-2 text-xs text-amber-100/80">
             Para confirmar, escribe la contraseña de tu cuenta de administrador.
           </p>
 
