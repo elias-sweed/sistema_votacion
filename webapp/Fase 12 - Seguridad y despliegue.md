@@ -1,6 +1,7 @@
 # Fase 12 — Seguridad de acceso y despliegue
 
-Estado: **código listo, despliegue remoto pendiente de credenciales**.
+Estado: **código y configuración listos; despliegue remoto pendiente de
+credenciales y dominio**.
 
 Objetivo: cerrar el acceso de prueba que abría el panel a cualquier usuario
 autenticado, endurecer el manejo de sesión y caché en equipos compartidos y
@@ -52,6 +53,25 @@ dejar listo el despliegue de `voting-proxy`.
   ahora incluye `app_metadata: { role: 'admin' }`.
 - `supabase/scripts/verificar_produccion.mjs`: comprueba que `voting-proxy`
   responde con el formato esperado.
+
+### 1.5 PWA y cabeceras de Vercel
+
+`vercel.json` mantiene el rewrite de SPA y añade:
+
+| Ruta | Cabeceras | Motivo |
+|---|---|---|
+| `/assets/(.*)` | `Cache-Control: public, max-age=31536000, immutable` | Los nombres llevan hash; se pueden cachear un año. |
+| `/sw.js` | `no-cache, no-store, must-revalidate` + `Content-Type` JS | El navegador debe ver siempre la última versión del service worker. |
+| `/workbox-(.*).js` | `no-cache` | Igual que `sw.js`. |
+| `/manifest.webmanifest` | `application/manifest+json` + `no-cache` | Evita que el manifest quede obsoleto. |
+| Todas | `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security` | Endurecimiento básico. |
+
+El service worker **solo precachea el shell** (HTML, JS, CSS, fuentes e
+iconos). No se cachean consultas a Supabase, respuestas de `voting-proxy` ni
+votos. La votación sigue siendo online-only: ver `MODO_KIOSCO.md`.
+
+> La CSP queda pendiente: requiere ajustar orígenes de Supabase y estilos
+> inline antes de activarla en producción.
 
 > Importante: `usuarios_admin` deja de usarse para autorizar. No se elimina
 > la tabla para no borrar datos, pero ya no influye en `is_app_admin()`.
@@ -115,7 +135,21 @@ Debe imprimir `OK: voting-proxy está desplegada y responde correctamente.`
 Si responde 404, la función no se desplegó. Si responde 401/403, revisar
 `--no-verify-jwt`.
 
-### 2.5 Redesplegar la PWA
+### 2.5 Configurar el proyecto en Vercel
+
+1. Importar el repositorio en Vercel.
+2. **Root Directory:** `webapp`.
+3. **Framework Preset:** Vite (build `npm run build`, output `dist`).
+4. Variables de entorno (Production y Preview):
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+5. Dominio: usar el dominio `*.vercel.app` o uno propio. El service worker y
+   la instalación PWA requieren HTTPS; Vercel lo entrega por defecto.
+
+No hace falta definir `SUPABASE_SERVICE_ROLE_KEY` en Vercel: esa clave vive
+solo en la Edge Function.
+
+### 2.6 Redesplegar la PWA
 
 El cambio de gate y de sesión solo llega a producción al desplegar:
 
@@ -124,6 +158,20 @@ vercel --prod
 ```
 
 o haciendo push a la rama conectada en Vercel.
+
+Tras el despliegue, comprobar que `/sw.js` responde con `no-cache` y que
+`/manifest.webmanifest` devuelve `application/manifest+json`.
+
+### 2.7 Dejar listo el kiosco
+
+Una vez desplegado, seguir `MODO_KIOSCO.md`:
+
+1. Copiar el enlace de cada mesa desde **Mesas**.
+2. Abrir Chrome o Edge con `--kiosk` en la máquina del salón.
+3. Verificar el checklist del día de la elección.
+
+La app es instalable como PWA, pero el voto requiere conexión: si se cae la
+red, el kiosco avisa y bloquea la confirmación.
 
 ---
 
@@ -138,6 +186,12 @@ o haciendo push a la rama conectada en Vercel.
    - `localStorage` no debe contener claves `sv-panel-cache:v1:*`.
    - `sessionStorage` puede contener la caché mientras la pestaña está abierta.
 6. Abrir `/votar` y completar un voto de prueba.
+7. En DevTools → Application → Service Workers: el SW debe estar activo y
+   `Cache Storage` solo debe contener el precache del shell.
+8. Detener la red (DevTools → Network → Offline) y recargar `/login`: la app
+   debe cargar y mostrar el aviso “Sin conexión”.
+9. En `/votar` sin red: debe verse el aviso y el botón de confirmar voto debe
+   quedar deshabilitado.
 
 ---
 
@@ -148,5 +202,8 @@ o haciendo push a la rama conectada en Vercel.
   correcto; hacerlo en una ventana de mantenimiento.
 - `sessionStorage` no protege frente a XSS. La mitigación real es CSP y evitar
   inyectar HTML; queda pendiente en la fase de endurecimiento (P2).
-- El bundle principal sigue en ~929 kB. La división en chunks es parte de la
-  fase PWA/rendimiento, no de esta fase.
+- El bundle principal ronda los 841 kB (~245 kB gzip). La división en chunks
+  con `manualChunks` sigue pendiente como mejora de rendimiento; el precache
+  del shell no incluye el fondo grande del kiosco (`fondo-*.jpg`).
+- Las cabeceras de seguridad son básicas. `X-Frame-Options: SAMEORIGIN` evita
+  embeber la app en otros sitios, pero no sustituye una CSP completa.
