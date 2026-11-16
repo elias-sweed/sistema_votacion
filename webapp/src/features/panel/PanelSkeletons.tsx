@@ -117,3 +117,32 @@ export function ConfiguracionSkeleton() {
     </div>
   )
 }
+
+export function ResultadosSkeleton() {
+  return (
+    <div className="space-y-6" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">Cargando resultados en vivo…</span>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="space-y-2 rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl"
+          >
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-[190px] rounded-3xl" />
+        ))}
+      </div>
+
+      <Skeleton className="h-[320px] rounded-3xl" />
+    </div>
+  )
+}

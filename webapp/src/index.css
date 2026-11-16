@@ -149,3 +149,38 @@ a:focus-visible,
     transform: scale(1);
   }
 }
+
+/* Acta de resultados: oculta en pantalla, visible al imprimir o guardar como PDF. */
+.acta-imprimible {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 16mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .acta-imprimible,
+  .acta-imprimible * {
+    visibility: visible;
+  }
+
+  .acta-imprimible {
+    display: block !important;
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    color: #111111;
+    background: #ffffff;
+    font-family: "Ubuntu Mono", monospace;
+  }
+}

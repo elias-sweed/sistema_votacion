@@ -1,13 +1,14 @@
 'use client'
 
 import { HugeiconsIcon } from '@hugeicons/react'
+import ChartBarBigIcon from '@hugeicons/core-free-icons/ChartBarBigIcon'
 import Home01Icon from '@hugeicons/core-free-icons/Home01Icon'
 import IdCardIcon from '@hugeicons/core-free-icons/IdCardIcon'
 import Settings01Icon from '@hugeicons/core-free-icons/Settings01Icon'
 import Table01Icon from '@hugeicons/core-free-icons/Table01Icon'
 import UserGroupIcon from '@hugeicons/core-free-icons/UserGroupIcon'
 
-type Vista = 'inicio' | 'candidatos' | 'mesas' | 'padron' | 'configuracion'
+type Vista = 'inicio' | 'candidatos' | 'mesas' | 'padron' | 'resultados' | 'configuracion'
 
 type SidebarProps = {
   collapsed: boolean
@@ -25,6 +26,7 @@ const ITEMS: Array<{
   { vista: 'candidatos', label: 'Candidatos', icon: UserGroupIcon },
   { vista: 'mesas', label: 'Mesas', icon: Table01Icon },
   { vista: 'padron', label: 'Padrón', icon: IdCardIcon },
+  { vista: 'resultados', label: 'Resultados', icon: ChartBarBigIcon },
   { vista: 'configuracion', label: 'Configuración', icon: Settings01Icon }
 ]
 

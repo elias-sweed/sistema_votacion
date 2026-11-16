@@ -15,7 +15,8 @@ export const CLAVES_CACHE = {
   configuracion: 'configuracion',
   padronLista: 'padron:lista',
   padronMesas: 'padron:mesas',
-  padronEstadisticas: 'padron:estadisticas'
+  padronEstadisticas: 'padron:estadisticas',
+  resultados: 'resultados'
 } as const
 
 type Entrada<T> = {

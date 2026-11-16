@@ -47,8 +47,9 @@ sistema_votacion/
 | 6. Padrón electoral | ✅ | Importación CSV/Excel, alta manual, búsqueda, eliminación individual y masiva |
 | 7. Configuración elección | ✅ | Abrir/cerrar votación, título, centro, logo, PIN de seguridad y zona peligrosa |
 | 8. Pantalla kiosco `/votar` | ✅ | DNI con numpad → verificación → candidatos → confirmación → agradecimiento |
+| 9. Resultados en vivo | ✅ | Conteo por candidato, podio, participación por mesa, actualización Realtime + sondeo de respaldo y acta imprimible en PDF |
 
-**Pendiente manual del usuario:** ejecutar `webapp/supabase/schema.sql` en SQL Editor y crear el usuario admin en Authentication → Users. Tener `webapp/.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
+**Pendiente manual del usuario:** ejecutar `webapp/supabase/schema.sql` en SQL Editor y crear el usuario admin en Authentication → Users. Tener `webapp/.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. Para resultados en vivo, ejecutar además `webapp/supabase/migrations/014_resultados_realtime.sql`.
 
 ## Plan UI/UX (`webapp/PLAN_UI_UX.md`)
 
@@ -58,7 +59,7 @@ sistema_votacion/
 | 2. Navegación | ✅ | Sidebar colapsable + top bar con breadcrumb y transiciones entre secciones |
 | 3. Secciones | ✅ | Mesas simplificadas, candidatos con lista/galería editable, padrón en 2 filas con stepper de importación, configuración en pestañas |
 | 4. Polish | ✅ | `AdminModal` con foco y tonos, textos de modales/toasts específicos, empty states con icono y CTA, `AdminSelect` propio |
-| 5. Extras | ✅ | Mostrar/ocultar contraseña, atajos de teclado (`1`–`5`, `/`, `Esc`), acciones masivas en padrón, export CSV filtrado, toggle lista/galería |
+| 5. Extras | ✅ | Mostrar/ocultar contraseña, atajos de teclado (`1`–`6`, `/`, `Esc`), acciones masivas en padrón, export CSV filtrado, toggle lista/galería |
 
 **Detalles del cierre de UI/UX:**
 - `Bungee Spice` quedó reservada al kiosco mediante `.font-display`; el panel usa Ubuntu Mono.
@@ -71,7 +72,6 @@ sistema_votacion/
 
 | Fase | Descripción |
 |---|---|
-| 9. Resultados en vivo | Vista `resultados` + Supabase Realtime en panel admin. Exportar acta PDF |
 | 10. Robustez offline | vite-plugin-pwa + cola de votos en IndexedDB si se cae internet |
 | 11. Modo quiosco | Instrucciones: `chrome --kiosk <url>/votar`, pantalla completa |
 | 12. Deploy | Vercel con Root Directory = `webapp`, variables de entorno, dominio |

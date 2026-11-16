@@ -9,7 +9,7 @@ import { Badge } from '../../components/ui/Badge'
 import { AdminCard } from '../../components/ui/AdminCard'
 import { AdminButton } from '../../components/ui/AdminButton'
 
-type Vista = 'candidatos' | 'mesas' | 'padron' | 'configuracion'
+type Vista = 'candidatos' | 'mesas' | 'padron' | 'resultados' | 'configuracion'
 
 type Resumen = {
   votantes: number
@@ -165,6 +165,24 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
         <DashboardSkeleton />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+          <AdminCard
+            className="border-emerald-400/20 bg-gradient-to-br from-emerald-400/[0.08] via-transparent to-transparent transition hover:border-emerald-400/40 sm:col-span-2"
+            onClick={() => onNavigate('resultados')}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-emerald-200/70">Resultados en vivo</p>
+                <p className="text-2xl font-bold text-white">
+                  {resumen.votaron} {resumen.votaron === 1 ? 'voto emitido' : 'votos emitidos'}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {participacion}% de participación · {resumen.pendientes} pendientes
+                </p>
+              </div>
+              <Badge variant="success">Ver conteo</Badge>
+            </div>
+          </AdminCard>
+
           <AdminCard className="hover:border-blue-400/40 transition border-transparent" onClick={() => onNavigate('candidatos')}>
             <div className="flex items-center justify-between">
               <div>

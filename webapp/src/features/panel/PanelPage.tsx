@@ -12,14 +12,16 @@ import ConfiguracionPage from '../configuracion/ConfiguracionPage'
 import DashboardPage from '../dashboard/DashboardPage'
 import MesasPage from '../mesas/MesasPage'
 import PadronPage from '../padron/PadronPage'
+import ResultadosPage from '../resultados/ResultadosPage'
 
-type Vista = 'inicio' | 'candidatos' | 'mesas' | 'padron' | 'configuracion'
+type Vista = 'inicio' | 'candidatos' | 'mesas' | 'padron' | 'resultados' | 'configuracion'
 
 const SUBTITULOS: Record<Vista, string> = {
   inicio: 'Estado general del proceso electoral.',
   candidatos: 'Gestiona los candidatos y su estado.',
   mesas: 'Administra las mesas, sus enlaces y la participación.',
   padron: 'Importa y supervisa el padrón electoral.',
+  resultados: 'Sigue el conteo de votos y la participación en vivo.',
   configuracion: 'Abre o cierra la elección y define los datos del centro.'
 }
 
@@ -27,6 +29,7 @@ const VISTA_POR_SECCION: Record<string, Vista> = {
   candidatos: 'candidatos',
   mesas: 'mesas',
   padron: 'padron',
+  resultados: 'resultados',
   configuracion: 'configuracion'
 }
 
@@ -35,6 +38,7 @@ const BREADCRUMB: Record<Vista, string> = {
   candidatos: 'Panel > Candidatos',
   mesas: 'Panel > Mesas',
   padron: 'Panel > Padrón',
+  resultados: 'Panel > Resultados',
   configuracion: 'Panel > Configuración'
 }
 
@@ -57,7 +61,8 @@ export default function PanelPage() {
       '2': 'candidatos',
       '3': 'mesas',
       '4': 'padron',
-      '5': 'configuracion'
+      '5': 'configuracion',
+      '6': 'resultados'
     }
 
     const alPresionar = (event: KeyboardEvent) => {
@@ -146,6 +151,7 @@ export default function PanelPage() {
             {vista === 'candidatos' && <CandidatosPage />}
             {vista === 'mesas' && <MesasPage />}
             {vista === 'padron' && <PadronPage />}
+            {vista === 'resultados' && <ResultadosPage onNavigate={setVista} />}
             {vista === 'configuracion' && <ConfiguracionPage />}
           </AdminCard>
         </div>
