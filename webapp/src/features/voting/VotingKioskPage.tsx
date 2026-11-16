@@ -252,7 +252,7 @@ export default function VotingKioskPage() {
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(37,99,235,0.18),transparent_55%)]" />
         <section className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950/80 p-8 text-center shadow-2xl backdrop-blur-xl">
           <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-400/15 text-2xl text-amber-200" aria-hidden="true">!</span>
-          <h1 className="mt-5 text-2xl font-bold">Abre el enlace de tu mesa</h1>
+          <h1 className="mt-5 font-display text-2xl font-bold">Abre el enlace de tu mesa</h1>
           <p className="mt-3 text-sm text-slate-300">
             Este equipo necesita el enlace de acceso asignado a su salón. Pídelo al administrador
             y ábrelo en este navegador.
@@ -293,7 +293,7 @@ export default function VotingKioskPage() {
             </div>
           )}
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-300">Kiosco electoral</p>
-          <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+          <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
             {status?.title || 'Votación escolar'}
           </h1>
           {status?.centro && <p className="mt-2 text-sm text-slate-400">{status.centro}</p>}

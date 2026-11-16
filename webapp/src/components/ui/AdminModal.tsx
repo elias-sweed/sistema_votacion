@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import AlertCircleIcon from '@hugeicons/core-free-icons/AlertCircleIcon'
+import CheckmarkCircle02Icon from '@hugeicons/core-free-icons/CheckmarkCircle02Icon'
+import InformationCircleIcon from '@hugeicons/core-free-icons/InformationCircleIcon'
+
+export type AdminModalTone = 'danger' | 'primary' | 'success' | 'warning'
 
 type Props = {
   /** Si el modal está abierto */
@@ -22,10 +28,19 @@ type Props = {
   loading?: boolean
   /** Variante del botón de acción: 'danger' | 'primary' */
   confirmVariant?: 'danger' | 'primary'
+  /** Tono del icono circular semántico. */
+  tone?: AdminModalTone
   /** Callback al hacer clic en el botón de acción */
   onConfirm: () => void
   /** id para aria-labelledby */
   modalId?: string
+}
+
+const TONOS: Record<AdminModalTone, { icono: typeof AlertCircleIcon; clase: string }> = {
+  danger: { icono: AlertCircleIcon, clase: 'border-red-400/40 bg-red-500/10 text-red-200' },
+  primary: { icono: InformationCircleIcon, clase: 'border-blue-400/40 bg-blue-500/10 text-blue-200' },
+  success: { icono: CheckmarkCircle02Icon, clase: 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200' },
+  warning: { icono: AlertCircleIcon, clase: 'border-amber-400/40 bg-amber-500/10 text-amber-200' }
 }
 
 export function AdminModal({
@@ -38,11 +53,11 @@ export function AdminModal({
   cancelLabel = 'Cancelar',
   loading = false,
   confirmVariant = 'primary',
+  tone = confirmVariant === 'danger' ? 'danger' : 'primary',
   onConfirm,
   modalId = 'admin-modal'
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const confirmBtnRef = useRef<HTMLButtonElement>(null)
   const previouslyFocusedElement = useRef<HTMLElement | null>(null)
 
   const handleClose = useCallback(() => {
@@ -54,7 +69,12 @@ export function AdminModal({
     onClose()
   }, [onClose])
 
-  // Abrir: guardar foco, abrir modal, poner foco en botón confirmar
+  const requestClose = useCallback(() => {
+    if (loading) return
+    handleClose()
+  }, [handleClose, loading])
+
+  // Abrir: guardar foco, abrir modal, poner foco en el contenedor.
   useEffect(() => {
     if (!open) return
 
@@ -105,7 +125,7 @@ export function AdminModal({
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        handleClose()
+        requestClose()
       }
     }
 
@@ -116,9 +136,11 @@ export function AdminModal({
       container.removeEventListener('keydown', handleTab)
       document.removeEventListener('keydown', handleEsc)
     }
-  }, [open, handleClose])
+  }, [open, requestClose])
 
   if (!open) return null
+
+  const tono = TONOS[tone]
 
   return (
     <div
@@ -129,7 +151,7 @@ export function AdminModal({
       <button
         type="button"
         aria-label="Cerrar modal"
-        onClick={handleClose}
+        onClick={requestClose}
         className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
       />
       <div
@@ -138,23 +160,15 @@ export function AdminModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={modalId}
-        aria-describedby={`${modalId}-desc`}
+        aria-describedby={description ? `${modalId}-desc` : undefined}
         className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)] animate-modal-in"
         style={{
-          animation: 'modal-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+          animation: 'modal-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards'
         }}
       >
         <div className="flex items-start gap-3">
-          <div className="shrink-0 flex h-10 w-10 items-center justify-center rounded-full border border-red-400/40 bg-red-500/10 text-red-200">
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              strokeWidth={1.8}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <div className={`shrink-0 flex h-10 w-10 items-center justify-center rounded-full border ${tono.clase}`}>
+            <HugeiconsIcon icon={tono.icono} size={20} strokeWidth={1.8} />
           </div>
           <div>
             <h2 id={modalId} className="text-base font-semibold text-white">
@@ -173,21 +187,20 @@ export function AdminModal({
         <div className="mt-6 flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
-            onClick={handleClose}
+            onClick={requestClose}
             disabled={loading}
-            className={`flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50`}
+            className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {cancelLabel}
           </button>
           <button
             type="button"
-            autoFocus
+            autoFocus={!children}
             onClick={(e) => {
               e.preventDefault()
               onConfirm()
             }}
             disabled={loading}
-            ref={confirmBtnRef}
             className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 ${
               confirmVariant === 'danger'
                 ? 'bg-gradient-to-r from-red-500 via-rose-500 to-red-600'

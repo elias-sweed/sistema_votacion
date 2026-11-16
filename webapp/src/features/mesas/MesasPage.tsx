@@ -9,12 +9,16 @@ import { SectionHeader } from '../../components/ui/SectionHeader'
 import { AdminCard } from '../../components/ui/AdminCard'
 import { AdminButton } from '../../components/ui/AdminButton'
 import { Badge } from '../../components/ui/Badge'
+import { AdminModal } from '../../components/ui/AdminModal'
+import { AdminSelect } from '../../components/ui/AdminSelect'
+import { EmptyState } from '../../components/ui/EmptyState'
+import { PasswordInput } from '../../components/ui/PasswordInput'
 import { HugeiconsIcon } from '@hugeicons/react'
 import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
 import Edit02Icon from '@hugeicons/core-free-icons/Edit02Icon'
 import Rotate01Icon from '@hugeicons/core-free-icons/Rotate01Icon'
 import Link01Icon from '@hugeicons/core-free-icons/Link01Icon'
-import { AdminModal } from '../../components/ui/AdminModal'
+import Table01Icon from '@hugeicons/core-free-icons/Table01Icon'
 
 import {
   estaActivoEnsayo,
@@ -48,6 +52,9 @@ type ResumenMesa = {
   participacion_pct: number
   votos_emitidos: number
 }
+
+const GRADOS = ['1°', '2°', '3°', '4°', '5°', '6°'] as const
+const SECCIONES = ['A', 'B', 'C', 'D', 'E', 'F'] as const
 
 function enlaceDeMesa(mesa: Mesa): string {
   if (!mesa.token_acceso) return ''
@@ -449,53 +456,31 @@ export default function MesasPage() {
           </p>
 
           <form onSubmit={agregarMesa} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="sm:w-40">
+            <div className="sm:w-44">
               <label htmlFor="mesa-grado" className="mb-1 block text-xs text-slate-400">Grado</label>
-              <input
+              <AdminSelect
                 id="mesa-grado"
-                type="text"
-                list="grados-lista"
                 value={grado}
-                onChange={(e) => setGrado(e.target.value)}
+                onChange={setGrado}
                 placeholder="Seleccionar el grado"
-                autoComplete="off"
-                className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                options={GRADOS.map((g) => ({ value: g, label: g }))}
               />
-              <datalist id="grados-lista">
-                <option value="1°" />
-                <option value="2°" />
-                <option value="3°" />
-                <option value="4°" />
-                <option value="5°" />
-                <option value="6°" />
-              </datalist>
             </div>
 
-            <div className="sm:w-40">
+            <div className="sm:w-44">
               <label htmlFor="mesa-seccion" className="mb-1 block text-xs text-slate-400">Sección</label>
-              <input
+              <AdminSelect
                 id="mesa-seccion"
-                type="text"
-                list="secciones-lista"
                 value={seccion}
-                onChange={(e) => setSeccion(e.target.value)}
+                onChange={setSeccion}
                 placeholder="Seleccionar la sección"
-                autoComplete="off"
-                className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                options={SECCIONES.map((s) => ({ value: s, label: s }))}
               />
-              <datalist id="secciones-lista">
-                <option value="A" />
-                <option value="B" />
-                <option value="C" />
-                <option value="D" />
-                <option value="E" />
-                <option value="F" />
-              </datalist>
             </div>
 
             <button
               type="submit"
-              disabled={guardando}
+              disabled={guardando || !grado || !seccion}
               className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {guardando ? 'Agregando…' : 'Agregar mesa'}
@@ -505,15 +490,35 @@ export default function MesasPage() {
           {error && <p className="text-sm text-red-400">{error}</p>}
           {exito && <p className="text-sm text-emerald-400">{exito}</p>}
 
-          <p className="text-xs text-slate-500">
-            Cada mesa recibe un enlace único. Ábrelo en la máquina de ese salón y el voto quedará registrado en esa mesa.
-          </p>
+          <details className="group text-xs text-slate-500">
+            <summary className="cursor-pointer select-none font-medium text-slate-400 transition hover:text-white">
+              ℹ️ Cómo funciona el enlace de cada mesa
+            </summary>
+            <p className="mt-1.5 leading-relaxed">
+              Cada mesa recibe un enlace único. Ábrelo en la máquina de ese salón y el voto quedará
+              registrado en esa mesa. Si regeneras el enlace, el anterior deja de funcionar.
+            </p>
+          </details>
         </div>
       </AdminCard>
 
       {cargando && !tieneDatos && <MesasSkeleton />}
       {tieneDatos && mesas.length === 0 && (
-        <p className="text-slate-500">Aún no hay mesas. Agrega la primera.</p>
+        <AdminCard>
+          <EmptyState
+            icon={<HugeiconsIcon icon={Table01Icon} size={22} strokeWidth={1.7} />}
+            title="No hay mesas configuradas"
+            description="Crea la primera mesa para generar un enlace único de votación para ese salón."
+            action={
+              <AdminButton
+                size="sm"
+                onClick={() => document.getElementById('mesa-grado')?.focus()}
+              >
+                Agregar mesa
+              </AdminButton>
+            }
+          />
+        </AdminCard>
       )}
 
       <ul className="grid gap-3 sm:grid-cols-2">
@@ -660,46 +665,17 @@ export default function MesasPage() {
       </ul>
 
       {confirmandoRotar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
-          <button
-            type="button"
-            aria-label="Cancelar regeneración de enlace"
-            onClick={() => !rotandoId && setConfirmandoRotar(null)}
-            className="absolute inset-0 cursor-default bg-slate-950/70 backdrop-blur-sm"
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="titulo-rotar-enlace"
-            className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)]"
-          >
-            <h2 id="titulo-rotar-enlace" className="text-base font-semibold text-white">
-              Regenerar enlace de {confirmandoRotar.nombre}
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              El enlace actual dejará de funcionar. La máquina de esa mesa tendrá que abrir el nuevo.
-            </p>
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => setConfirmandoRotar(null)}
-                disabled={rotandoId !== null}
-                className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                autoFocus
-                onClick={() => void rotarEnlace(confirmandoRotar)}
-                disabled={rotandoId !== null}
-                className="flex-1 rounded-xl bg-gradient-to-r from-red-500 via-rose-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {rotandoId ? 'Regenerando…' : 'Regenerar enlace'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <AdminModal
+          open={confirmandoRotar !== null}
+          onClose={() => { if (!rotandoId) setConfirmandoRotar(null) }}
+          title={`Regenerar enlace de ${confirmandoRotar.nombre}`}
+          description="El enlace actual dejará de funcionar. La máquina de esa mesa tendrá que abrir el nuevo."
+          confirmLabel="Regenerar enlace"
+          confirmVariant="danger"
+          tone="warning"
+          loading={rotandoId !== null}
+          onConfirm={() => void rotarEnlace(confirmandoRotar)}
+        />
       )}
 
       {confirmandoEliminar && (
@@ -720,9 +696,8 @@ export default function MesasPage() {
           <label htmlFor="password-eliminar" className="mt-4 mb-1 block text-xs text-slate-400">
             Contraseña
           </label>
-          <input
+          <PasswordInput
             id="password-eliminar"
-            type="password"
             autoComplete="current-password"
             value={passwordEliminar}
             onChange={(e) => setPasswordEliminar(e.target.value)}

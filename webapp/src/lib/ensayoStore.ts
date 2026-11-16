@@ -131,6 +131,14 @@ export function ensayoContarVotantes(): number {
   return estado.votantes.length
 }
 
+export function ensayoEliminarVotantes(dnis: string[]): number {
+  const objetivo = new Set(dnis)
+  const antes = estado.votantes.length
+  estado.votantes = estado.votantes.filter((v) => !objetivo.has(v.dni))
+  notificar()
+  return antes - estado.votantes.length
+}
+
 export function ensayoContarVotaron(): number {
   return estado.votantes.filter((v) => v.ha_votado).length
 }

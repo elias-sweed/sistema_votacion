@@ -1,7 +1,12 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import Alert01Icon from '@hugeicons/core-free-icons/Alert01Icon'
+import AlertCircleIcon from '@hugeicons/core-free-icons/AlertCircleIcon'
+import CheckmarkCircle02Icon from '@hugeicons/core-free-icons/CheckmarkCircle02Icon'
+import InformationCircleIcon from '@hugeicons/core-free-icons/InformationCircleIcon'
 import SwipeToast from './SwipeToast'
 
-export type ToastVariant = 'success' | 'error' | 'info'
+export type ToastVariant = 'success' | 'error' | 'warning' | 'info'
 
 export type ToastOptions = {
   title: string
@@ -21,9 +26,24 @@ type ToastContextValue = {
 const ToastContext = createContext<ToastContextValue | null>(null)
 
 const ACCENTS: Record<ToastVariant, string> = {
-  success: '#22c55e',
+  success: '#10b981',
   error: '#ef4444',
-  info: '#38bdf8'
+  warning: '#f59e0b',
+  info: '#3b82f6'
+}
+
+const FONDOS: Record<ToastVariant, string> = {
+  success: '#052e26',
+  error: '#3f0d0d',
+  warning: '#3b2a06',
+  info: '#0b1c38'
+}
+
+const ICONOS: Record<ToastVariant, ReactNode> = {
+  success: <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} strokeWidth={1.9} />,
+  error: <HugeiconsIcon icon={AlertCircleIcon} size={18} strokeWidth={1.9} />,
+  warning: <HugeiconsIcon icon={Alert01Icon} size={18} strokeWidth={1.9} />,
+  info: <HugeiconsIcon icon={InformationCircleIcon} size={18} strokeWidth={1.9} />
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -46,24 +66,28 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       <div className="pointer-events-none fixed inset-x-0 top-0 z-[9999] flex flex-col items-end p-4">
-        {items.map(item => (
-          <div key={item.id} className="pointer-events-auto w-[348px] max-w-[calc(100vw-32px)]">
-            <SwipeToast
-              inline
-              title={item.title}
-              description={item.description}
-              actionLabel={item.actionLabel}
-              onAction={item.onAction}
-              duration={item.duration ?? 4000}
-              fuseColor={ACCENTS[item.variant ?? 'info']}
-              background="#1e293b"
-              color="#f8fafc"
-              width={348}
-              radius={12}
-              onClose={() => remove(item.id)}
-            />
-          </div>
-        ))}
+        {items.map(item => {
+          const variant = item.variant ?? 'info'
+          return (
+            <div key={item.id} className="pointer-events-auto w-[348px] max-w-[calc(100vw-32px)]">
+              <SwipeToast
+                inline
+                title={item.title}
+                description={item.description}
+                icon={ICONOS[variant]}
+                actionLabel={item.actionLabel}
+                onAction={item.onAction}
+                duration={item.duration ?? 4000}
+                fuseColor={ACCENTS[variant]}
+                background={FONDOS[variant]}
+                color="#f8fafc"
+                width={348}
+                radius={12}
+                onClose={() => remove(item.id)}
+              />
+            </div>
+          )
+        })}
       </div>
     </ToastContext.Provider>
   )

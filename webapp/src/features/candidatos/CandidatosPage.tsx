@@ -19,6 +19,9 @@ import { AdminCard } from '../../components/ui/AdminCard'
 import { AdminButton } from '../../components/ui/AdminButton'
 import { Badge } from '../../components/ui/Badge'
 import { AdminModal } from '../../components/ui/AdminModal'
+import { EmptyState } from '../../components/ui/EmptyState'
+import GridViewIcon from '@hugeicons/core-free-icons/GridViewIcon'
+import Menu01Icon from '@hugeicons/core-free-icons/Menu01Icon'
 
 type Candidato = { id: string; nombre: string; foto_url: string | null; activo: boolean }
 
@@ -70,6 +73,7 @@ export default function CandidatosPage() {
   const [nombreArchivo, setNombreArchivo] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [arrastrando, setArrastrando] = useState(false)
+  const [vista, setVista] = useState<'lista' | 'galeria'>('lista')
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [editNombre, setEditNombre] = useState('')
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<Candidato | null>(null)
@@ -148,8 +152,15 @@ export default function CandidatosPage() {
     setGuardando(false)
     if (err) { setError(mensajeDeError(err, 'No se pudo agregar el candidato.')); return }
 
+    const nombreCreado = nombre.trim()
     setNombre(''); setFoto(null); setNombreArchivo(null)
     setExito('Candidato agregado.')
+    toast({
+      title: 'Candidato agregado',
+      description: `${nombreCreado} ya aparece en la papeleta.`,
+      variant: 'success',
+      duration: 3500
+    })
     await cargar()
   }
 
@@ -173,9 +184,11 @@ export default function CandidatosPage() {
     })
     toast({
       title: c.activo ? 'Candidato desactivado' : 'Candidato activado',
-      description: c.nombre,
+      description: c.activo
+        ? `${c.nombre} ya no aparece en la papeleta.`
+        : `${c.nombre} ahora aparece en la papeleta.`,
       variant: 'success',
-      duration: 3000
+      duration: 3500
     })
   }
 
@@ -206,6 +219,12 @@ export default function CandidatosPage() {
     setEditandoId(null)
     setEditNombre('')
     setExito('Candidato actualizado.')
+    toast({
+      title: 'Candidato actualizado',
+      description: `El nombre ahora es ${nombreTrim}.`,
+      variant: 'success',
+      duration: 3500
+    })
     await cargar()
   }
 
@@ -218,6 +237,12 @@ export default function CandidatosPage() {
         return
       }
       setExito('Candidato eliminado.')
+      toast({
+        title: 'Candidato eliminado',
+        description: `${c.nombre} fue eliminado permanentemente.`,
+        variant: 'success',
+        duration: 3500
+      })
       setCandidatos((prev) => prev.filter((x) => x.id !== c.id))
       guardarCache(CLAVES_CACHE.candidatos, candidatos.filter((x) => x.id !== c.id))
       await cargar()
@@ -225,6 +250,72 @@ export default function CandidatosPage() {
       setEliminando(false)
       setConfirmandoEliminar(null)
     }
+  }
+
+  function enfocarNuevoCandidato() {
+    const campo = document.getElementById('candidato-nombre')
+    campo?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    campo?.focus()
+  }
+
+  function botonesAccion(c: Candidato) {
+    return (
+      <div className="flex flex-wrap items-center gap-1">
+        <button
+          type="button"
+          onClick={() => void alternarActivo(c)}
+          aria-pressed={c.activo}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+            c.activo
+              ? 'border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20'
+              : 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20'
+          }`}
+        >
+          {c.activo ? 'Desactivar' : 'Activar'}
+        </button>
+        <button
+          type="button"
+          onClick={() => { setConfirmandoEliminar(null); iniciarEdicion(c) }}
+          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/[0.05] hover:text-white"
+        >
+          <HugeiconsIcon icon={Edit02Icon} size={14} strokeWidth={1.8} />
+          Editar
+        </button>
+        <button
+          type="button"
+          onClick={() => { setEditandoId(null); setConfirmandoEliminar(c) }}
+          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-200 transition hover:bg-red-500/10"
+        >
+          <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={1.8} />
+          Eliminar
+        </button>
+      </div>
+    )
+  }
+
+  function formularioEdicion(c: Candidato) {
+    return (
+      <form
+        onSubmit={(e) => { e.preventDefault(); void guardarEdicion(c) }}
+        className="flex flex-col gap-2 sm:flex-row sm:items-center"
+      >
+        <input
+          value={editNombre}
+          onChange={(e) => setEditNombre(e.target.value)}
+          aria-label={`Nuevo nombre para ${c.nombre}`}
+          autoFocus
+          className="flex-1 rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+        />
+        <div className="flex gap-2">
+          <button type="submit" className="rounded-lg bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:brightness-110">
+            Guardar
+          </button>
+          <button type="button" onClick={cancelarEdicion} className="rounded-lg border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white backdrop-blur-md transition hover:bg-white/[0.1]">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    )
   }
 
   return (
@@ -239,10 +330,35 @@ export default function CandidatosPage() {
         }
       />
 
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-300">
           <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
           {candidatos.length} {candidatos.length === 1 ? 'candidato' : 'candidatos'}
+        </div>
+
+        <div className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1" role="group" aria-label="Vista de candidatos">
+          <button
+            type="button"
+            onClick={() => setVista('lista')}
+            aria-pressed={vista === 'lista'}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+              vista === 'lista' ? 'bg-blue-500/20 text-blue-100' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <HugeiconsIcon icon={Menu01Icon} size={14} strokeWidth={1.8} />
+            Lista
+          </button>
+          <button
+            type="button"
+            onClick={() => setVista('galeria')}
+            aria-pressed={vista === 'galeria'}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+              vista === 'galeria' ? 'bg-blue-500/20 text-blue-100' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <HugeiconsIcon icon={GridViewIcon} size={14} strokeWidth={1.8} />
+            Galería
+          </button>
         </div>
       </div>
 
@@ -386,80 +502,84 @@ export default function CandidatosPage() {
       {cargando && !tieneDatos && <CandidatosSkeleton />}
       {tieneDatos && candidatos.length === 0 && (
         <AdminCard>
-          <div className="text-center py-10">
-            <p className="text-slate-500">Aún no hay candidatos. Agrega el primero.</p>
-          </div>
+          <EmptyState
+            icon={<HugeiconsIcon icon={UserIcon} size={22} strokeWidth={1.7} />}
+            title="Aún no hay candidatos"
+            description="Agrega el primero para que aparezca en la papeleta de votación."
+            action={<AdminButton size="sm" onClick={enfocarNuevoCandidato}>Agregar candidato</AdminButton>}
+          />
         </AdminCard>
       )}
 
-      {/* Lista de candidatos */}
-      <AdminCard>
-        <ul className="divide-y divide-white/10">
+      {tieneDatos && candidatos.length > 0 && (vista === 'lista' ? (
+        <AdminCard>
+          <ul className="divide-y divide-white/10">
+            {candidatos.map((c) => {
+              const estaEditando = editandoId === c.id
+              return (
+                <li key={c.id} className="p-4">
+                  {estaEditando ? (
+                    formularioEdicion(c)
+                  ) : (
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/25">
+                          {c.foto_url ? (
+                            <img src={c.foto_url} alt={c.nombre} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500 via-blue-800 to-[#050a1a]">
+                              <span className="text-xl font-bold text-white/90">{iniciales(c.nombre) || '?'}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-white">{c.nombre}</p>
+                          <Badge variant={c.activo ? 'success' : 'default'}>{c.activo ? 'Activo' : 'Inactivo'}</Badge>
+                        </div>
+                      </div>
+
+                      {botonesAccion(c)}
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </AdminCard>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {candidatos.map((c) => {
             const estaEditando = editandoId === c.id
             return (
-              <li key={c.id} className="p-4">
-                {estaEditando ? (
-                  <form onSubmit={(e) => { e.preventDefault(); void guardarEdicion(c); }} className="flex gap-3 items-end">
-                    <input value={editNombre} onChange={(e) => setEditNombre(e.target.value)}
-                      className="flex-1 rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15" />
-                    <button type="submit" className="rounded-lg bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:brightness-110">
-                      Guardar
-                    </button>
-                    <button type="button" onClick={cancelarEdicion} className="rounded-lg border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white backdrop-blur-md transition hover:bg-white/[0.1]">
-                      Cancelar
-                    </button>
-                  </form>
-                ) : (
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="relative shrink-0 h-12 w-12 rounded-xl overflow-hidden border border-white/10 bg-black/25">
-                        {c.foto_url ? (
-                          <img src={c.foto_url} alt={c.nombre} className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500 via-blue-800 to-[#050a1a]">
-                            <span className="text-xl font-bold text-white/90">{iniciales(c.nombre) || '?'}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-white truncate">{c.nombre}</p>
-                        <Badge variant={c.activo ? 'success' : 'default'}>{c.activo ? 'Activo' : 'Inactivo'}</Badge>
-                      </div>
+              <div key={c.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl">
+                <div className="relative aspect-[4/3] overflow-hidden border-b border-white/10 bg-black/30">
+                  {c.foto_url ? (
+                    <img src={c.foto_url} alt={c.nombre} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500 via-blue-800 to-[#050a1a]">
+                      <span className="text-4xl font-bold text-white/90">{iniciales(c.nombre) || '?'}</span>
                     </div>
+                  )}
+                  <span className="absolute left-3 top-3">
+                    <Badge variant={c.activo ? 'success' : 'default'}>{c.activo ? 'Activo' : 'Inactivo'}</Badge>
+                  </span>
+                </div>
 
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => void alternarActivo(c)}
-                        className="rounded-lg px-3 py-1.5 text-xs font-medium text-white transition ${c.activo ? 'bg-red-500/10 text-red-200 hover:bg-red-500/20 border border-red-400/30' : 'bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 border border-emerald-400/30'}"
-                      >
-                        {c.activo ? 'Desactivar' : 'Activar'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setConfirmandoEliminar(null); iniciarEdicion(c) }}
-                        className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:text-white hover:bg-white/[0.05]"
-                      >
-                        <HugeiconsIcon icon={Edit02Icon} size={14} strokeWidth={1.8} />
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setEditandoId(null); setConfirmandoEliminar(c) }}
-                        className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-200 transition hover:bg-red-500/10"
-                      >
-                        <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={1.8} />
-                        Eliminar
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </li>
+                <div className="space-y-3 p-4">
+                  {estaEditando ? (
+                    formularioEdicion(c)
+                  ) : (
+                    <>
+                      <p className="truncate text-sm font-semibold text-white">{c.nombre}</p>
+                      {botonesAccion(c)}
+                    </>
+                  )}
+                </div>
+              </div>
             )
           })}
-        </ul>
-      </AdminCard>
+        </div>
+      ))}
 
       {confirmandoEliminar && (
         <AdminModal

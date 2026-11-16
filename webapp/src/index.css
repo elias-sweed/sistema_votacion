@@ -35,13 +35,29 @@ body {
   font-family: "Ubuntu Mono", monospace;
 }
 
+/*
+ * En el panel admin los títulos deben ser legibles y rápidos de escanear.
+ * "Bungee Spice" queda reservada para el kiosco mediante .font-display.
+ */
 h1,
 h2,
 h3,
 h4,
 h5,
 h6 {
+  font-family: "Ubuntu Mono", monospace;
+}
+
+.font-display {
   font-family: "Bungee Spice", sans-serif;
+}
+
+/* Focus visible consistente en todos los controles interactivos. */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 3px;
 }
 
 .kiosk-button-primary,

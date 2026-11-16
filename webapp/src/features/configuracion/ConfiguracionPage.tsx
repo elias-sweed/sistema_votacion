@@ -11,6 +11,7 @@ import { useToast } from '../../components/ui/ToastProvider'
 import { ConfiguracionSkeleton } from '../panel/PanelSkeletons'
 import { SectionHeader } from '../../components/ui/SectionHeader'
 import { AdminModal } from '../../components/ui/AdminModal'
+import { PasswordInput } from '../../components/ui/PasswordInput'
 import {
   estaActivoEnsayo,
   activarEnsayo,
@@ -428,9 +429,18 @@ export default function ConfiguracionPage() {
       return
     }
 
+    if (!zonaPeligroEmail.trim()) {
+      setErrorZonaPeligro('Escribe el correo de tu cuenta de administrador.')
+      return
+    }
+
     const email = await autenticarAdmin(zonaPeligroPassword)
     if (!email) {
       setErrorZonaPeligro('La contraseña no es correcta. Inténtalo otra vez.')
+      return
+    }
+    if (email.toLowerCase() !== zonaPeligroEmail.trim().toLowerCase()) {
+      setErrorZonaPeligro('El usuario no coincide con la cuenta de administrador autenticada.')
       return
     }
 
@@ -824,7 +834,7 @@ export default function ConfiguracionPage() {
           {pestaniaActiva === 'peligro' && (
             <>
               <div
-                className={`relative rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4 ${zonaPeligroBloqueada ? 'blur-sm opacity-60 pointer-events-none select-none' : ''}`}
+                className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4"
               >
                 <div className="flex items-center gap-3">
                   <span className="h-px w-8 bg-gradient-to-r from-red-400/80 to-transparent" />
@@ -834,48 +844,20 @@ export default function ConfiguracionPage() {
                   Estas acciones borran datos permanentemente. Requieren tu contraseña de administrador y el PIN de seguridad.
                 </p>
 
-                {/* Overlay de desbloqueo (aparece sobre la zona borrosa al hacer clic en el candado) */}
                 {zonaPeligroBloqueada && (
-                  <div className="absolute inset-0 flex items-center justify-center z-10">
-                    <div className="relative">
-                      {/* Icono candado con animación hover */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setZonaPeligroBloqueada(false)
-                          cerrarDesbloqueo()
-                        }}
-                        className="relative group w-20 h-20 rounded-full bg-white/[0.08] border border-white/20 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:scale-110 hover:border-red-400/50 hover:bg-white/[0.12] cursor-pointer"
-                        aria-label="Desbloquear zona peligrosa"
-                      >
-                        <img
-                          src={CANDADO_IMG}
-                          alt="Candado"
-                          className="w-10 h-10 object-contain transition-transform duration-300 group-hover:rotate-3 group-hover:scale-110"
-                        />
-                        <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-red-400/70 font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                          Desbloquear
-                        </span>
-                      </button>
-
-                      {/* Formulario de desbloqueo (solo se muestra tras clic en candado, pero aquí lo gestionamos por estado) */}
-                      {zonaPeligroBloqueada && (
-                        <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl rounded-full flex items-center justify-center p-4 opacity-0 transition-opacity duration-300 pointer-events-none">
-                          {/* Este div se activa visualmente solo cuando el usuario quiere desbloquear;
-                              como el clic ya desbloquea directamente, este overlay queda como respaldo visual. */}
-                        </div>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3">
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-400/25 bg-amber-400/10">
+                      <img src={CANDADO_IMG} alt="" className="h-6 w-6 object-contain" />
+                    </span>
+                    <p className="text-xs text-amber-100/70">
+                      Zona bloqueada: confirma tu identidad para habilitar las acciones de eliminación.
+                    </p>
                   </div>
                 )}
 
                 {/* Cuando está bloqueado, mostrar formulario de desbloqueo debajo del candado */}
-                {zonaPeligroBloqueada && (
-                  <div className="mt-8 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-6 space-y-4">
-                    <p className="text-sm text-amber-100/80">
-                      La zona peligrosa está bloqueada. Ingresa tu <strong className="text-white">PIN de seguridad</strong>, <strong className="text-white">usuario</strong> y <strong className="text-white">contraseña</strong> para desbloquearla.
-                    </p>
-
+                {zonaPeligroBloqueada ? (
+                  <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-6 space-y-4">
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div>
                         <label htmlFor="zona-peligro-pin" className="mb-1 block text-xs text-slate-400">PIN de seguridad</label>
@@ -895,8 +877,8 @@ export default function ConfiguracionPage() {
                         <label htmlFor="zona-peligro-email" className="mb-1 block text-xs text-slate-400">Usuario</label>
                         <input
                           id="zona-peligro-email"
-                          type="text"
-                          autoComplete="off"
+                          type="email"
+                          autoComplete="username"
                           value={zonaPeligroEmail}
                           onChange={(e) => setZonaPeligroEmail(e.target.value)}
                           placeholder="admin@colegio.edu.pe"
@@ -905,9 +887,8 @@ export default function ConfiguracionPage() {
                       </div>
                       <div>
                         <label htmlFor="zona-peligro-password" className="mb-1 block text-xs text-slate-400">Contraseña</label>
-                        <input
+                        <PasswordInput
                           id="zona-peligro-password"
-                          type="password"
                           autoComplete="current-password"
                           value={zonaPeligroPassword}
                           onChange={(e) => setZonaPeligroPassword(e.target.value)}
@@ -915,22 +896,29 @@ export default function ConfiguracionPage() {
                           className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15"
                         />
                       </div>
-                      <div className="col-span-3 flex items-end">
-                        <button
-                          type="button"
-                          onClick={() => void desbloquearZonaPeligro()}
-                          disabled={zonaPeligroPin.length < 4 || zonaPeligroPassword.length === 0}
-                          className="rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Desbloquear zona
-                        </button>
-                      </div>
                     </div>
-                    {errorZonaPeligro && <p className="mt-2 text-sm text-red-400">{errorZonaPeligro}</p>}
-                  </div>
-                )}
 
-                {!zonaPeligroBloqueada && (
+                    {errorZonaPeligro && <p className="text-sm text-red-400">{errorZonaPeligro}</p>}
+
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={cerrarDesbloqueo}
+                        className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-400 transition hover:text-white"
+                      >
+                        Limpiar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void desbloquearZonaPeligro()}
+                        disabled={zonaPeligroPin.length < 4 || zonaPeligroEmail.trim().length === 0 || zonaPeligroPassword.length === 0}
+                        className="rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Desbloquear zona
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                   <>
                     <div className="grid gap-3 sm:grid-cols-3">
                       <button
@@ -974,7 +962,7 @@ export default function ConfiguracionPage() {
                     {/* Borrar TODO de todo */}
                     <div className="flex items-center gap-3">
                       <span className="h-px w-8 bg-gradient-to-r from-red-400/80 to-transparent" />
-                      <h4 className="text-base font-semibold text-white text-red-300">Borrar TODO de todo</h4>
+                      <h4 className="text-base font-semibold text-white text-red-300">Reinicio total del sistema</h4>
                     </div>
                     <p className="text-sm text-slate-400">
                       Borra votantes, candidatos, mesas, votos y restablece la configuración. No se puede deshacer.
@@ -987,11 +975,24 @@ export default function ConfiguracionPage() {
                     >
                       <div className="flex items-center gap-2">
                         <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />
-                        <span>Borrar TODO de todo</span>
+                        <span>Reiniciar todo el sistema</span>
                       </div>
                       <p className="mt-1 text-xs text-slate-500">Padrón, candidatos, mesas, votos y configuración</p>
                     </button>
                     {errorEliminarTodo && <p className="mt-3 text-sm text-red-400">{errorEliminarTodo}</p>}
+
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setZonaPeligroBloqueada(true)
+                          cerrarDesbloqueo()
+                        }}
+                        className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
+                      >
+                        Bloquear zona de nuevo
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
@@ -1029,7 +1030,7 @@ export default function ConfiguracionPage() {
               ? 'Se borrarán todos los candidatos. Esta acción no se puede deshacer.'
               : 'Se restablecerán el título, el centro educativo y el logo a los valores por defecto.'
           }
-          confirmLabel="Sí, eliminar todo"
+          confirmLabel="Confirmar eliminación"
           confirmVariant="danger"
           loading={eliminandoTodoCargando}
           onConfirm={() => void ejecutarEliminarTodo()}
@@ -1041,9 +1042,8 @@ export default function ConfiguracionPage() {
           <label htmlFor="password-eliminar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
             Contraseña
           </label>
-          <input
+          <PasswordInput
             id="password-eliminar-todo"
-            type="password"
             autoComplete="current-password"
             value={passwordEliminarTodo}
             onChange={(e) => setPasswordEliminarTodo(e.target.value)}
@@ -1051,8 +1051,6 @@ export default function ConfiguracionPage() {
             disabled={eliminandoTodoCargando}
             className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
           />
-
-          {errorPin && <p className="mt-3 text-sm text-red-400">{errorPin}</p>}
 
           {errorEliminarTodo && <p className="mt-3 text-sm text-red-400">{errorEliminarTodo}</p>}
 
@@ -1077,9 +1075,9 @@ export default function ConfiguracionPage() {
         <AdminModal
           open={confirmandoBorrarTodo !== null}
           onClose={cerrarBorrarTodo}
-          title="Borrar TODO de todo"
+          title="Reinicio total del sistema"
           description="Se eliminarán votantes, candidatos, mesas y votos. La configuración volverá a los valores por defecto. Esta acción no se puede deshacer."
-          confirmLabel="Sí, borrar todo de todo"
+          confirmLabel="Confirmar reinicio total"
           confirmVariant="danger"
           loading={borrandoTodo}
           onConfirm={() => void ejecutarBorrarTodo()}
@@ -1091,9 +1089,8 @@ export default function ConfiguracionPage() {
           <label htmlFor="password-borrar-todo" className="mt-4 mb-1 block text-xs text-slate-400">
             Contraseña
           </label>
-          <input
+          <PasswordInput
             id="password-borrar-todo"
-            type="password"
             autoComplete="current-password"
             value={passwordBorrarTodo}
             onChange={(e) => setPasswordBorrarTodo(e.target.value)}
@@ -1101,8 +1098,6 @@ export default function ConfiguracionPage() {
             disabled={borrandoTodo}
             className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-red-400/60 focus:outline-none focus:ring-2 focus:ring-red-500/15 disabled:opacity-60"
           />
-
-          {errorPin && <p className="mt-3 text-sm text-red-400">{errorPin}</p>}
 
           {errorBorrarTodo && <p className="mt-3 text-sm text-red-400">{errorBorrarTodo}</p>}
 

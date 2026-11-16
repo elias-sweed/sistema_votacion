@@ -43,17 +43,34 @@ sistema_votacion/
 | 2. Supabase base | ✅ | `schema.sql` escrito: tablas (mesas, votantes, candidatos, votos, configuracion), RLS, funciones `verificar_votante`/`emitir_voto`, vista `resultados` |
 | 3. Auth admin | ✅ | Login con Supabase Auth, rutas protegidas, signOut |
 | 4. Módulo Candidatos | ✅ | CRUD básico (agregar, activar/desactivar), estados UI |
+| 5. Mesas | ✅ | CRUD de mesas/salones + enlaces de kiosco |
+| 6. Padrón electoral | ✅ | Importación CSV/Excel, alta manual, búsqueda, eliminación individual y masiva |
+| 7. Configuración elección | ✅ | Abrir/cerrar votación, título, centro, logo, PIN de seguridad y zona peligrosa |
+| 8. Pantalla kiosco `/votar` | ✅ | DNI con numpad → verificación → candidatos → confirmación → agradecimiento |
 
 **Pendiente manual del usuario:** ejecutar `webapp/supabase/schema.sql` en SQL Editor y crear el usuario admin en Authentication → Users. Tener `webapp/.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
+
+## Plan UI/UX (`webapp/PLAN_UI_UX.md`)
+
+| Fase | Estado | Detalle |
+|---|---|---|
+| 1. Fundamentos | ✅ | Componentes base (`AdminCard`, `AdminButton`, `StatCard`, `SectionHeader`, `Badge`), tipografía Ubuntu Mono en el panel, dashboard sin fondos ASCII ni `MaskedHeading` |
+| 2. Navegación | ✅ | Sidebar colapsable + top bar con breadcrumb y transiciones entre secciones |
+| 3. Secciones | ✅ | Mesas simplificadas, candidatos con lista/galería editable, padrón en 2 filas con stepper de importación, configuración en pestañas |
+| 4. Polish | ✅ | `AdminModal` con foco y tonos, textos de modales/toasts específicos, empty states con icono y CTA, `AdminSelect` propio |
+| 5. Extras | ✅ | Mostrar/ocultar contraseña, atajos de teclado (`1`–`5`, `/`, `Esc`), acciones masivas en padrón, export CSV filtrado, toggle lista/galería |
+
+**Detalles del cierre de UI/UX:**
+- `Bungee Spice` quedó reservada al kiosco mediante `.font-display`; el panel usa Ubuntu Mono.
+- Las acciones destructivas exigen confirmación con contraseña y PIN cuando corresponde.
+- La eliminación masiva de votantes solo permite seleccionar a quienes aún no han votado (evita re-votación).
+- El export CSV pagina de 200 en 200 porque `listar_votantes` limita `p_limit` a 200.
+- La zona peligrosa ahora se desbloquea únicamente tras validar PIN + correo + contraseña del admin autenticado, y puede volver a bloquearse.
 
 ## Fases PENDIENTES 🔲
 
 | Fase | Descripción |
 |---|---|
-| 5. Mesas | CRUD de mesas/salones en panel admin |
-| 6. Padrón electoral | Importar alumnos desde Excel/CSV (reusar lógica del Flutter: `votante_excel_row.dart`, `importar_votantes_use_case.dart`). Validar DNI 8 dígitos, asignar mesa |
-| 7. Configuración elección | Abrir/cerrar votación (`configuracion.eleccion_abierta`), título |
-| 8. Pantalla kiosco `/votar` | Flujo: ingresar DNI (numpad) → `verificar_votante` → mostrar candidatos activos → confirmar → `emitir_voto` → pantalla "¡Gracias!" → reset. Pública (anon), fuera del panel admin |
 | 9. Resultados en vivo | Vista `resultados` + Supabase Realtime en panel admin. Exportar acta PDF |
 | 10. Robustez offline | vite-plugin-pwa + cola de votos en IndexedDB si se cae internet |
 | 11. Modo quiosco | Instrucciones: `chrome --kiosk <url>/votar`, pantalla completa |

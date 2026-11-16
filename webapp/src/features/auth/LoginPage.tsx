@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useToast } from '../../components/ui/ToastProvider'
 import SpotlightCard from '../../components/ui/SpotlightCard'
+import { PasswordInput } from '../../components/ui/PasswordInput'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -131,8 +132,8 @@ export default function LoginPage() {
               <label className="mb-1 block text-[10px] uppercase tracking-[0.2em] text-blue-100/50" htmlFor="password">
                 Contraseña
               </label>
-              <input
-                id="password" type="password" value={password} autoComplete="current-password"
+              <PasswordInput
+                id="password" value={password} autoComplete="current-password"
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-blue-50 backdrop-blur-md placeholder:text-slate-500 transition selection:bg-blue-400/30 focus:border-blue-400/60 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-blue-500/15"
@@ -141,8 +142,14 @@ export default function LoginPage() {
 
             <button
               type="submit" disabled={cargando}
-              className="w-full rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 py-3 text-sm font-bold text-white shadow-[0_10px_30px_-10px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 py-3 text-sm font-bold text-white shadow-[0_10px_30px_-10px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
             >
+              {cargando && (
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white"
+                />
+              )}
               {cargando ? 'Ingresando…' : 'Ingresar'}
             </button>
 
