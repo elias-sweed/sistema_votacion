@@ -3,8 +3,21 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'centro_provider.dart';
 
-class CentroScreen extends StatelessWidget {
+class CentroScreen extends StatefulWidget {
   const CentroScreen({super.key});
+
+  @override
+  State<CentroScreen> createState() => _CentroScreenState();
+}
+
+class _CentroScreenState extends State<CentroScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<CentroProvider>().init();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +157,3 @@ class CentroScreen extends StatelessWidget {
     );
   }
 }
-
-
-

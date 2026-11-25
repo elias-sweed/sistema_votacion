@@ -16,13 +16,15 @@ class ConfigVotoBlancoProvider with ChangeNotifier {
   String get nombreFijo => _nombreFijo;
 
   final ImagePicker _picker = ImagePicker();
-  bool _isLoading = true;
+  bool _isLoading = false;
   bool get isLoading => _isLoading;
 
   final CandidatoRepositoryImpl _candidatoRepo = CandidatoRepositoryImpl();
 
-  ConfigVotoBlancoProvider() {
-    _cargarImagenActual();
+  ConfigVotoBlancoProvider();
+
+  Future<void> init() async {
+    await _cargarImagenActual();
   }
 
   Future<void> _cargarImagenActual() async {

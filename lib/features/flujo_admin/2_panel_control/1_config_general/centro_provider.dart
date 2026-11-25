@@ -14,13 +14,15 @@ class CentroProvider with ChangeNotifier {
   bool _huboCambios = false;
 
   File? get imagenSeleccionada => _imagenSeleccionada;
-  bool _isLoading = true;
+  bool _isLoading = false;
   bool get isLoading => _isLoading;
   bool get huboCambios => _huboCambios;
   final ImagePicker _picker = ImagePicker();
   final CentroRepositoryImpl _centroRepo = CentroRepositoryImpl();
 
-  CentroProvider() {
+  CentroProvider();
+
+  Future<void> init() async {
     _cargarDatosCentro();
   }
 
@@ -47,12 +49,12 @@ class CentroProvider with ChangeNotifier {
       // Manejar el caso donde el archivo de imagen no se encuentra
       if (e is PathNotFoundException || e.toString().contains('No such file')) {
         nombreController.text = "Centro de Votación (Error de logo)";
-        _rutaImagenOriginalDB = "";
-        _imagenOriginal = null;
-        _imagenSeleccionada = null;
       } else {
-        rethrow;
+        nombreController.text = "Centro de Votación";
       }
+      _rutaImagenOriginalDB = "";
+      _imagenOriginal = null;
+      _imagenSeleccionada = null;
     } finally {
       _isLoading = false;
       notifyListeners();

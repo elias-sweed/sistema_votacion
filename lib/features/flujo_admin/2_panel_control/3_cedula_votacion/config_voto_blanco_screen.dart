@@ -16,8 +16,12 @@ class _ConfigVotoBlancoScreenState extends State<ConfigVotoBlancoScreen> {
   @override
   void initState() {
     super.initState();
-    final provider = ConfigVotoBlancoProvider();
-    _nombreController = TextEditingController(text: provider.nombreFijo);
+    _nombreController = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<ConfigVotoBlancoProvider>();
+      _nombreController.text = provider.nombreFijo;
+      provider.init();
+    });
   }
 
   @override
