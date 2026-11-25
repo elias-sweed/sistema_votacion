@@ -6,7 +6,12 @@ import ImageAdd01Icon from '@hugeicons/core-free-icons/ImageAdd01Icon'
 import ImageUpload01Icon from '@hugeicons/core-free-icons/ImageUpload01Icon'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
-import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
+import {
+  CLAVES_CACHE,
+  guardarCache,
+  leerCache,
+  limpiarCachePanel,
+} from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
 import { ConfiguracionSkeleton } from '../panel/PanelSkeletons'
 import { SectionHeader } from '../../components/ui/SectionHeader'
@@ -236,10 +241,19 @@ export default function ConfiguracionPage() {
     setEliminandoTodoCargando(true)
     try {
       if (eliminandoTodo === 'votantes') {
-        const { error: err } = await supabase.rpc('borrar_todos_votantes')
-        if (err) {
-          setErrorEliminarTodo(mensajeDeError(err, 'No se pudieron eliminar los votantes.'))
-          return
+        const { error: errRpc } = await supabase.rpc('borrar_todos_votantes')
+        if (errRpc) {
+          // Respaldo si la RPC no está disponible: borrado directo.
+          const { error: errDirecto } = await supabase
+            .from('votantes')
+            .delete()
+            .not('dni', 'is', null)
+          if (errDirecto) {
+            setErrorEliminarTodo(
+              mensajeDeError(errRpc, `No se pudieron eliminar los votantes: ${errDirecto.message}`)
+            )
+            return
+          }
         }
         toast({
           title: 'Votantes eliminados',
@@ -250,8 +264,20 @@ export default function ConfiguracionPage() {
       } else if (eliminandoTodo === 'candidatos') {
         const { error: err } = await supabase.rpc('borrar_todos_candidatos')
         if (err) {
-          setErrorEliminarTodo(mensajeDeError(err, 'No se pudieron eliminar los candidatos.'))
-          return
+          // Respaldo si la RPC no está disponible: borrado directo.
+          const { error: errDirecto } = await supabase
+            .from('candidatos')
+            .delete()
+            .not('id', 'is', null)
+          if (errDirecto) {
+            setErrorEliminarTodo(
+              mensajeDeError(
+                err,
+                `No se pudieron eliminar los candidatos: ${errDirecto.message}`
+              )
+            )
+            return
+          }
         }
         toast({
           title: 'Candidatos eliminados',
@@ -364,6 +390,37 @@ export default function ConfiguracionPage() {
     return email
   }
 
+  // Respaldo si la RPC borrar_todo no está disponible o falla: borra cada
+  // tabla con un filtro "IS NOT NULL" sobre su clave primaria (PostgREST
+  // rechaza DELETE sin filtro) y restablece la configuración.
+  async function borrarTodoDirecto(): Promise<string | null> {
+    const tablas: Array<{ tabla: string; pk: string }> = [
+      { tabla: 'votos', pk: 'id' },
+      { tabla: 'votantes', pk: 'dni' },
+      { tabla: 'candidatos', pk: 'id' },
+      { tabla: 'mesas', pk: 'id' },
+    ]
+
+    for (const { tabla, pk } of tablas) {
+      const { error } = await supabase.from(tabla).delete().not(pk, 'is', null)
+      if (error) return `${tabla}: ${error.message}`
+    }
+
+    const { error: errConfig } = await supabase
+      .from('configuracion')
+      .update({
+        eleccion_abierta: false,
+        titulo: 'Elección de Municipios Escolares',
+        centro: 'I.E. Jimenez Pimentel',
+        logo_url: null,
+        actualizado_en: new Date().toISOString(),
+      })
+      .eq('id', 1)
+    if (errConfig) return `configuracion: ${errConfig.message}`
+
+    return null
+  }
+
   async function ejecutarBorrarTodo() {
     if (borrandoTodo) return
 
@@ -382,13 +439,18 @@ export default function ConfiguracionPage() {
 
     setBorrandoTodo(true)
     try {
-      // Se usa la función RPC borrar_todo() que está SECURITY DEFINER
-      // y verifica es_admin_uuid() internamente. PostgREST no permite
-      // DELETE masivo sin filtro WHERE, por eso se usa RPC.
-      const { error: err } = await supabase.rpc('borrar_todo')
-      if (err) {
-        setErrorBorrarTodo(mensajeDeError(err, 'No se pudo borrar todo.'))
-        return
+      // Se intenta la función RPC borrar_todo() (SECURITY DEFINER).
+      // Si la migración no está aplicada o la RPC falla, se hace un
+      // borrado directo tabla por tabla como respaldo.
+      const { error: errRpc } = await supabase.rpc('borrar_todo')
+      if (errRpc) {
+        const errorDirecto = await borrarTodoDirecto()
+        if (errorDirecto) {
+          setErrorBorrarTodo(
+            mensajeDeError(errRpc, `No se pudo borrar todo: ${errorDirecto}`)
+          )
+          return
+        }
       }
 
       setTitulo('Elección de Municipios Escolares')
@@ -399,6 +461,10 @@ export default function ConfiguracionPage() {
       // También limpiar el modo ensayo si estaba activo
       limpiarEnsayo()
       setModoEnsayo(false)
+
+      // Descartar los datos cacheados de las demás secciones para que
+      // reflejen el borrado sin mostrar mesas, candidatos o padrón viejos.
+      limpiarCachePanel()
 
       toast({
         title: 'Todo eliminado',

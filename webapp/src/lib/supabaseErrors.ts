@@ -9,7 +9,7 @@ type SupabaseErrorLike =
   | undefined
 
 const MENSAJE_PERMISOS =
-  "La base de datos rechazó la operación: tu usuario no tiene permisos de administrador. Aplica supabase/scripts/acceso_directo.sql en Supabase o asigna app_metadata {\"role\":\"admin\"} a tu usuario en Authentication → Users."
+  "La base de datos rechazó la operación: tu usuario no tiene permisos de administrador. Aplica la migración supabase/migrations/015_borrar_todo_robusto.sql en el SQL Editor de Supabase y verifica que tu usuario tenga app_metadata {\"role\":\"admin\"} en Authentication → Users."
 
 export function esErrorDePermisos(error: SupabaseErrorLike): boolean {
   if (!error) return false
