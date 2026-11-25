@@ -1,9 +1,8 @@
-import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import 'dart:io';
 import 'package:elecciones_jp/data/repositories/candidato_repository_impl.dart';
 import 'package:elecciones_jp/domain/entities/candidato_entity.dart';
 
@@ -17,15 +16,13 @@ class ConfigVotoBlancoProvider with ChangeNotifier {
   String get nombreFijo => _nombreFijo;
 
   final ImagePicker _picker = ImagePicker();
-  bool _isLoading = false;
+  bool _isLoading = true;
   bool get isLoading => _isLoading;
 
   final CandidatoRepositoryImpl _candidatoRepo = CandidatoRepositoryImpl();
 
-  ConfigVotoBlancoProvider();
-
-  Future<void> init() async {
-    await _cargarImagenActual();
+  ConfigVotoBlancoProvider() {
+    _cargarImagenActual();
   }
 
   Future<void> _cargarImagenActual() async {
@@ -34,7 +31,7 @@ class ConfigVotoBlancoProvider with ChangeNotifier {
     String rutaImagenActual;
 
     try {
-      final candidato = await _candidatoRepo.findByName(_nombreFijo).timeout(const Duration(seconds: 10));
+      final candidato = await _candidatoRepo.findByName(_nombreFijo);
       rutaImagenActual =
           candidato?.imagen ?? 'assets/imagenes/blanco_placeholder.png';
 
