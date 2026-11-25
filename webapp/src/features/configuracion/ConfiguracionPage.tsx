@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
@@ -133,6 +133,10 @@ export default function ConfiguracionPage() {
     setNombreArchivo(null)
     guardarCache(CLAVES_CACHE.configuracion, fila)
   }
+
+  useEffect(() => {
+    void cargar()
+  }, [])
 
   async function guardar(e: FormEvent) {
     e.preventDefault()
