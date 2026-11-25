@@ -1,8 +1,9 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
-import 'dart:io';
 import 'package:elecciones_jp/data/repositories/centro_repository_impl.dart';
 import 'package:elecciones_jp/domain/entities/centro_entity.dart';
 
@@ -23,7 +24,7 @@ class CentroProvider with ChangeNotifier {
   CentroProvider();
 
   Future<void> init() async {
-    _cargarDatosCentro();
+    await _cargarDatosCentro();
   }
 
   Future<void> _cargarDatosCentro() async {
@@ -31,7 +32,7 @@ class CentroProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final centro = await _centroRepo.findOne();
+      final centro = await _centroRepo.findOne().timeout(const Duration(seconds: 10));
 
       if (centro != null) {
         nombreController.text = centro.nombre ?? "Centro de Votación";
