@@ -16,8 +16,12 @@ class _ConfigVotoBlancoScreenState extends State<ConfigVotoBlancoScreen> {
   @override
   void initState() {
     super.initState();
-    final provider = ConfigVotoBlancoProvider();
-    _nombreController = TextEditingController(text: provider.nombreFijo);
+    _nombreController = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<ConfigVotoBlancoProvider>();
+      _nombreController.text = provider.nombreFijo;
+      provider.init();
+    });
   }
 
   @override
@@ -39,9 +43,7 @@ class _ConfigVotoBlancoScreenState extends State<ConfigVotoBlancoScreen> {
               title: const Text("Configurar Voto en Blanco"),
               centerTitle: false,
             ),
-            body: provider.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : SingleChildScrollView(
+            body: SingleChildScrollView(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,

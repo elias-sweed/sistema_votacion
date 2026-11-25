@@ -3,8 +3,21 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'centro_provider.dart';
 
-class CentroScreen extends StatelessWidget {
+class CentroScreen extends StatefulWidget {
   const CentroScreen({super.key});
+
+  @override
+  State<CentroScreen> createState() => _CentroScreenState();
+}
+
+class _CentroScreenState extends State<CentroScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<CentroProvider>().init();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,66 +40,61 @@ class CentroScreen extends StatelessWidget {
                 title: const Text("Configurar Centro"),
                 centerTitle: false,
               ),
-              body: provider.isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Center(
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(12),
-                              splashColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-                              onTap: provider.seleccionarImagen,
-                              child: Card(
-                                elevation: 4,
-                                surfaceTintColor: theme.colorScheme.surface,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                clipBehavior: Clip.antiAlias,
-                                child: Container(
-                                  height: 180,
-                                  width: 200,
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color:
-                                          theme.colorScheme.outlineVariant,
-                                      width: 1,
-                                    ),
-                                    borderRadius:
-                                        BorderRadius.circular(12),
-                                  ),
-                                  child: provider.imagenSeleccionada != null &&
-                                          provider.imagenSeleccionada!
-                                              .existsSync()
-                                      ? Image.file(
-                                          provider.imagenSeleccionada!,
-                                          fit: BoxFit.contain,
-                                          errorBuilder: (context, error,
-                                                  stackTrace) =>
-                                              _buildPlaceholder(
-                                                  theme, "Error al cargar logo"),
-                                        )
-                                      : _buildPlaceholder(theme,
-                                          "Toca para seleccionar logo"),
-                                ),
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        splashColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                        onTap: provider.seleccionarImagen,
+                        child: Card(
+                          elevation: 4,
+                          surfaceTintColor: theme.colorScheme.surface,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Container(
+                            height: 180,
+                            width: 200,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant,
+                                width: 1,
                               ),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                          ).animate().fadeIn(duration: 300.ms).scale(begin: const Offset(0.9, 0.9)),
-                          const SizedBox(height: 30),
-                          TextFormField(
-                            controller: provider.nombreController,
-                            decoration: const InputDecoration(
-                              labelText: "Nombre del Centro",
-                              prefixIcon: Icon(Icons.school_outlined),
-                            ),
-                            style: const TextStyle(fontSize: 18),
-                          ).animate().fadeIn(delay: 200.ms),
-                        ],
+                            child: provider.imagenSeleccionada != null &&
+                                    provider.imagenSeleccionada!.existsSync()
+                                ? Image.file(
+                                    provider.imagenSeleccionada!,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error,
+                                            stackTrace) =>
+                                        _buildPlaceholder(
+                                            theme, "Error al cargar logo"),
+                                  )
+                                : _buildPlaceholder(theme,
+                                    "Toca para seleccionar logo"),
+                          ),
+                        ),
                       ),
-                    ),
+                    ).animate().fadeIn(duration: 300.ms).scale(begin: const Offset(0.9, 0.9)),
+                    const SizedBox(height: 30),
+                    TextFormField(
+                      controller: provider.nombreController,
+                      decoration: const InputDecoration(
+                        labelText: "Nombre del Centro",
+                        prefixIcon: Icon(Icons.school_outlined),
+                      ),
+                      style: const TextStyle(fontSize: 18),
+                    ).animate().fadeIn(delay: 200.ms),
+                  ],
+                ),
+              ),
               bottomNavigationBar: BottomAppBar(
                 elevation: 10,
                 child: Padding(
@@ -144,6 +152,3 @@ class CentroScreen extends StatelessWidget {
     );
   }
 }
-
-
-

@@ -1,8 +1,9 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
-import 'dart:io';
 import 'package:elecciones_jp/data/repositories/centro_repository_impl.dart';
 import 'package:elecciones_jp/domain/entities/centro_entity.dart';
 
@@ -14,14 +15,16 @@ class CentroProvider with ChangeNotifier {
   bool _huboCambios = false;
 
   File? get imagenSeleccionada => _imagenSeleccionada;
-  bool _isLoading = true;
+  bool _isLoading = false;
   bool get isLoading => _isLoading;
   bool get huboCambios => _huboCambios;
   final ImagePicker _picker = ImagePicker();
   final CentroRepositoryImpl _centroRepo = CentroRepositoryImpl();
 
-  CentroProvider() {
-    _cargarDatosCentro();
+  CentroProvider();
+
+  Future<void> init() async {
+    await _cargarDatosCentro();
   }
 
   Future<void> _cargarDatosCentro() async {
@@ -29,7 +32,7 @@ class CentroProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final centro = await _centroRepo.findOne();
+      final centro = await _centroRepo.findOne().timeout(const Duration(seconds: 10));
 
       if (centro != null) {
         nombreController.text = centro.nombre ?? "Centro de Votación";
@@ -47,12 +50,12 @@ class CentroProvider with ChangeNotifier {
       // Manejar el caso donde el archivo de imagen no se encuentra
       if (e is PathNotFoundException || e.toString().contains('No such file')) {
         nombreController.text = "Centro de Votación (Error de logo)";
-        _rutaImagenOriginalDB = "";
-        _imagenOriginal = null;
-        _imagenSeleccionada = null;
       } else {
-        rethrow;
+        nombreController.text = "Centro de Votación";
       }
+      _rutaImagenOriginalDB = "";
+      _imagenOriginal = null;
+      _imagenSeleccionada = null;
     } finally {
       _isLoading = false;
       notifyListeners();
