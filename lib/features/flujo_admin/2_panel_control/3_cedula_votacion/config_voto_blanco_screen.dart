@@ -43,9 +43,7 @@ class _ConfigVotoBlancoScreenState extends State<ConfigVotoBlancoScreen> {
               title: const Text("Configurar Voto en Blanco"),
               centerTitle: false,
             ),
-            body: provider.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : SingleChildScrollView(
+            body: SingleChildScrollView(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
