@@ -59,6 +59,7 @@ const padronPage = readFileSync(
 );
 const importarPadron = readFileSync(new URL('../src/lib/importarPadron.ts', import.meta.url), 'utf8');
 const mesasPage = readFileSync(new URL('../src/features/mesas/MesasPage.tsx', import.meta.url), 'utf8');
+const chromaGrid = readFileSync(new URL('../src/components/ui/ChromaGrid.tsx', import.meta.url), 'utf8');
 const sessionHelper = readFileSync(new URL('../src/lib/session.ts', import.meta.url), 'utf8');
 const supabaseClient = readFileSync(new URL('../src/lib/supabase.ts', import.meta.url), 'utf8');
 
@@ -210,15 +211,33 @@ test('manual padron form matches the template fields and a template can be downl
   assert.match(padronPage, /Apellido Materno/, 'labels match the template headers');
 });
 
-test('mesas support a single select or a group of grades and sections', () => {
+test('mesas are only for the six grades, with no sections or groups', () => {
+  assert.match(mesasPage, /const GRADOS = \['1°', '2°', '3°', '4°', '5°', '6°'\]/, 'only six grades exist');
   assert.match(mesasPage, /<select\s+id="mesa-grado"/, 'grade uses a native select');
-  assert.match(mesasPage, /<select\s+id="mesa-seccion"/, 'section uses a native select');
-  assert.doesNotMatch(mesasPage, /<AdminSelect/, 'custom dropdown was removed from the mesa form');
-  assert.match(mesasPage, /nombresMesasGrupo\(gradosGrupo, seccionesGrupo\)/, 'group names come from a tested helper');
-  assert.match(mesasPage, /type="checkbox"/, 'grades and sections can be selected together');
-  assert.match(mesasPage, /onChange=\{\(\) => alternar\(g, gradosGrupo, setGradosGrupo\)\}/, 'grade chips toggle selection');
-  assert.match(mesasPage, /onChange=\{\(\) => alternar\(s, seccionesGrupo, setSeccionesGrupo\)\}/, 'section chips toggle selection');
-  assert.match(mesasPage, /existentes\.has\(nombre\.toLowerCase\(\)\)/, 'mesas already created are skipped');
+  assert.match(mesasPage, /const nombreMesa = grado\.trim\(\)/, 'the mesa name is just the grade');
+  assert.doesNotMatch(mesasPage, /SECCIONES|id="mesa-seccion"|setSeccion|modoAlta|gradosGrupo|seccionesGrupo|nombresMesasGrupo/, 'sections and group mode are gone');
+  assert.doesNotMatch(mesasPage, /type="checkbox"/, 'no chip selection remains');
+  assert.match(mesasPage, /gradoDeNombre/, 'editing an old mesa normalizes it to a grade');
+  assert.match(mesasPage, /<option value="">Seleccionar el grado<\/option>/, 'the edit control also uses the grade select');
+});
+
+test('padron separates individual entry, the Excel padrón and the loaded list', () => {
+  const individual = padronPage.indexOf('id="padron-dni"');
+  const excel = padronPage.indexOf('id="file-input"');
+  const lista = padronPage.indexOf('data-busqueda-padron');
+
+  assert.ok(individual >= 0 && excel > individual && lista > excel, 'sections appear in that order');
+  assert.match(padronPage, /Agregar una persona/, 'individual area is labelled');
+  assert.match(padronPage, /Padrón desde Excel/, 'Excel area is labelled');
+  assert.match(padronPage, /Padrón cargado/, 'loaded list area is labelled');
+});
+
+test('the Excel preview can filter rows with missing or invalid data', () => {
+  assert.match(padronPage, /filtroPreview/, 'preview has its own filter state');
+  assert.match(padronPage, /\['con-errores', `Datos faltantes \(\$\{previewInvalidos\}\)`\]/, 'missing-data filter shows a count');
+  assert.match(padronPage, /setFiltroPreview\(valor\)/, 'buttons change the filter');
+  assert.match(padronPage, /filasPreview\.slice\(0, 100\)/, 'the table uses filtered rows');
+  assert.match(padronPage, /if \(filtroPreview === 'con-errores'\) return !item\.valido/, 'invalid rows are isolated');
 });
 
 test('browser voting service never invokes the protected voting RPCs directly', () => {
@@ -244,34 +263,32 @@ test('kiosk shows plain outcomes for already voted and unknown DNI', () => {
   assert.match(kiosk, /title: 'No existe'/);
 });
 
-test('candidate cards are full-screen rectangles with up to six visible', () => {
+test('candidate cards use ChromaGrid and stay full-screen with up to six visible', () => {
   assert.doesNotMatch(kiosk, /AccordionGallery/, 'the accordion was removed');
   assert.match(kiosk, /h-dvh w-full overflow-hidden text-white/, 'the step fills the viewport');
-  assert.match(
-    kiosk,
-    /relative grid h-full w-full auto-rows-fr grid-cols-1 \$\{claseSeparacion\} sm:grid-cols-2/,
-    'two columns stretch to every edge'
-  );
-  assert.match(kiosk, /const claseSeparacion =/, 'spacing adapts to the number of candidates');
-  assert.match(kiosk, /candidates\.length <= 2\s*\? 'gap-6 sm:gap-10'/, 'two cards are very separated');
-  assert.match(kiosk, /candidates\.length <= 4\s*\? 'gap-4 sm:gap-6'/, 'four cards have room between them');
-  assert.match(kiosk, /: 'gap-2 sm:gap-3'/, 'six cards use the compact original gap');
-  assert.match(kiosk, /const tamanoTarjeta = 'h-full w-full'/, 'cards fill their grid cell');
-  assert.match(kiosk, /sm:col-span-2/, 'a single candidate spans the whole row');
-  assert.match(kiosk, /text-3xl font-bold text-white drop-shadow-lg sm:text-5xl/, 'names stay large');
+  assert.match(kiosk, /import ChromaGrid from '\.\.\/\.\.\/components\/ui\/ChromaGrid'/, 'local ChromaGrid is used');
+  assert.match(kiosk, /const separacion =/, 'spacing adapts to the number of candidates');
+  assert.match(kiosk, /candidates\.length <= 2\s*\? 40/, 'two cards are very separated');
+  assert.match(kiosk, /candidates\.length <= 4\s*\? 24/, 'four cards have room between them');
+  assert.match(kiosk, /: 12/, 'six cards use the compact gap');
+  assert.match(kiosk, /columns=\{candidates\.length === 1 \? 1 : 2\}/, 'one candidate fills the row');
+  assert.match(kiosk, /gap=\{separacion\}/, 'the computed gap reaches the grid');
+  assert.match(kiosk, /fill\b/, 'cards fill their grid cell');
+  assert.match(kiosk, /titleClassName="text-3xl font-bold text-white drop-shadow-lg sm:text-5xl"/, 'names stay large');
   assert.doesNotMatch(kiosk, /Elige a tu candidato/, 'no step title');
   assert.doesNotMatch(kiosk, /Toca para seleccionar/, 'no instructional text on the cards');
-  assert.match(kiosk, /aria-pressed=\{selected\}/, 'the tapped card is marked individually');
-  assert.match(kiosk, /onClick=\{\(\) => chooseCandidate\(candidate\.id\)\}/, 'each card is selectable');
+  assert.match(chromaGrid, /aria-pressed=\{onSelect \? selected : undefined\}/, 'ChromaGrid marks the tapped card');
 });
 
-test('selecting a card shows ElectricBorder only there, then opens a blurred confirm dialog', () => {
+test('selecting a card shows ElectricBorder, then the candidate photo with yes/no', () => {
   const border = readFileSync(new URL('../src/components/ui/ElectricBorder.tsx', import.meta.url), 'utf8');
 
   assert.doesNotMatch(kiosk, /LaserFlow/, 'the laser animation was removed');
   assert.match(kiosk, /import ElectricBorder from '\.\.\/\.\.\/components\/ui\/ElectricBorder'/, 'local ElectricBorder is used');
-  assert.match(kiosk, /const selected = candidate\.id === selectedCandidateId/, 'the selected card is identified');
-  assert.match(kiosk, /\{selected \? \(\s*<ElectricBorder/, 'only the chosen card gets the border');
+  assert.match(kiosk, /selectedIndex=\{indiceSeleccionado\}/, 'ChromaGrid knows which card is selected');
+  assert.match(kiosk, /onSelect=\{\(indice\) => chooseCandidate\(candidates\[indice\]\.id\)\}/, 'tapping a card chooses that candidate');
+  assert.match(kiosk, /selectedWrapper=\{\(children\) => \(\s*<ElectricBorder/, 'only the chosen card gets the border');
+  assert.match(chromaGrid, /\{selected && selectedWrapper \? selectedWrapper\(card\) : card\}/, 'the wrapper is applied only to the selected card');
   assert.match(kiosk, /color=\"#7df9ff\"/, 'registry border color');
   assert.match(kiosk, /speed=\{1\}/, 'registry border speed');
   assert.match(kiosk, /chaos=\{0\.5\}/, 'registry border chaos');
@@ -280,18 +297,54 @@ test('selecting a card shows ElectricBorder only there, then opens a blurred con
   assert.match(kiosk, /thickness=\{1\.5\}/, 'registry border thickness');
   assert.match(kiosk, /borderRadius=\{24\}/, 'rounded border matches the cards');
   assert.match(kiosk, /interactive=\{false\}/, 'no pointer tracking on the kiosk');
-  assert.match(kiosk, /}, reduce \? 0 : 1200\)/, 'the dialog follows the border highlight');
+  assert.match(kiosk, /}, reduce \? 0 : 1200\)/, 'the photo follows the border highlight');
   assert.match(kiosk, /gsap\.timeline\(\)/, 'GSAP marks the selected card');
   assert.match(kiosk, /clearProps: 'transform'/, 'only cheap properties are animated');
-  assert.match(kiosk, /role=\"dialog\"\s+aria-modal=\"true\"/, 'the confirmation is a dialog');
-  assert.match(kiosk, /bg-slate-950\/65 backdrop-blur-xl/, 'the background is blurred');
-  assert.match(kiosk, />\s*¿Confirmar tu voto\?/, 'minimal confirm text');
+  assert.match(kiosk, /if \(eleccionLista && step === 'confirm' && selectedCandidate\)/, 'confirmation is its own screen');
+  assert.match(kiosk, /h-\[58dvh\] w-auto max-w-full rounded-3xl object-contain/, 'the photo is large and fully visible');
+  assert.match(kiosk, /alt=\{`Foto de \$\{selectedCandidate\.nombre\}`\}/, 'the photo has an accessible label');
+  assert.doesNotMatch(kiosk, /bg-slate-950\/65 backdrop-blur-xl/, 'the blurred confirmation dialog was removed');
+  assert.doesNotMatch(kiosk, /role=\"dialog\"/, 'no modal dialog remains');
   assert.match(kiosk, />\s*No, elegir otro\s*</, 'cancel is available');
-  assert.match(kiosk, />\s*\{submitting \? 'Guardando…' : 'Confirmar'\}\s*</, 'confirm button');
+  assert.match(kiosk, />\s*\{submitting \? 'Guardando…' : 'Sí, confirmar'\}\s*</, 'confirm button');
   assert.match(border, /MAX_DPR = 1\.25/, 'DPR is capped for old machines');
   assert.match(border, /PIXEL_BUDGET = 1\.2e6/, 'render surface is capped for old machines');
   assert.match(border, /if \(pointerEnabled\)/, 'unused pointer listeners are skipped');
   assert.match(border, /prefers-reduced-motion/, 'reduced motion is respected');
+});
+
+test('ChromaGrid is local and safe for a touch kiosk', () => {
+  assert.match(chromaGrid, /from 'react'/, 'uses React directly, no new dependency');
+  assert.match(chromaGrid, /onSelect\?:\s*\(index: number\) => void/, 'cards can be tapped');
+  assert.match(chromaGrid, /selectedIndex\?:\s*number \| null/, 'selection is controlled by the kiosk');
+  assert.match(chromaGrid, /if \(interactive && spotlight\) \{/, 'pointer listeners are optional');
+  assert.match(chromaGrid, /prefers-reduced-motion/, 'reduced motion is respected');
+  assert.match(chromaGrid, /referrerPolicy="no-referrer"/, 'candidate photos do not leak the referrer');
+  assert.match(chromaGrid, /gridAutoRows: fill \? 'minmax\(0, 1fr\)' : undefined/, 'fill mode stretches the rows');
+  assert.doesNotMatch(chromaGrid, /https?:\/\//, 'no remote demo photos are bundled');
+});
+
+test('a confirmed vote announces success and returns straight to the DNI', () => {
+  assert.match(kiosk, />\s*Tu voto fue registrado\s*</, 'the success message is shown');
+  assert.match(kiosk, /step !== 'success'\) return/, 'the auto-return only runs after success');
+  assert.match(kiosk, /reduce \? 0 : 1800/, 'the message stays visible briefly');
+  assert.match(kiosk, /setStep\('dni'\)/, 'the next voter enters a DNI directly');
+  assert.doesNotMatch(kiosk, /Comenzar siguiente votante/, 'no extra button is needed');
+});
+
+test('the DNI screen header shows only the event, the school and the logo', () => {
+  assert.match(kiosk, /<header className="mb-10 flex items-center justify-center gap-5 sm:gap-8">/);
+  assert.match(kiosk, /\{status\?\.title \|\| 'Votación escolar'\}/, 'the event name comes first');
+  assert.match(kiosk, /\{status\.centro\}/, 'the school name comes below');
+  assert.match(
+    kiosk,
+    /font-display text-3xl font-bold leading-tight tracking-tight sm:text-5xl/,
+    'both names use the same large style'
+  );
+  assert.match(kiosk, /alt=\{`Logo de \$\{status\.centro \|\| 'la institución educativa'\}`\}/, 'the logo sits beside them');
+  assert.doesNotMatch(kiosk, /Kiosco electoral/, 'no extra label');
+  assert.doesNotMatch(kiosk, /Mesa \{status\.mesa\.nombre\}/, 'no mesa badge');
+  assert.doesNotMatch(kiosk, /Sigue las indicaciones en pantalla/, 'no instruction text');
 });
 
 test('the removed laser component is not bundled', () => {

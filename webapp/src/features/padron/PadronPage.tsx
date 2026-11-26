@@ -148,6 +148,13 @@ export default function PadronPage() {
   const [previewInvalidos, setPreviewInvalidos] = useState(0)
   const [resultadoImportacion, setResultadoImportacion] = useState<ImportResult | null>(null)
   const [arrastrandoArchivo, setArrastrandoArchivo] = useState(false)
+  const [filtroPreview, setFiltroPreview] = useState<'todas' | 'validas' | 'con-errores'>('todas')
+
+  const filasPreview = previewData.filter((item) => {
+    if (filtroPreview === 'validas') return item.valido
+    if (filtroPreview === 'con-errores') return !item.valido
+    return true
+  })
 
   // Cargar estadísticas
   const cargarEstadisticas = useCallback(async () => {
@@ -292,6 +299,7 @@ export default function PadronPage() {
     setArchivoSeleccionado(file)
     setError(null)
     setExito(null)
+    setFiltroPreview('todas')
     setPasoImportacion('preview')
     void procesarPreview(file)
   }
@@ -393,6 +401,7 @@ export default function PadronPage() {
     setPreviewData([])
     setPreviewValidos(0)
     setPreviewInvalidos(0)
+    setFiltroPreview('todas')
     setResultadoImportacion(null)
     setPasoImportacion('archivo')
     const input = document.getElementById('file-input') as HTMLInputElement | null
@@ -651,58 +660,17 @@ export default function PadronPage() {
         />
       </div>
 
-      {/* Filtros, búsqueda y exportación */}
-      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 space-y-3 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-          <div className="flex-1">
-            <label htmlFor="padron-busqueda" className="mb-1 block text-xs text-slate-400">
-              Buscar por DNI o nombre
-            </label>
-            <div className="relative">
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
-                <HugeiconsIcon icon={Search01Icon} size={17} strokeWidth={1.8} />
-              </span>
-              <input
-                id="padron-busqueda"
-                data-busqueda-padron
-                type="text"
-                value={busqueda}
-                onChange={(e) => { setBusqueda(e.target.value); setPagina(1) }}
-                placeholder="Buscar por DNI o nombre… ( / )"
-                className="w-full rounded-xl border border-white/10 bg-black/25 py-2.5 pl-11 pr-4 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-              />
-            </div>
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-slate-300 lg:pb-2.5">
-            <input
-              type="checkbox"
-              checked={soloPendientes}
-              onChange={(e) => { setSoloPendientes(e.target.checked); setPagina(1) }}
-              className="h-4 w-4 rounded border-white/20 bg-black/25 text-blue-400 focus:ring-blue-500/40"
-            />
-            Solo pendientes
-          </label>
-
-          <AdminButton
-            variant="secondary"
-            size="sm"
-            onClick={() => void exportarCSV()}
-            disabled={exportando || totalCount === 0}
-            className="inline-flex items-center gap-2 lg:mb-0.5"
-          >
-            <HugeiconsIcon icon={Download01Icon} size={15} strokeWidth={1.8} />
-            {exportando ? 'Exportando…' : 'Exportar CSV'}
-          </AdminButton>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-          <span>Mostrando {votantes.length} de {totalCount} votantes</span>
-          <span>Página {pagina} de {Math.max(1, totalPages)}</span>
+      {/* 1. Alta individual */}
+      <div className="flex items-center gap-3">
+        <span className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-2 py-1 text-xs font-bold text-blue-200">
+          01
+        </span>
+        <div>
+          <h3 className="text-lg font-bold text-white">Agregar una persona</h3>
+          <p className="text-xs text-slate-400">Para sumar o corregir un votante suelto, sin usar el Excel.</p>
         </div>
       </div>
 
-      {/* Alta manual de votante */}
       <AdminCard>
         <div className="space-y-4">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -817,7 +785,17 @@ export default function PadronPage() {
         </div>
       </AdminCard>
 
-      {/* Importación */}
+      {/* 2. Padrón desde Excel */}
+      <div className="flex items-center gap-3">
+        <span className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-2 py-1 text-xs font-bold text-blue-200">
+          02
+        </span>
+        <div>
+          <h3 className="text-lg font-bold text-white">Padrón desde Excel</h3>
+          <p className="text-xs text-slate-400">Descarga la plantilla, revísala y corrige las filas con datos faltantes antes de importar.</p>
+        </div>
+      </div>
+
       <AdminCard>
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-white">Importar padrón (Excel o CSV)</h3>
@@ -924,14 +902,35 @@ export default function PadronPage() {
 
         {pasoImportacion === 'preview' && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="space-y-2">
               <p className="text-sm">
                 <span className="text-emerald-400 font-medium">{previewValidos} válidos</span>
                 {' '}·{' '}
-                <span className="text-red-400 font-medium">{previewInvalidos} con errores</span>
+                <span className="text-red-400 font-medium">{previewInvalidos} con datos faltantes o inválidos</span>
                 {' '}·{' '}
                 <span className="text-slate-400">{previewData.length} filas totales</span>
               </p>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar filas del archivo">
+                {([
+                  ['todas', `Todas (${previewData.length})`],
+                  ['validas', `Válidas (${previewValidos})`],
+                  ['con-errores', `Datos faltantes (${previewInvalidos})`]
+                ] as const).map(([valor, etiqueta]) => (
+                  <button
+                    key={valor}
+                    type="button"
+                    onClick={() => setFiltroPreview(valor)}
+                    aria-pressed={filtroPreview === valor}
+                    className={`rounded-lg border px-3 py-1 text-xs font-medium transition ${
+                      filtroPreview === valor
+                        ? 'border-blue-400/50 bg-blue-500/15 text-blue-100'
+                        : 'border-white/10 bg-white/[0.04] text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {etiqueta}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="max-h-64 overflow-auto rounded-xl border border-white/10 bg-black/25 backdrop-blur-md">
               <table className="w-full text-sm">
@@ -946,7 +945,7 @@ export default function PadronPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
-                  {previewData.slice(0, 100).map((item, idx) => (
+                  {filasPreview.slice(0, 100).map((item, idx) => (
                     <tr key={idx} className={item.valido ? '' : 'bg-red-900/20'}>
                       <td className="p-2 text-slate-400">{item.fila}</td>
                       <td className="p-2 font-mono">{item.dni}</td>
@@ -960,10 +959,17 @@ export default function PadronPage() {
                       </td>
                     </tr>
                   ))}
-                  {previewData.length > 100 && (
+                  {filasPreview.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-4 text-center text-slate-500">
+                        No hay filas con este filtro.
+                      </td>
+                    </tr>
+                  )}
+                  {filasPreview.length > 100 && (
                     <tr>
                       <td colSpan={6} className="p-2 text-center text-slate-500">
-                        … y {previewData.length - 100} filas más
+                        … y {filasPreview.length - 100} filas más
                       </td>
                     </tr>
                   )}
@@ -1011,6 +1017,67 @@ export default function PadronPage() {
         )}
         </div>
       </AdminCard>
+
+      {/* 3. Padrón cargado */}
+      <div className="flex items-center gap-3">
+        <span className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-2 py-1 text-xs font-bold text-blue-200">
+          03
+        </span>
+        <div>
+          <h3 className="text-lg font-bold text-white">Padrón cargado</h3>
+          <p className="text-xs text-slate-400">Busca, revisa quién falta votar y exporta la lista filtrada.</p>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 space-y-3 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <div className="flex-1">
+            <label htmlFor="padron-busqueda" className="mb-1 block text-xs text-slate-400">
+              Buscar por DNI o nombre
+            </label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
+                <HugeiconsIcon icon={Search01Icon} size={17} strokeWidth={1.8} />
+              </span>
+              <input
+                id="padron-busqueda"
+                data-busqueda-padron
+                type="text"
+                value={busqueda}
+                onChange={(e) => { setBusqueda(e.target.value); setPagina(1) }}
+                placeholder="Buscar por DNI o nombre… ( / )"
+                className="w-full rounded-xl border border-white/10 bg-black/25 py-2.5 pl-11 pr-4 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+              />
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-slate-300 lg:pb-2.5">
+            <input
+              type="checkbox"
+              checked={soloPendientes}
+              onChange={(e) => { setSoloPendientes(e.target.checked); setPagina(1) }}
+              className="h-4 w-4 rounded border-white/20 bg-black/25 text-blue-400 focus:ring-blue-500/40"
+            />
+            Solo pendientes
+          </label>
+
+          <AdminButton
+            variant="secondary"
+            size="sm"
+            onClick={() => void exportarCSV()}
+            disabled={exportando || totalCount === 0}
+            className="inline-flex items-center gap-2 lg:mb-0.5"
+          >
+            <HugeiconsIcon icon={Download01Icon} size={15} strokeWidth={1.8} />
+            {exportando ? 'Exportando…' : 'Exportar CSV'}
+          </AdminButton>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+          <span>Mostrando {votantes.length} de {totalCount} votantes</span>
+          <span>Página {pagina} de {Math.max(1, totalPages)}</span>
+        </div>
+      </div>
 
       {/* Barra de acciones masivas */}
       {seleccionados.size > 0 && (

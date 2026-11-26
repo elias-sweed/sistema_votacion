@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { gsap } from 'gsap'
 import ElectricBorder from '../../components/ui/ElectricBorder'
+import ChromaGrid from '../../components/ui/ChromaGrid'
+import type { ChromaItem } from '../../components/ui/ChromaGrid'
 import {
   castVote,
   isValidDni,
@@ -119,8 +121,9 @@ export default function VotingKioskPage() {
   const lastCheckedDni = useRef<string | null>(null)
   const requestIdRef = useRef(0)
   const inputRef = useRef<HTMLInputElement>(null)
-  const cardRefs = useRef<Record<string, HTMLLIElement | null>>({})
+  const cardRefs = useRef<Record<string, HTMLElement | null>>({})
   const marcandoTimerRef = useRef<number | null>(null)
+  const successTimerRef = useRef<number | null>(null)
   const [status, setStatus] = useState<ElectionStatus | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [step, setStep] = useState<Step>('dni')
@@ -267,8 +270,25 @@ export default function VotingKioskPage() {
     }
   }, [marcando, selectedCandidateId])
 
+  useEffect(() => {
+    if (step !== 'success') return
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    successTimerRef.current = window.setTimeout(() => {
+      successTimerRef.current = null
+      clearVoterState()
+      setStep('dni')
+    }, reduce ? 0 : 1800)
+    return () => {
+      if (successTimerRef.current !== null) {
+        window.clearTimeout(successTimerRef.current)
+        successTimerRef.current = null
+      }
+    }
+  }, [step])
+
   useEffect(() => () => {
     if (marcandoTimerRef.current !== null) window.clearTimeout(marcandoTimerRef.current)
+    if (successTimerRef.current !== null) window.clearTimeout(successTimerRef.current)
   }, [])
 
   async function submitVote() {
@@ -302,6 +322,13 @@ export default function VotingKioskPage() {
     }
   }
 
+  function cancelConfirmation() {
+    setMessage(null)
+    setSelectedCandidateId(null)
+    setMarcando(false)
+    setStep('candidates')
+  }
+
   function resetFlow() {
     clearVoterState()
     setMessage(null)
@@ -310,6 +337,14 @@ export default function VotingKioskPage() {
   }
 
   const selectedCandidate = candidates.find(candidate => candidate.id === selectedCandidateId) ?? null
+  const indiceSeleccionado = candidates.findIndex(candidate => candidate.id === selectedCandidateId)
+
+  const itemsCandidatos: ChromaItem[] = candidates.map(candidate => ({
+    image: fotoOColor(candidate),
+    title: candidate.nombre,
+    alt: candidate.nombre,
+    accent: '#7df9ff'
+  }))
 
   if (!token) {
     return (
@@ -331,15 +366,57 @@ export default function VotingKioskPage() {
   }
 
   // Hasta 6 candidatos en 2 columnas; con menos, más separación entre tarjetas.
-  const claseSeparacion =
+  const separacion =
     candidates.length <= 2
-      ? 'gap-6 sm:gap-10'
+      ? 40
       : candidates.length <= 4
-        ? 'gap-4 sm:gap-6'
-        : 'gap-2 sm:gap-3'
+        ? 24
+        : 12
+
+  // Confirmación a pantalla completa: la foto del candidato primero y sí/no abajo.
+  if (eleccionLista && step === 'confirm' && selectedCandidate) {
+    return (
+      <main className="relative flex h-dvh w-full flex-col items-center justify-center overflow-hidden p-4 text-white">
+        <button
+          type="button"
+          onClick={cancelConfirmation}
+          className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-30 focus:rounded-xl focus:bg-slate-950/90 focus:px-4 focus:py-2 focus:text-sm"
+        >
+          Volver
+        </button>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(56,189,248,0.16),transparent_60%)]"
+        />
+        <img
+          src={fotoOColor(selectedCandidate)}
+          alt={`Foto de ${selectedCandidate.nombre}`}
+          referrerPolicy="no-referrer"
+          className="relative h-[58dvh] w-auto max-w-full rounded-3xl object-contain shadow-[0_25px_80px_-30px_rgba(0,0,0,0.9)]"
+        />
+        <p className="relative mt-4 text-center text-2xl font-bold drop-shadow-lg sm:text-3xl">
+          {selectedCandidate.nombre}
+        </p>
+        {message && <p className="relative mt-2 max-w-md text-center text-sm text-rose-200">{message}</p>}
+        <div className="relative mt-6 flex w-full max-w-md flex-col gap-3 sm:flex-row sm:justify-center">
+          <button type="button" onClick={cancelConfirmation} className="kiosk-button-secondary">
+            No, elegir otro
+          </button>
+          <button
+            type="button"
+            disabled={submitting || !enLinea}
+            onClick={() => void submitVote()}
+            className="kiosk-button-primary"
+          >
+            {submitting ? 'Guardando…' : 'Sí, confirmar'}
+          </button>
+        </div>
+      </main>
+    )
+  }
 
   // Pantalla de candidatos a pantalla completa: sin títulos ni panel central.
-  if (eleccionLista && (step === 'candidates' || (step === 'confirm' && selectedCandidate))) {
+  if (eleccionLista && step === 'candidates') {
     return (
       <main className="relative h-dvh w-full overflow-hidden text-white">
         <button
@@ -352,107 +429,51 @@ export default function VotingKioskPage() {
         <p className="sr-only" aria-live="polite">
           {marcando ? 'Opción marcada. Preparando la confirmación…' : 'Toca la tarjeta de tu candidato.'}
         </p>
-        <div className={`relative grid h-full w-full auto-rows-fr grid-cols-1 ${claseSeparacion} sm:grid-cols-2`}>
-          {candidates.map(candidate => {
-            const selected = candidate.id === selectedCandidateId
-            const tamanoTarjeta = 'h-full w-full'
-            const boton = (
-              <button
-                type="button"
-                onClick={() => chooseCandidate(candidate.id)}
-                aria-pressed={selected}
-                className={`group relative flex h-full w-full flex-col overflow-hidden rounded-3xl border text-left ${
-                  selected
-                    ? 'border-sky-300/80 bg-sky-400/10'
-                    : 'border-white/10 bg-white/5 hover:border-sky-300/60'
-                }`}
+        <div className="relative h-full w-full">
+          <ChromaGrid
+            items={itemsCandidatos}
+            columns={candidates.length === 1 ? 1 : 2}
+            minCardWidth={0}
+            gap={separacion}
+            radius={260}
+            softness={0.6}
+            damping={0.45}
+            fadeOut={0.6}
+            grayscale={0.18}
+            dim={0.04}
+            glow={0.5}
+            borderGlow={1}
+            reveal="spotlight"
+            aspectRatio="auto"
+            cardRadius={24}
+            showInfo
+            frame={false}
+            interactive={false}
+            fill
+            className="h-full"
+            titleClassName="text-3xl font-bold text-white drop-shadow-lg sm:text-5xl"
+            selectedIndex={indiceSeleccionado}
+            onSelect={(indice) => chooseCandidate(candidates[indice].id)}
+            itemRef={(indice, elemento) => {
+              cardRefs.current[candidates[indice].id] = elemento
+            }}
+            selectedWrapper={(children) => (
+              <ElectricBorder
+                color="#7df9ff"
+                speed={1}
+                chaos={0.5}
+                spread={0.6}
+                strands={3}
+                thickness={1.5}
+                borderRadius={24}
+                interactive={false}
+                className="h-full w-full"
               >
-                <img
-                  src={fotoOColor(candidate)}
-                  alt=""
-                  referrerPolicy="no-referrer"
-                  className="absolute inset-0 h-full w-full object-cover opacity-75 transition-transform duration-500 group-hover:scale-105"
-                />
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-950/45 to-transparent"
-                />
-                <span className="relative mt-auto block p-6 sm:p-10">
-                  <span className="block text-3xl font-bold text-white drop-shadow-lg sm:text-5xl">
-                    {candidate.nombre}
-                  </span>
-                </span>
-              </button>
-            )
-            return (
-              <li
-                key={candidate.id}
-                ref={(el) => {
-                  cardRefs.current[candidate.id] = el
-                }}
-                className={`min-h-0 ${candidates.length === 1 ? 'sm:col-span-2' : ''}`}
-              >
-                {selected ? (
-                  <ElectricBorder
-                    color="#7df9ff"
-                    speed={1}
-                    chaos={0.5}
-                    spread={0.6}
-                    strands={3}
-                    thickness={1.5}
-                    borderRadius={24}
-                    interactive={false}
-                    className={tamanoTarjeta}
-                  >
-                    {boton}
-                  </ElectricBorder>
-                ) : (
-                  <div className={tamanoTarjeta}>{boton}</div>
-                )}
-              </li>
-            )
-          })}
+                {children}
+              </ElectricBorder>
+            )}
+          />
         </div>
-
-        {step === 'confirm' && selectedCandidate && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-950/65 backdrop-blur-xl" aria-hidden="true" />
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="confirmar-voto-titulo"
-              className="relative w-full max-w-sm rounded-3xl border border-white/15 bg-slate-950/90 p-7 text-center shadow-2xl"
-            >
-              <h2 id="confirmar-voto-titulo" className="text-2xl font-semibold">
-                ¿Confirmar tu voto?
-              </h2>
-              <p className="mt-2 text-lg font-bold text-sky-100">{selectedCandidate.nombre}</p>
-              {message && <p className="mt-3 text-sm text-rose-200">{message}</p>}
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMessage(null)
-                    setSelectedCandidateId(null)
-                    setMarcando(false)
-                    setStep('candidates')
-                  }}
-                  className="kiosk-button-secondary"
-                >
-                  No, elegir otro
-                </button>
-                <button
-                  type="button"
-                  disabled={submitting || !enLinea}
-                  onClick={() => void submitVote()}
-                  className="kiosk-button-primary"
-                >
-                  {submitting ? 'Guardando…' : 'Confirmar'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
     )
   }
@@ -460,27 +481,25 @@ export default function VotingKioskPage() {
   return (
     <main className="relative min-h-screen px-4 py-8 text-white sm:px-8 sm:py-12">
       <div className="relative mx-auto w-full max-w-3xl">
-        <header className="mb-8 text-center">
+        <header className="mb-10 flex items-center justify-center gap-5 sm:gap-8">
+          <div className="min-w-0">
+            <h1 className="font-display text-3xl font-bold leading-tight tracking-tight sm:text-5xl">
+              {status?.title || 'Votación escolar'}
+            </h1>
+            {status?.centro && (
+              <p className="mt-2 font-display text-3xl font-bold leading-tight tracking-tight sm:text-5xl">
+                {status.centro}
+              </p>
+            )}
+          </div>
           {status?.logoUrl && (
-            <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-white/95 p-2 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.85)] sm:h-28 sm:w-28">
-              <img
-                src={status.logoUrl}
-                alt={`Logo de ${status.centro || 'la institución educativa'}`}
-                className="h-full w-full object-contain"
-              />
-            </div>
+            <img
+              src={status.logoUrl}
+              alt={`Logo de ${status.centro || 'la institución educativa'}`}
+              referrerPolicy="no-referrer"
+              className="h-20 w-20 shrink-0 object-contain sm:h-28 sm:w-28"
+            />
           )}
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-300">Kiosco electoral</p>
-          <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-            {status?.title || 'Votación escolar'}
-          </h1>
-          {status?.centro && <p className="mt-2 text-sm text-slate-400">{status.centro}</p>}
-          {status?.mesa && (
-            <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-1.5 text-sm font-semibold text-sky-100">
-              Mesa {status.mesa.nombre}
-            </p>
-          )}
-          <p className="mt-3 text-sm text-white/90">Sigue las indicaciones en pantalla. Tu voto es secreto.</p>
         </header>
 
         {!enLinea && (
@@ -611,13 +630,10 @@ export default function VotingKioskPage() {
           )}
 
           {step === 'success' && (
-            <div className="py-12 text-center">
+            <div className="py-12 text-center" aria-live="polite">
               <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-3xl text-emerald-300" aria-hidden="true">✓</span>
               <h2 className="mt-5 text-2xl font-bold text-emerald-200">Tu voto fue registrado</h2>
-              <p className="mt-2 text-slate-300">Gracias por participar. Tu selección se ha retirado de esta pantalla.</p>
-              <button type="button" onClick={resetFlow} className="kiosk-button-primary mt-6">
-                Comenzar siguiente votante
-              </button>
+              <p className="mt-2 text-slate-300">Volviendo al ingreso del DNI para el siguiente votante…</p>
             </div>
           )}
 
