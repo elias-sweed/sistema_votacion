@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { gsap } from 'gsap'
-import AccordionGallery from '../../components/ui/AccordionGallery'
 import LaserFlow from '../../components/ui/LaserFlow'
 import {
   castVote,
@@ -122,6 +121,7 @@ export default function VotingKioskPage() {
   const inputRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const marcaWashRef = useRef<HTMLDivElement>(null)
+  const cardRefs = useRef<Record<string, HTMLLIElement | null>>({})
   const marcandoTimerRef = useRef<number | null>(null)
   const [status, setStatus] = useState<ElectionStatus | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
@@ -249,28 +249,28 @@ export default function VotingKioskPage() {
       marcandoTimerRef.current = null
       setMarcando(false)
       setStep('confirm')
-    }, reduce ? 0 : 950)
+    }, reduce ? 0 : 2400)
   }
 
-  // Marca todo el grid con GSAP (sólo transform/opacity) mientras cae el láser.
+  // Resalta la tarjeta elegida con GSAP (sólo transform/opacity) mientras cae el láser.
   useEffect(() => {
-    if (!marcando) return
+    if (!marcando || !selectedCandidateId) return
     const wash = marcaWashRef.current
-    const grid = gridRef.current
+    const card = cardRefs.current[selectedCandidateId]
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-    if (reduce || !wash || !grid) return
+    if (reduce || !wash || !card) return
 
     const tl = gsap.timeline()
     tl.fromTo(wash, { opacity: 0 }, { opacity: 1, duration: 0.22, ease: 'power2.out' })
-      .to(grid, { scale: 1.015, duration: 0.28, ease: 'power2.out' }, 0)
-      .to(grid, { scale: 1, duration: 0.45, ease: 'elastic.out(1, 0.65)' }, 0.28)
-      .to(wash, { opacity: 0, duration: 0.25, ease: 'power2.in' }, 0.68)
+      .fromTo(card, { scale: 1 }, { scale: 1.035, duration: 0.3, ease: 'power2.out' }, 0)
+      .to(card, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.65)' }, 0.3)
+      .to(wash, { opacity: 0, duration: 0.25, ease: 'power2.in' }, 0.95)
 
     return () => {
       tl.kill()
-      gsap.set([wash, grid], { clearProps: 'opacity,transform' })
+      gsap.set([wash, card], { clearProps: 'opacity,transform' })
     }
-  }, [marcando])
+  }, [marcando, selectedCandidateId])
 
   useEffect(() => () => {
     if (marcandoTimerRef.current !== null) window.clearTimeout(marcandoTimerRef.current)
@@ -315,6 +315,19 @@ export default function VotingKioskPage() {
   }
 
   const selectedCandidate = candidates.find(candidate => candidate.id === selectedCandidateId) ?? null
+  // El láser se ancla a la tarjeta elegida (como el ejemplo Hero de React Bits).
+  const superficieSeleccionada = {
+    current: selectedCandidateId ? cardRefs.current[selectedCandidateId] ?? null : null
+  }
+  // El haz cae sobre el centro de esa tarjeta, esté en la columna que esté.
+  const beamDeLaTarjeta = (() => {
+    const card = superficieSeleccionada.current
+    const grid = gridRef.current
+    if (!card || !grid) return 0.6
+    const cardBox = card.getBoundingClientRect()
+    const gridBox = grid.getBoundingClientRect()
+    return gridBox.width > 0 ? (cardBox.left + cardBox.width / 2 - gridBox.left) / gridBox.width : 0.6
+  })()
 
   if (!token) {
     return (
@@ -493,7 +506,7 @@ export default function VotingKioskPage() {
               <div className="text-center">
                 <h2 className="text-2xl font-semibold">Elige a tu candidato</h2>
                 <p className="mt-2 text-sm text-slate-300">
-                  Toca una sola opción: se marcará todo el grid y después aparecerá la confirmación.
+                  Toca una sola tarjeta: se iluminará con el láser y aparecerá la confirmación.
                 </p>
               </div>
 
@@ -501,60 +514,74 @@ export default function VotingKioskPage() {
                 <div
                   ref={marcaWashRef}
                   aria-hidden="true"
-                  className="pointer-events-none absolute -inset-3 z-10 rounded-4xl bg-sky-400/15 opacity-0"
+                  className="pointer-events-none absolute -inset-2 z-10 rounded-4xl bg-sky-400/15 opacity-0"
                 />
-                <AccordionGallery
-                  items={candidates.map(candidate => ({
-                    image: fotoOColor(candidate),
-                    label: candidate.nombre,
-                    alt: candidate.nombre
-                  }))}
-                  onSelect={(index) => {
-                    const candidate = candidates[index]
-                    if (candidate) chooseCandidate(candidate.id)
-                  }}
-                  selectedIndex={candidates.findIndex(candidate => candidate.id === selectedCandidateId)}
-                  defaultIndex={0}
-                  height={380}
-                  gap={8}
-                  radius={18}
-                  expandRatio={0.5}
-                  tilt={6}
-                  parallax={0.35}
-                  duration={0.55}
-                  ease="power3.out"
-                  trigger="click"
-                  grayscale={false}
-                  accentColor="#7dd3fc"
-                  overlayColor="#020617"
-                  textColor="#ffffff"
-                  labelClassName="text-2xl font-bold sm:text-3xl"
-                  className="kiosco-acordeon"
-                />
-                {marcando && (
+                <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  {candidates.map(candidate => {
+                    const selected = candidate.id === selectedCandidateId
+                    return (
+                      <li
+                        key={candidate.id}
+                        ref={(el) => {
+                          cardRefs.current[candidate.id] = el
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => chooseCandidate(candidate.id)}
+                          aria-pressed={selected}
+                          className={`group relative flex min-h-[240px] w-full flex-col overflow-hidden rounded-3xl border text-left sm:min-h-[280px] ${
+                            selected
+                              ? 'border-sky-300/80 bg-sky-400/10'
+                              : 'border-white/15 bg-white/[0.05] hover:border-sky-300/60 hover:bg-white/[0.09]'
+                          }`}
+                        >
+                          <img
+                            src={fotoOColor(candidate)}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                            className="absolute inset-0 h-full w-full object-cover opacity-75 transition-transform duration-500 group-hover:scale-105"
+                          />
+                          <span
+                            aria-hidden="true"
+                            className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent"
+                          />
+                          <span className="relative mt-auto block p-6">
+                            <span className="block text-2xl font-bold text-white sm:text-3xl">
+                              {candidate.nombre}
+                            </span>
+                            <span className="mt-1 block text-sm text-sky-100">Toca para seleccionar</span>
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {marcando && selectedCandidateId && (
                   <LaserFlow
-                    surfaceRef={gridRef}
+                    surfaceRef={superficieSeleccionada}
                     className="absolute! inset-0 z-20 rounded-4xl"
-                    color="#38bdf8"
-                    intensity={1.4}
-                    beamWidth={1.3}
-                    flare={1.2}
-                    spread={1.25}
-                    spill={0.9}
-                    fog={0.1}
-                    dust={0.5}
-                    streaks={0.9}
-                    dots={0}
-                    pulse={0}
-                    speed={3.2}
-                    dpr={0.85}
-                    mouseInteraction={false}
+                    beamPosition={beamDeLaTarjeta}
+                    color="#3847ff"
+                    intensity={1.8}
+                    beamWidth={1.5}
+                    flare={1.5}
+                    spread={1.5}
+                    spill={1}
+                    fog={0.2}
+                    dust={1.6}
+                    streaks={1.5}
+                    dots={1}
+                    pulse={1.5}
+                    speed={1.5}
+                    seed={3}
+                    mouseInteraction
                     intro
                   />
                 )}
               </div>
               <p className="text-center text-sm text-sky-100" aria-live="polite">
-                {marcando ? 'Opción marcada. Preparando la confirmación…' : 'Toca el nombre de tu candidato.'}
+                {marcando ? 'Opción marcada. Preparando la confirmación…' : 'Toca la tarjeta de tu candidato.'}
               </p>
               <div className="text-center">
                 <button type="button" onClick={resetFlow} className="kiosk-button-secondary">
