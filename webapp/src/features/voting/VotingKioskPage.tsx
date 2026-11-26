@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { gsap } from 'gsap'
-import LaserFlow from '../../components/ui/LaserFlow'
+import ElectricBorder from '../../components/ui/ElectricBorder'
 import {
   castVote,
   isValidDni,
@@ -119,8 +119,6 @@ export default function VotingKioskPage() {
   const lastCheckedDni = useRef<string | null>(null)
   const requestIdRef = useRef(0)
   const inputRef = useRef<HTMLInputElement>(null)
-  const gridRef = useRef<HTMLDivElement>(null)
-  const marcaWashRef = useRef<HTMLDivElement>(null)
   const cardRefs = useRef<Record<string, HTMLLIElement | null>>({})
   const marcandoTimerRef = useRef<number | null>(null)
   const [status, setStatus] = useState<ElectionStatus | null>(null)
@@ -249,26 +247,23 @@ export default function VotingKioskPage() {
       marcandoTimerRef.current = null
       setMarcando(false)
       setStep('confirm')
-    }, reduce ? 0 : 2400)
+    }, reduce ? 0 : 1200)
   }
 
-  // Resalta la tarjeta elegida con GSAP (sólo transform/opacity) mientras cae el láser.
+  // Un realce breve con GSAP acompaña al borde eléctrico de la tarjeta elegida.
   useEffect(() => {
     if (!marcando || !selectedCandidateId) return
-    const wash = marcaWashRef.current
     const card = cardRefs.current[selectedCandidateId]
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-    if (reduce || !wash || !card) return
+    if (reduce || !card) return
 
     const tl = gsap.timeline()
-    tl.fromTo(wash, { opacity: 0 }, { opacity: 1, duration: 0.22, ease: 'power2.out' })
-      .fromTo(card, { scale: 1 }, { scale: 1.035, duration: 0.3, ease: 'power2.out' }, 0)
-      .to(card, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.65)' }, 0.3)
-      .to(wash, { opacity: 0, duration: 0.25, ease: 'power2.in' }, 0.95)
+    tl.fromTo(card, { scale: 1 }, { scale: 1.035, duration: 0.25, ease: 'power2.out' })
+      .to(card, { scale: 1, duration: 0.45, ease: 'elastic.out(1, 0.65)' })
 
     return () => {
       tl.kill()
-      gsap.set([wash, card], { clearProps: 'opacity,transform' })
+      gsap.set(card, { clearProps: 'transform' })
     }
   }, [marcando, selectedCandidateId])
 
@@ -315,19 +310,6 @@ export default function VotingKioskPage() {
   }
 
   const selectedCandidate = candidates.find(candidate => candidate.id === selectedCandidateId) ?? null
-  // El láser se ancla a la tarjeta elegida (como el ejemplo Hero de React Bits).
-  const superficieSeleccionada = {
-    current: selectedCandidateId ? cardRefs.current[selectedCandidateId] ?? null : null
-  }
-  // El haz cae sobre el centro de esa tarjeta, esté en la columna que esté.
-  const beamDeLaTarjeta = (() => {
-    const card = superficieSeleccionada.current
-    const grid = gridRef.current
-    if (!card || !grid) return 0.6
-    const cardBox = card.getBoundingClientRect()
-    const gridBox = grid.getBoundingClientRect()
-    return gridBox.width > 0 ? (cardBox.left + cardBox.width / 2 - gridBox.left) / gridBox.width : 0.6
-  })()
 
   if (!token) {
     return (
@@ -348,10 +330,18 @@ export default function VotingKioskPage() {
     )
   }
 
+  // Tarjetas cuadradas y moderadas: caben enteras sin lag ni imágenes gigantes.
+  const claseTamanoTarjeta =
+    candidates.length > 4
+      ? 'max-w-[min(28vh,15rem)]'
+      : candidates.length > 2
+        ? 'max-w-[min(38vh,20rem)]'
+        : 'max-w-[min(58vh,22rem)]'
+
   // Pantalla de candidatos a pantalla completa: sin títulos ni panel central.
-  if (eleccionLista && step === 'candidates') {
+  if (eleccionLista && (step === 'candidates' || (step === 'confirm' && selectedCandidate))) {
     return (
-      <main className="relative h-dvh w-full overflow-hidden text-white">
+      <main className="relative min-h-dvh w-full text-white">
         <button
           type="button"
           onClick={resetFlow}
@@ -362,74 +352,107 @@ export default function VotingKioskPage() {
         <p className="sr-only" aria-live="polite">
           {marcando ? 'Opción marcada. Preparando la confirmación…' : 'Toca la tarjeta de tu candidato.'}
         </p>
-        <div ref={gridRef} className="relative grid h-full w-full auto-rows-fr grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
-          <div
-            ref={marcaWashRef}
-            aria-hidden="true"
-            className="pointer-events-none absolute -inset-2 z-10 bg-sky-400/15 opacity-0"
-          />
+        <div className="relative grid min-h-dvh w-full grid-cols-2 content-center justify-items-center gap-3 p-4 sm:gap-5">
           {candidates.map(candidate => {
             const selected = candidate.id === selectedCandidateId
+            const tamanoTarjeta = `aspect-square w-full ${claseTamanoTarjeta}`
+            const boton = (
+              <button
+                type="button"
+                onClick={() => chooseCandidate(candidate.id)}
+                aria-pressed={selected}
+                className={`group relative flex h-full w-full flex-col overflow-hidden rounded-3xl border text-left ${
+                  selected
+                    ? 'border-sky-300/80 bg-sky-400/10'
+                    : 'border-white/10 bg-white/5 hover:border-sky-300/60'
+                }`}
+              >
+                <img
+                  src={fotoOColor(candidate)}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  className="absolute inset-0 h-full w-full object-cover opacity-75 transition-transform duration-500 group-hover:scale-105"
+                />
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-950/45 to-transparent"
+                />
+                <span className="relative mt-auto block p-4 sm:p-5">
+                  <span className="block text-xl font-bold text-white drop-shadow-lg sm:text-2xl">
+                    {candidate.nombre}
+                  </span>
+                </span>
+              </button>
+            )
             return (
               <li
                 key={candidate.id}
                 ref={(el) => {
                   cardRefs.current[candidate.id] = el
                 }}
-                className="min-h-0"
+                className="flex min-h-0 w-full justify-center"
               >
-                <button
-                  type="button"
-                  onClick={() => chooseCandidate(candidate.id)}
-                  aria-pressed={selected}
-                  className={`group relative flex h-full w-full flex-col overflow-hidden rounded-3xl border text-left ${
-                    selected
-                      ? 'border-sky-300/80 bg-sky-400/10'
-                      : 'border-white/10 bg-white/5 hover:border-sky-300/60'
-                  }`}
-                >
-                  <img
-                    src={fotoOColor(candidate)}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    className="absolute inset-0 h-full w-full object-cover opacity-80 transition-transform duration-500 group-hover:scale-105"
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-950/45 to-transparent"
-                  />
-                  <span className="relative mt-auto block p-6 sm:p-10">
-                    <span className="block text-3xl font-bold text-white drop-shadow-lg sm:text-5xl">
-                      {candidate.nombre}
-                    </span>
-                  </span>
-                </button>
+                {selected ? (
+                  <ElectricBorder
+                    color="#7df9ff"
+                    speed={1}
+                    chaos={0.5}
+                    spread={0.6}
+                    strands={3}
+                    thickness={1.5}
+                    borderRadius={24}
+                    interactive={false}
+                    className={tamanoTarjeta}
+                  >
+                    {boton}
+                  </ElectricBorder>
+                ) : (
+                  <div className={tamanoTarjeta}>{boton}</div>
+                )}
               </li>
             )
           })}
-          {marcando && selectedCandidateId && (
-            <LaserFlow
-              surfaceRef={superficieSeleccionada}
-              className="absolute! inset-0 z-20"
-              beamPosition={beamDeLaTarjeta}
-              color="#3847ff"
-              intensity={1.8}
-              beamWidth={1.5}
-              flare={1.5}
-              spread={1.5}
-              spill={1}
-              fog={0.2}
-              dust={1.6}
-              streaks={1.5}
-              dots={1}
-              pulse={1.5}
-              speed={1.5}
-              seed={3}
-              mouseInteraction
-              intro
-            />
-          )}
         </div>
+
+        {step === 'confirm' && selectedCandidate && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-950/65 backdrop-blur-xl" aria-hidden="true" />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="confirmar-voto-titulo"
+              className="relative w-full max-w-sm rounded-3xl border border-white/15 bg-slate-950/90 p-7 text-center shadow-2xl"
+            >
+              <h2 id="confirmar-voto-titulo" className="text-2xl font-semibold">
+                ¿Confirmar tu voto?
+              </h2>
+              <p className="mt-2 text-lg font-bold text-sky-100">{selectedCandidate.nombre}</p>
+              {message && <p className="mt-3 text-sm text-rose-200">{message}</p>}
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMessage(null)
+                    setSelectedCandidateId(null)
+                    setMarcando(false)
+                    setStep('candidates')
+                  }}
+                  className="kiosk-button-secondary"
+                >
+                  No, elegir otro
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting || !enLinea}
+                  onClick={() => void submitVote()}
+                  className="kiosk-button-primary"
+                >
+                  {submitting ? 'Guardando…' : 'Confirmar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     )
   }
@@ -584,34 +607,6 @@ export default function VotingKioskPage() {
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {step === 'confirm' && selectedCandidate && (
-            <div className="mx-auto max-w-md space-y-6 py-2 text-center">
-              <h2 className="text-2xl font-semibold">¿Estás seguro?</h2>
-              <div className="rounded-2xl border border-sky-300/30 bg-sky-400/10 p-6">
-                {selectedCandidate.foto_url && (
-                  <img
-                    src={selectedCandidate.foto_url}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    className="mx-auto mb-4 h-20 w-20 rounded-xl object-cover"
-                  />
-                )}
-                <p className="text-sm text-slate-300">Vas a votar por</p>
-                <p className="mt-1 text-xl font-bold">{selectedCandidate.nombre}</p>
-              </div>
-              <p className="text-sm text-slate-300">Tu voto se guarda una sola vez y no se puede cambiar.</p>
-              {message && <p className="text-sm text-rose-200">{message}</p>}
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-                <button type="button" disabled={submitting} onClick={() => { setMessage(null); setSelectedCandidateId(null); setStep('candidates') }} className="kiosk-button-secondary">
-                  No, elegir otro
-                </button>
-                <button type="button" disabled={submitting || !enLinea} onClick={() => void submitVote()} className="kiosk-button-primary">
-                  {submitting ? 'Guardando voto…' : 'Sí, confirmar mi voto'}
-                </button>
-              </div>
             </div>
           )}
 

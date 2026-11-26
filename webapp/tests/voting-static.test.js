@@ -244,38 +244,53 @@ test('kiosk shows plain outcomes for already voted and unknown DNI', () => {
   assert.match(kiosk, /title: 'No existe'/);
 });
 
-test('candidate selection fills the whole screen without a title or panel', () => {
+test('candidate selection uses moderate square cards and no title', () => {
   assert.doesNotMatch(kiosk, /AccordionGallery/, 'the accordion was removed');
-  assert.match(kiosk, /h-dvh w-full overflow-hidden/, 'the step uses the full viewport');
-  assert.match(
-    kiosk,
-    /grid h-full w-full auto-rows-fr grid-cols-1 gap-2 sm:grid-cols-2/,
-    'the grid stretches to every edge'
-  );
-  assert.match(kiosk, /group relative flex h-full w-full flex-col/, 'cards fill their grid cell');
-  assert.match(kiosk, /text-3xl font-bold text-white drop-shadow-lg sm:text-5xl/, 'names are very large');
+  assert.match(kiosk, /min-h-dvh w-full text-white/, 'the step still fills the viewport');
+  assert.match(kiosk, /grid min-h-dvh w-full grid-cols-2 content-center justify-items-center/, 'cards are centered');
+  assert.match(kiosk, /aspect-square w-full \$\{claseTamanoTarjeta\}/, 'cards are square');
+  assert.match(kiosk, /max-w-\[min\(38vh,20rem\)\]/, 'images are not oversized');
+  assert.match(kiosk, /text-xl font-bold text-white drop-shadow-lg sm:text-2xl/, 'names are readable, not huge');
   assert.doesNotMatch(kiosk, /Elige a tu candidato/, 'no step title');
   assert.doesNotMatch(kiosk, /Toca para seleccionar/, 'no instructional text on the cards');
   assert.match(kiosk, /aria-pressed=\{selected\}/, 'the tapped card is marked individually');
   assert.match(kiosk, /onClick=\{\(\) => chooseCandidate\(candidate\.id\)\}/, 'each card is selectable');
 });
 
-test('selecting a card marks it with LaserFlow and GSAP', () => {
-  const laser = readFileSync(new URL('../src/components/ui/LaserFlow.tsx', import.meta.url), 'utf8');
+test('selecting a card shows ElectricBorder only there, then opens a blurred confirm dialog', () => {
+  const border = readFileSync(new URL('../src/components/ui/ElectricBorder.tsx', import.meta.url), 'utf8');
 
-  assert.match(kiosk, /const \[marcando, setMarcando\]/);
-  assert.match(kiosk, /{marcando && selectedCandidateId && \(\s*<LaserFlow/, 'the beam appears on selection');
-  assert.match(kiosk, /surfaceRef=\{superficieSeleccionada\}/, 'the beam covers the chosen card');
-  assert.match(kiosk, /const superficieSeleccionada = \{/, 'the beam surface is the card ref');
+  assert.doesNotMatch(kiosk, /LaserFlow/, 'the laser animation was removed');
+  assert.match(kiosk, /import ElectricBorder from '\.\.\/\.\.\/components\/ui\/ElectricBorder'/, 'local ElectricBorder is used');
+  assert.match(kiosk, /const selected = candidate\.id === selectedCandidateId/, 'the selected card is identified');
+  assert.match(kiosk, /\{selected \? \(\s*<ElectricBorder/, 'only the chosen card gets the border');
+  assert.match(kiosk, /color=\"#7df9ff\"/, 'registry border color');
+  assert.match(kiosk, /speed=\{1\}/, 'registry border speed');
+  assert.match(kiosk, /chaos=\{0\.5\}/, 'registry border chaos');
+  assert.match(kiosk, /spread=\{0\.6\}/, 'registry border spread');
+  assert.match(kiosk, /strands=\{3\}/, 'registry border strands');
+  assert.match(kiosk, /thickness=\{1\.5\}/, 'registry border thickness');
+  assert.match(kiosk, /borderRadius=\{24\}/, 'rounded border matches the cards');
+  assert.match(kiosk, /interactive=\{false\}/, 'no pointer tracking on the kiosk');
+  assert.match(kiosk, /}, reduce \? 0 : 1200\)/, 'the dialog follows the border highlight');
   assert.match(kiosk, /gsap\.timeline\(\)/, 'GSAP marks the selected card');
-  assert.match(kiosk, /clearProps: 'opacity,transform'/, 'only cheap properties are animated');
-  assert.match(kiosk, /beamPosition=\{beamDeLaTarjeta\}/, 'the beam follows the chosen card');
-  assert.match(kiosk, /color=\"#3847ff\"/, 'registry beam color');
-  assert.match(kiosk, /speed=\{1\.5\}/, 'registry intro speed');
-  assert.match(laser, /MAX_DPR = 1\.25/, 'DPR is capped for old machines');
-  assert.match(laser, /MAX_RENDER_DIM = 1280/, 'render surface is capped for old machines');
-  assert.match(laser, /if \(pointerEnabled\)/, 'unused pointer listeners are skipped');
-  assert.match(laser, /prefers-reduced-motion/, 'reduced motion is respected');
+  assert.match(kiosk, /clearProps: 'transform'/, 'only cheap properties are animated');
+  assert.match(kiosk, /role=\"dialog\"\s+aria-modal=\"true\"/, 'the confirmation is a dialog');
+  assert.match(kiosk, /bg-slate-950\/65 backdrop-blur-xl/, 'the background is blurred');
+  assert.match(kiosk, />\s*¿Confirmar tu voto\?/, 'minimal confirm text');
+  assert.match(kiosk, />\s*No, elegir otro\s*</, 'cancel is available');
+  assert.match(kiosk, />\s*\{submitting \? 'Guardando…' : 'Confirmar'\}\s*</, 'confirm button');
+  assert.match(border, /MAX_DPR = 1\.25/, 'DPR is capped for old machines');
+  assert.match(border, /PIXEL_BUDGET = 1\.2e6/, 'render surface is capped for old machines');
+  assert.match(border, /if \(pointerEnabled\)/, 'unused pointer listeners are skipped');
+  assert.match(border, /prefers-reduced-motion/, 'reduced motion is respected');
+});
+
+test('the removed laser component is not bundled', () => {
+  assert.throws(
+    () => readFileSync(new URL('../src/components/ui/LaserFlow.tsx', import.meta.url), 'utf8'),
+    'LaserFlow.tsx no longer exists'
+  );
 });
 
 test('choosing a candidate asks for confirmation before recording the vote', () => {
