@@ -147,17 +147,6 @@ main[data-dock] {
   }
 }
 
-.kiosk-grid {
-  --kiosk-pad: 1rem;
-  --kiosk-gap: 0.75rem;
-}
-
-@media (min-width: 640px) {
-  .kiosk-grid {
-    --kiosk-gap: 1.25rem;
-  }
-}
-
 .kiosk-button-primary,
 .kiosk-button-secondary {
   display: inline-flex;

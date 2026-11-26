@@ -244,17 +244,21 @@ test('kiosk shows plain outcomes for already voted and unknown DNI', () => {
   assert.match(kiosk, /title: 'No existe'/);
 });
 
-test('candidate selection uses moderate square cards and no title', () => {
+test('candidate cards are full-screen rectangles with up to six visible', () => {
   assert.doesNotMatch(kiosk, /AccordionGallery/, 'the accordion was removed');
-  assert.match(kiosk, /min-h-dvh w-full text-white/, 'the step still fills the viewport');
-  assert.match(kiosk, /kiosk-grid relative grid min-h-dvh w-full grid-cols-2 content-center justify-items-center/, 'cards are centered');
-  assert.match(kiosk, /const tamanoTarjeta = 'aspect-square w-full'/, 'cards are square');
-  assert.match(kiosk, /const filasTarjetas = Math\.max\(1, Math\.ceil\(candidates\.length \/ 2\)\)/, 'size accounts for every row');
-  assert.match(kiosk, /min\(28rem, calc\(\(100vw/, 'cards grow up to 28rem');
-  assert.match(kiosk, /calc\(\(100dvh - var\(--kiosk-pad\) - var\(--kiosk-pad\)/, 'cards fit the viewport height');
-  assert.match(kiosk, /style=\{estiloTamanoTarjeta\}/, 'the computed size is applied');
-  assert.match(estilos, /\.kiosk-grid \{\s*--kiosk-pad: 1rem;\s*--kiosk-gap: 0\.75rem;/, 'grid spacing is shared with the sizing math');
-  assert.match(kiosk, /text-xl font-bold text-white drop-shadow-lg sm:text-2xl/, 'names are readable, not huge');
+  assert.match(kiosk, /h-dvh w-full overflow-hidden text-white/, 'the step fills the viewport');
+  assert.match(
+    kiosk,
+    /relative grid h-full w-full auto-rows-fr grid-cols-1 \$\{claseSeparacion\} sm:grid-cols-2/,
+    'two columns stretch to every edge'
+  );
+  assert.match(kiosk, /const claseSeparacion =/, 'spacing adapts to the number of candidates');
+  assert.match(kiosk, /candidates\.length <= 2\s*\? 'gap-6 sm:gap-10'/, 'two cards are very separated');
+  assert.match(kiosk, /candidates\.length <= 4\s*\? 'gap-4 sm:gap-6'/, 'four cards have room between them');
+  assert.match(kiosk, /: 'gap-2 sm:gap-3'/, 'six cards use the compact original gap');
+  assert.match(kiosk, /const tamanoTarjeta = 'h-full w-full'/, 'cards fill their grid cell');
+  assert.match(kiosk, /sm:col-span-2/, 'a single candidate spans the whole row');
+  assert.match(kiosk, /text-3xl font-bold text-white drop-shadow-lg sm:text-5xl/, 'names stay large');
   assert.doesNotMatch(kiosk, /Elige a tu candidato/, 'no step title');
   assert.doesNotMatch(kiosk, /Toca para seleccionar/, 'no instructional text on the cards');
   assert.match(kiosk, /aria-pressed=\{selected\}/, 'the tapped card is marked individually');

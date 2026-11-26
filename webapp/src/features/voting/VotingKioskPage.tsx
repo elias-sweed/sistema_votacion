@@ -330,19 +330,18 @@ export default function VotingKioskPage() {
     )
   }
 
-  // Cuadradas y lo más grandes posible sin salirse del viewport (ni con varias filas).
-  const filasTarjetas = Math.max(1, Math.ceil(candidates.length / 2))
-  const huecosVerticales = Array.from(
-    { length: filasTarjetas - 1 },
-    () => ' - var(--kiosk-gap)'
-  ).join('')
-  const anchoMaximoTarjeta = `min(28rem, calc((100vw - var(--kiosk-pad) - var(--kiosk-pad) - var(--kiosk-gap)) / 2), calc((100dvh - var(--kiosk-pad) - var(--kiosk-pad)${huecosVerticales}) / ${filasTarjetas}))`
-  const estiloTamanoTarjeta = { maxWidth: anchoMaximoTarjeta }
+  // Hasta 6 candidatos en 2 columnas; con menos, más separación entre tarjetas.
+  const claseSeparacion =
+    candidates.length <= 2
+      ? 'gap-6 sm:gap-10'
+      : candidates.length <= 4
+        ? 'gap-4 sm:gap-6'
+        : 'gap-2 sm:gap-3'
 
   // Pantalla de candidatos a pantalla completa: sin títulos ni panel central.
   if (eleccionLista && (step === 'candidates' || (step === 'confirm' && selectedCandidate))) {
     return (
-      <main className="relative min-h-dvh w-full text-white">
+      <main className="relative h-dvh w-full overflow-hidden text-white">
         <button
           type="button"
           onClick={resetFlow}
@@ -353,10 +352,10 @@ export default function VotingKioskPage() {
         <p className="sr-only" aria-live="polite">
           {marcando ? 'Opción marcada. Preparando la confirmación…' : 'Toca la tarjeta de tu candidato.'}
         </p>
-        <div className="kiosk-grid relative grid min-h-dvh w-full grid-cols-2 content-center justify-items-center gap-3 p-4 sm:gap-5">
+        <div className={`relative grid h-full w-full auto-rows-fr grid-cols-1 ${claseSeparacion} sm:grid-cols-2`}>
           {candidates.map(candidate => {
             const selected = candidate.id === selectedCandidateId
-            const tamanoTarjeta = 'aspect-square w-full'
+            const tamanoTarjeta = 'h-full w-full'
             const boton = (
               <button
                 type="button"
@@ -378,8 +377,8 @@ export default function VotingKioskPage() {
                   aria-hidden="true"
                   className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-950/45 to-transparent"
                 />
-                <span className="relative mt-auto block p-4 sm:p-5">
-                  <span className="block text-xl font-bold text-white drop-shadow-lg sm:text-2xl">
+                <span className="relative mt-auto block p-6 sm:p-10">
+                  <span className="block text-3xl font-bold text-white drop-shadow-lg sm:text-5xl">
                     {candidate.nombre}
                   </span>
                 </span>
@@ -391,7 +390,7 @@ export default function VotingKioskPage() {
                 ref={(el) => {
                   cardRefs.current[candidate.id] = el
                 }}
-                className="flex min-h-0 w-full justify-center"
+                className={`min-h-0 ${candidates.length === 1 ? 'sm:col-span-2' : ''}`}
               >
                 {selected ? (
                   <ElectricBorder
@@ -404,14 +403,11 @@ export default function VotingKioskPage() {
                     borderRadius={24}
                     interactive={false}
                     className={tamanoTarjeta}
-                    style={estiloTamanoTarjeta}
                   >
                     {boton}
                   </ElectricBorder>
                 ) : (
-                  <div className={tamanoTarjeta} style={estiloTamanoTarjeta}>
-                    {boton}
-                  </div>
+                  <div className={tamanoTarjeta}>{boton}</div>
                 )}
               </li>
             )
