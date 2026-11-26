@@ -11,6 +11,7 @@ import PlusSignIcon from '@hugeicons/core-free-icons/PlusSignIcon'
 import UserIcon from '@hugeicons/core-free-icons/UserIcon'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
+import { borrarCandidato, mensajeBorrado } from '../../lib/borrado'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
 import { CandidatosSkeleton } from '../panel/PanelSkeletons'
@@ -231,9 +232,9 @@ export default function CandidatosPage() {
   async function eliminarCandidato(c: Candidato) {
     setEliminando(true)
     try {
-      const { error: err } = await supabase.from('candidatos').delete().eq('id', c.id)
-      if (err) {
-        setError(mensajeDeError(err, 'No se pudo eliminar el candidato.'))
+      const resultado = await borrarCandidato(c.id)
+      if (!resultado.ok) {
+        setError(mensajeBorrado(resultado))
         return
       }
       setExito('Candidato eliminado.')
@@ -586,7 +587,7 @@ export default function CandidatosPage() {
           open={confirmandoEliminar !== null}
           onClose={() => setConfirmandoEliminar(null)}
           title={`Eliminar candidato ${confirmandoEliminar.nombre}`}
-          description="Se eliminará el candidato de la papeleta. Esta acción no se puede deshacer."
+          description="Se eliminará el candidato de la papeleta junto con los votos que haya recibido. Esta acción no se puede deshacer."
           confirmLabel="Confirmar eliminación"
           confirmVariant="danger"
           loading={eliminando}

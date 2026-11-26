@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
+import { borrarMesa, mensajeBorrado } from '../../lib/borrado'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
 import { MesasSkeleton } from '../panel/PanelSkeletons'
@@ -400,17 +401,10 @@ export default function MesasPage() {
         return
       }
 
-      const { error: err } = await supabase
-        .from('mesas')
-        .delete()
-        .eq('id', confirmandoEliminar.id)
+      const resultado = await borrarMesa(confirmandoEliminar.id)
 
-      if (err) {
-        if (err.code === '23503') {
-          setErrorEliminar('Esta mesa tiene votos registrados. Desactívala primero.')
-        } else {
-          setErrorEliminar(mensajeDeError(err, 'No se pudo eliminar la mesa.'))
-        }
+      if (!resultado.ok) {
+        setErrorEliminar(mensajeBorrado(resultado))
         return
       }
 
@@ -743,7 +737,7 @@ export default function MesasPage() {
           open={confirmandoEliminar !== null}
           onClose={cerrarEliminar}
           title={`Eliminar mesa ${confirmandoEliminar.nombre}`}
-          description="Se borrará la mesa y su enlace. Esta acción no se puede deshacer."
+          description="Se borrará la mesa, su enlace y los votos registrados en ella. Esta acción no se puede deshacer."
           confirmLabel="Eliminar mesa"
           confirmVariant="danger"
           loading={eliminando}

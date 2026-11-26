@@ -6,6 +6,7 @@ import ImageAdd01Icon from '@hugeicons/core-free-icons/ImageAdd01Icon'
 import ImageUpload01Icon from '@hugeicons/core-free-icons/ImageUpload01Icon'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
+import { borrarTabla, borrarTodo, mensajeBorrado } from '../../lib/borrado'
 import {
   CLAVES_CACHE,
   guardarCache,
@@ -81,8 +82,10 @@ export default function ConfiguracionPage() {
   const [confirmando, setConfirmando] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Eliminar todo (votantes, candidatos, centro educativo)
-  const [eliminandoTodo, setEliminandoTodo] = useState<'votantes' | 'candidatos' | 'centro' | null>(null)
+  // Eliminar todo (votos, votantes, candidatos, mesas, centro educativo)
+  const [eliminandoTodo, setEliminandoTodo] = useState<
+    'votos' | 'votantes' | 'candidatos' | 'mesas' | 'centro' | null
+  >(null)
   const [passwordEliminarTodo, setPasswordEliminarTodo] = useState('')
   const [eliminandoTodoCargando, setEliminandoTodoCargando] = useState(false)
   const [errorEliminarTodo, setErrorEliminarTodo] = useState<string | null>(null)
@@ -240,60 +243,15 @@ export default function ConfiguracionPage() {
 
     setEliminandoTodoCargando(true)
     try {
-      if (eliminandoTodo === 'votantes') {
-        const { error: errRpc } = await supabase.rpc('borrar_todos_votantes')
-        if (errRpc) {
-          // Respaldo si la RPC no está disponible: borrado directo.
-          const { error: errDirecto } = await supabase
-            .from('votantes')
-            .delete()
-            .not('dni', 'is', null)
-          if (errDirecto) {
-            setErrorEliminarTodo(
-              mensajeDeError(errRpc, `No se pudieron eliminar los votantes: ${errDirecto.message}`)
-            )
-            return
-          }
-        }
-        toast({
-          title: 'Votantes eliminados',
-          description: 'Se borraron todos los votantes del padrón.',
-          variant: 'success',
-          duration: 4000
-        })
-      } else if (eliminandoTodo === 'candidatos') {
-        const { error: err } = await supabase.rpc('borrar_todos_candidatos')
-        if (err) {
-          // Respaldo si la RPC no está disponible: borrado directo.
-          const { error: errDirecto } = await supabase
-            .from('candidatos')
-            .delete()
-            .not('id', 'is', null)
-          if (errDirecto) {
-            setErrorEliminarTodo(
-              mensajeDeError(
-                err,
-                `No se pudieron eliminar los candidatos: ${errDirecto.message}`
-              )
-            )
-            return
-          }
-        }
-        toast({
-          title: 'Candidatos eliminados',
-          description: 'Se borraron todos los candidatos.',
-          variant: 'success',
-          duration: 4000
-        })
-      } else if (eliminandoTodo === 'centro') {
-        const { error: err } = await supabase
-          .from('configuracion')
-          .update({ titulo: 'Elección de Municipios Escolares', centro: 'I.E. Jimenez Pimentel', logo_url: null })
-          .eq('id', 1)
-        if (err) {
-          setErrorEliminarTodo(mensajeDeError(err, 'No se pudo restablecer el centro educativo.'))
-          return
-        }
+      const tabla = eliminandoTodo === 'centro' ? 'configuracion' : eliminandoTodo
+      const resultado = await borrarTabla(tabla)
+
+      if (!resultado.ok) {
+        setErrorEliminarTodo(mensajeBorrado(resultado))
+        return
+      }
+
+      if (eliminandoTodo === 'centro') {
         setTitulo('Elección de Municipios Escolares')
         setCentro('I.E. Jimenez Pimentel')
         setLogoUrl(null)
@@ -304,6 +262,28 @@ export default function ConfiguracionPage() {
           variant: 'success',
           duration: 4000
         })
+      } else {
+        limpiarCachePanel()
+        const mensajes = {
+          votos: {
+            title: 'Votos eliminados',
+            description: 'Se borraron todos los votos registrados.',
+          },
+          votantes: {
+            title: 'Votantes eliminados',
+            description: 'Se borraron todos los votantes del padrón.',
+          },
+          candidatos: {
+            title: 'Candidatos eliminados',
+            description: 'Se borraron todos los candidatos y sus votos asociados.',
+          },
+          mesas: {
+            title: 'Mesas eliminadas',
+            description: 'Se borraron todas las mesas y sus votos asociados.',
+          },
+        } as const
+        const mensaje = mensajes[eliminandoTodo]
+        toast({ ...mensaje, variant: 'success', duration: 4000 })
       }
 
       await cerrarEliminarTodo()
@@ -390,37 +370,6 @@ export default function ConfiguracionPage() {
     return email
   }
 
-  // Respaldo si la RPC borrar_todo no está disponible o falla: borra cada
-  // tabla con un filtro "IS NOT NULL" sobre su clave primaria (PostgREST
-  // rechaza DELETE sin filtro) y restablece la configuración.
-  async function borrarTodoDirecto(): Promise<string | null> {
-    const tablas: Array<{ tabla: string; pk: string }> = [
-      { tabla: 'votos', pk: 'id' },
-      { tabla: 'votantes', pk: 'dni' },
-      { tabla: 'candidatos', pk: 'id' },
-      { tabla: 'mesas', pk: 'id' },
-    ]
-
-    for (const { tabla, pk } of tablas) {
-      const { error } = await supabase.from(tabla).delete().not(pk, 'is', null)
-      if (error) return `${tabla}: ${error.message}`
-    }
-
-    const { error: errConfig } = await supabase
-      .from('configuracion')
-      .update({
-        eleccion_abierta: false,
-        titulo: 'Elección de Municipios Escolares',
-        centro: 'I.E. Jimenez Pimentel',
-        logo_url: null,
-        actualizado_en: new Date().toISOString(),
-      })
-      .eq('id', 1)
-    if (errConfig) return `configuracion: ${errConfig.message}`
-
-    return null
-  }
-
   async function ejecutarBorrarTodo() {
     if (borrandoTodo) return
 
@@ -439,18 +388,13 @@ export default function ConfiguracionPage() {
 
     setBorrandoTodo(true)
     try {
-      // Se intenta la función RPC borrar_todo() (SECURITY DEFINER).
-      // Si la migración no está aplicada o la RPC falla, se hace un
-      // borrado directo tabla por tabla como respaldo.
-      const { error: errRpc } = await supabase.rpc('borrar_todo')
-      if (errRpc) {
-        const errorDirecto = await borrarTodoDirecto()
-        if (errorDirecto) {
-          setErrorBorrarTodo(
-            mensajeDeError(errRpc, `No se pudo borrar todo: ${errorDirecto}`)
-          )
-          return
-        }
+      // La utilidad intenta la RPC transaccional, luego la Edge Function
+      // con la clave de servicio y, por último, el borrado directo con WHERE.
+      const resultado = await borrarTodo()
+
+      if (!resultado.ok) {
+        setErrorBorrarTodo(mensajeBorrado(resultado))
+        return
       }
 
       setTitulo('Elección de Municipios Escolares')
@@ -468,7 +412,7 @@ export default function ConfiguracionPage() {
 
       toast({
         title: 'Todo eliminado',
-        description: 'Se borraron votantes, candidatos, mesas, votos y se restableció la configuración.',
+        description: 'Se borraron votos, votantes, candidatos, mesas y se restableció la configuración.',
         variant: 'success',
         duration: 5000,
       })
@@ -991,7 +935,19 @@ export default function ConfiguracionPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      <button
+                        type="button"
+                        onClick={() => { setEliminandoTodo('votos'); setPasswordEliminarTodo(''); setErrorEliminarTodo(null); setPinAccion('') }}
+                        disabled={eliminandoTodoCargando}
+                        className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-left transition hover:bg-red-500/20 disabled:opacity-50"
+                      >
+                        <div className="flex items-center gap-2">
+                          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />
+                          <span>Eliminar todos los votos</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">Vacía la tabla de votos</p>
+                      </button>
                       <button
                         type="button"
                         onClick={() => { setEliminandoTodo('votantes'); setPasswordEliminarTodo(''); setErrorEliminarTodo(null); setPinAccion('') }}
@@ -1014,7 +970,19 @@ export default function ConfiguracionPage() {
                           <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />
                           <span>Eliminar todos los candidatos</span>
                         </div>
-                        <p className="mt-1 text-xs text-slate-500">Borra todas las opciones</p>
+                        <p className="mt-1 text-xs text-slate-500">Borra las opciones y sus votos</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setEliminandoTodo('mesas'); setPasswordEliminarTodo(''); setErrorEliminarTodo(null); setPinAccion('') }}
+                        disabled={eliminandoTodoCargando}
+                        className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-left transition hover:bg-red-500/20 disabled:opacity-50"
+                      >
+                        <div className="flex items-center gap-2">
+                          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />
+                          <span>Eliminar todas las mesas</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">Borra las mesas y sus votos</p>
                       </button>
                       <button
                         type="button"
@@ -1095,10 +1063,14 @@ export default function ConfiguracionPage() {
           onClose={cerrarEliminarTodo}
           title="Confirmar eliminación masiva"
           description={
-            eliminandoTodo === 'votantes'
+            eliminandoTodo === 'votos'
+              ? 'Se borrarán todos los votos registrados. Esta acción no se puede deshacer.'
+              : eliminandoTodo === 'votantes'
               ? 'Se borrarán todos los votantes del padrón. Esta acción no se puede deshacer.'
               : eliminandoTodo === 'candidatos'
-              ? 'Se borrarán todos los candidatos. Esta acción no se puede deshacer.'
+              ? 'Se borrarán todos los candidatos y sus votos asociados. Esta acción no se puede deshacer.'
+              : eliminandoTodo === 'mesas'
+              ? 'Se borrarán todas las mesas y sus votos asociados. Esta acción no se puede deshacer.'
               : 'Se restablecerán el título, el centro educativo y el logo a los valores por defecto.'
           }
           confirmLabel="Confirmar eliminación"

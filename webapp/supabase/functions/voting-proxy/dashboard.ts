@@ -46,7 +46,24 @@ interface CandidatesRequest {
   token?: string;
 }
 
-type RequestBody = VerifyRequest | VoteRequest | StatusRequest | CandidatesRequest;
+type TablaBorrable =
+  | "votos"
+  | "votantes"
+  | "candidatos"
+  | "mesas"
+  | "configuracion"
+  | "rate_limit_intentos"
+  | "todo"
+  | "mesa"
+  | "candidato";
+
+interface DeleteRequest {
+  action: "borrar";
+  tabla: TablaBorrable;
+  id?: string;
+}
+
+type RequestBody = VerifyRequest | VoteRequest | StatusRequest | CandidatesRequest | DeleteRequest;
 
 interface DbError {
   message: string;
@@ -63,6 +80,14 @@ interface DbResult {
 export interface SupabaseLike {
   from: (table: string) => any;
   rpc: (name: string, params: Record<string, unknown>) => Promise<DbResult>;
+  // Solo lo usa la acción "borrar" para comprobar que el JWT
+  // pertenece a un administrador antes de tocar datos con service_role.
+  auth?: {
+    getUser: (jwt?: string) => Promise<{
+      data: { user: { app_metadata?: Record<string, unknown> } | null };
+      error: DbError | null;
+    }>;
+  };
 }
 
 export interface ProxyDependencies {
@@ -158,6 +183,27 @@ export function parseRequest(value: unknown): RequestBody | null {
       candidato_id: value.candidato_id,
       token: value.token.trim(),
     };
+  }
+  if (value.action === "borrar") {
+    const tablas: TablaBorrable[] = [
+      "votos",
+      "votantes",
+      "candidatos",
+      "mesas",
+      "configuracion",
+      "rate_limit_intentos",
+      "todo",
+      "mesa",
+      "candidato",
+    ];
+    if (typeof value.tabla !== "string" || !tablas.includes(value.tabla as TablaBorrable)) {
+      return null;
+    }
+    if (value.tabla === "mesa" || value.tabla === "candidato") {
+      if (typeof value.id !== "string" || !validateUuid(value.id)) return null;
+      return { action: "borrar", tabla: value.tabla, id: value.id };
+    }
+    return { action: "borrar", tabla: value.tabla as TablaBorrable };
   }
   return null;
 }
@@ -352,6 +398,152 @@ async function handleVote(supabase: SupabaseLike, body: VoteRequest, clientIp: s
   return json({ success: true });
 }
 
+// ------------------------------------------------------------
+// BORRADO ADMINISTRATIVO
+//
+// La Edge Function se despliega con --no-verify-jwt, así que la
+// verificación se hace aquí: se exige un JWT válido cuyo
+// app_metadata.role sea "admin". Después se usa service_role
+// (deps.supabase) para borrar sin RLS y con permisos completos.
+// Todos los DELETE llevan filtro WHERE para cumplir safeupdate.
+// ------------------------------------------------------------
+
+type ResultadoBorrado =
+  | { ok: true }
+  | { ok: false; error: string };
+
+const CONFIG_POR_DEFECTO = {
+  eleccion_abierta: false,
+  titulo: "Elección de Municipios Escolares",
+  centro: "I.E. Jimenez Pimentel",
+  logo_url: null as string | null,
+  actualizado_en: new Date().toISOString(),
+};
+
+function extraerBearer(req: Request): string {
+  const header = req.headers.get("authorization") ?? "";
+  if (!header.toLowerCase().startsWith("bearer ")) return "";
+  return header.slice(7).trim();
+}
+
+async function borrarConFiltro(
+  supabase: SupabaseLike,
+  tabla: string,
+  columna: string,
+): Promise<string | null> {
+  const { error } = await supabase
+    .from(tabla)
+    .delete()
+    .not(columna, "is", null);
+  return error ? `${tabla}: ${describeError(error)}` : null;
+}
+
+async function ejecutarBorrado(
+  supabase: SupabaseLike,
+  tabla: TablaBorrable,
+  id?: string,
+): Promise<ResultadoBorrado> {
+  if (tabla === "mesa" || tabla === "candidato") {
+    if (!id) return { ok: false, error: "Falta el identificador de la fila." };
+
+    const columna = tabla === "mesa" ? "mesa_id" : "candidato_id";
+    const nombreTabla = tabla === "mesa" ? "mesas" : "candidatos";
+
+    const { error: errorVotos } = await supabase
+      .from("votos")
+      .delete()
+      .eq(columna, id);
+    if (errorVotos) return { ok: false, error: `votos: ${describeError(errorVotos)}` };
+
+    const { error } = await supabase.from(nombreTabla).delete().eq("id", id);
+    return error
+      ? { ok: false, error: `${nombreTabla}: ${describeError(error)}` }
+      : { ok: true };
+  }
+
+  if (tabla === "todo") {
+    for (const [nombre, pk] of [
+      ["votos", "id"],
+      ["votantes", "dni"],
+      ["candidatos", "id"],
+      ["mesas", "id"],
+    ] as const) {
+      const error = await borrarConFiltro(supabase, nombre, pk);
+      if (error) return { ok: false, error };
+    }
+
+    // La tabla de rate limiting puede no existir en proyectos viejos.
+    const { error: errorRate } = await supabase
+      .from("rate_limit_intentos")
+      .delete()
+      .not("id", "is", null);
+    if (errorRate && errorRate.code !== "42P01") {
+      return { ok: false, error: `rate_limit_intentos: ${describeError(errorRate)}` };
+    }
+
+    const { error: errorConfig } = await supabase
+      .from("configuracion")
+      .update(CONFIG_POR_DEFECTO)
+      .eq("id", 1);
+    return errorConfig
+      ? { ok: false, error: `configuracion: ${describeError(errorConfig)}` }
+      : { ok: true };
+  }
+
+  if (tabla === "configuracion") {
+    const { error } = await supabase
+      .from("configuracion")
+      .update(CONFIG_POR_DEFECTO)
+      .eq("id", 1);
+    return error
+      ? { ok: false, error: `configuracion: ${describeError(error)}` }
+      : { ok: true };
+  }
+
+  if (tabla === "candidatos" || tabla === "mesas") {
+    const columna = tabla === "candidatos" ? "candidato_id" : "mesa_id";
+    const errorVotos = await borrarConFiltro(supabase, "votos", columna);
+    if (errorVotos) return { ok: false, error: errorVotos };
+  }
+
+  const pk = tabla === "votantes" ? "dni" : "id";
+  const error = await borrarConFiltro(supabase, tabla, pk);
+  return error ? { ok: false, error } : { ok: true };
+}
+
+async function handleDelete(
+  supabase: SupabaseLike,
+  body: DeleteRequest,
+  req: Request,
+): Promise<Response> {
+  if (!supabase.auth?.getUser) {
+    return json({ error: "La función no puede verificar la sesión" }, 500);
+  }
+
+  const token = extraerBearer(req);
+  if (!token) {
+    return json({ error: "Se requiere una sesión de administrador" }, 401);
+  }
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data?.user) {
+    return json({ error: "Sesión inválida o expirada" }, 401);
+  }
+
+  const rol = data.user.app_metadata?.role;
+  if (typeof rol !== "string" || rol.toLowerCase() !== "admin") {
+    return json({ error: "Acceso denegado: se requiere rol de administrador" }, 403);
+  }
+
+  const resultado = await ejecutarBorrado(supabase, body.tabla, body.id);
+  if (!resultado.ok) {
+    logError("Error al borrar datos", resultado.error);
+    return json({ error: resultado.error }, 500);
+  }
+
+  return json({ success: true, tabla: body.tabla });
+}
+
 export async function handleProxyRequest(req: Request, deps: ProxyDependencies): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -384,6 +576,7 @@ export async function handleProxyRequest(req: Request, deps: ProxyDependencies):
     if (body.action === "estado") return await handleStatus(deps.supabase, body);
     if (body.action === "candidatos") return await handleCandidates(deps.supabase);
     if (body.action === "verificar") return await handleVerify(deps.supabase, body, clientIp);
+    if (body.action === "borrar") return await handleDelete(deps.supabase, body, req);
     return await handleVote(deps.supabase, body, clientIp);
   } catch (error) {
     logError("Error inesperado en voting-proxy", error);

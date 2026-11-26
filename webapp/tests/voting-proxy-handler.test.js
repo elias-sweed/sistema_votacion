@@ -47,6 +47,63 @@ function createFakeSupabase({ config, candidates, mesas, rpc } = {}) {
   };
 }
 
+function createDeleteSupabase({
+  authUser = { app_metadata: { role: 'admin' } },
+  authError = null,
+  deleteErrors = {},
+  updateErrors = {},
+} = {}) {
+  const calls = { deletes: [], updates: [] };
+
+  function builder(table) {
+    const b = {
+      _op: null,
+      _eq: null,
+      _not: null,
+      delete: () => {
+        b._op = 'delete';
+        return b;
+      },
+      update: (values) => {
+        b._op = 'update';
+        calls.updates.push({ table, values });
+        return b;
+      },
+      eq: (column, value) => {
+        b._eq = { column, value };
+        return b;
+      },
+      not: (column, value) => {
+        b._not = { column, value };
+        return b;
+      },
+      then: (resolve) => {
+        if (b._op === 'delete') {
+          calls.deletes.push({ table, eq: b._eq, not: b._not });
+        }
+        const error = b._op === 'delete'
+          ? (deleteErrors[table] ?? null)
+          : (updateErrors[table] ?? null);
+        return Promise.resolve({ data: null, error }).then(resolve);
+      },
+    };
+    return b;
+  }
+
+  return {
+    calls,
+    from: (table) => builder(table),
+    rpc: async () => ({ data: null, error: null }),
+    auth: {
+      getUser: async () => (
+        authError
+          ? { data: { user: null }, error: authError }
+          : { data: { user: authUser }, error: null }
+      ),
+    },
+  };
+}
+
 function proxyRequest(body, headers = {}) {
   return new Request('http://localhost/functions/v1/voting-proxy', {
     method: 'POST',
@@ -355,4 +412,90 @@ test('un error de PostgREST se registra con mensaje y código, no como [object O
   assert.match(logged[0], /permission denied for table configuracion/);
   assert.match(logged[0], /42501/);
   assert.doesNotMatch(logged[0], /\[object Object\]/);
+});
+
+test('borrar exige una sesión de administrador', async () => {
+  const supabase = createDeleteSupabase({
+    authUser: { app_metadata: { role: 'authenticated' } },
+  });
+  const response = await handleProxyRequest(
+    proxyRequest({ action: 'borrar', tabla: 'todo' }, { authorization: 'Bearer token' }),
+    { supabase },
+  );
+  assert.equal(response.status, 403);
+  assert.deepEqual(await readJson(response), {
+    error: 'Acceso denegado: se requiere rol de administrador',
+  });
+  assert.equal(supabase.calls.deletes.length, 0);
+});
+
+test('borrar sin Authorization se rechaza', async () => {
+  const supabase = createDeleteSupabase();
+  const response = await handleProxyRequest(
+    proxyRequest({ action: 'borrar', tabla: 'todo' }),
+    { supabase },
+  );
+  assert.equal(response.status, 401);
+  assert.equal(supabase.calls.deletes.length, 0);
+});
+
+test('borrar rechaza tablas fuera de la lista blanca', async () => {
+  const supabase = createDeleteSupabase();
+  const response = await handleProxyRequest(
+    proxyRequest({ action: 'borrar', tabla: 'usuarios_admin' }, { authorization: 'Bearer token' }),
+    { supabase },
+  );
+  assert.equal(response.status, 400);
+  assert.equal(supabase.calls.deletes.length, 0);
+});
+
+test('borrar todo usa filtros WHERE en cada tabla', async () => {
+  const supabase = createDeleteSupabase();
+  const response = await handleProxyRequest(
+    proxyRequest({ action: 'borrar', tabla: 'todo' }, { authorization: 'Bearer token' }),
+    { supabase },
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(await readJson(response), { success: true, tabla: 'todo' });
+
+  assert.deepEqual(
+    supabase.calls.deletes.map((call) => call.table),
+    ['votos', 'votantes', 'candidatos', 'mesas', 'rate_limit_intentos'],
+  );
+  for (const call of supabase.calls.deletes) {
+    assert.ok(call.not || call.eq, `DELETE sin WHERE en ${call.table}`);
+  }
+  assert.equal(supabase.calls.updates.length, 1);
+  assert.equal(supabase.calls.updates[0].table, 'configuracion');
+});
+
+test('borrar una mesa elimina primero sus votos y luego la mesa', async () => {
+  const supabase = createDeleteSupabase();
+  const id = '123e4567-e89b-42d3-a456-426614174000';
+  const response = await handleProxyRequest(
+    proxyRequest({ action: 'borrar', tabla: 'mesa', id }, { authorization: 'Bearer token' }),
+    { supabase },
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(
+    supabase.calls.deletes.map((call) => call.table),
+    ['votos', 'mesas'],
+  );
+  assert.deepEqual(supabase.calls.deletes[0].eq, { column: 'mesa_id', value: id });
+  assert.deepEqual(supabase.calls.deletes[1].eq, { column: 'id', value: id });
+});
+
+test('borrar propaga el error de safeupdate con su mensaje real', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  const supabase = createDeleteSupabase({
+    deleteErrors: {
+      votos: { code: '21000', message: 'DELETE requires a WHERE clause' },
+    },
+  });
+  const response = await handleProxyRequest(
+    proxyRequest({ action: 'borrar', tabla: 'votos' }, { authorization: 'Bearer token' }),
+    { supabase },
+  );
+  assert.equal(response.status, 500);
+  assert.match((await readJson(response)).error, /DELETE requires a WHERE clause/);
 });
