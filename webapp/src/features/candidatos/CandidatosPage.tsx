@@ -20,6 +20,7 @@ import { AdminCard } from '../../components/ui/AdminCard'
 import { AdminButton } from '../../components/ui/AdminButton'
 import { Badge } from '../../components/ui/Badge'
 import { AdminModal } from '../../components/ui/AdminModal'
+import { RevealSection } from '../../components/ui/RevealSection'
 import { EmptyState } from '../../components/ui/EmptyState'
 import GridViewIcon from '@hugeicons/core-free-icons/GridViewIcon'
 import Menu01Icon from '@hugeicons/core-free-icons/Menu01Icon'
@@ -320,7 +321,7 @@ export default function CandidatosPage() {
   }
 
   return (
-    <section className="space-y-6">
+    <RevealSection className="space-y-6">
       <SectionHeader
         title="Candidatos"
         description="Administra quiénes aparecen en la papeleta."
@@ -594,6 +595,6 @@ export default function CandidatosPage() {
           onConfirm={() => void eliminarCandidato(confirmandoEliminar)}
         />
       )}
-    </section>
+    </RevealSection>
   )
 }

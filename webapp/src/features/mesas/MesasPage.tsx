@@ -13,6 +13,7 @@ import { Badge } from '../../components/ui/Badge'
 import { AdminModal } from '../../components/ui/AdminModal'
 import { AdminSelect } from '../../components/ui/AdminSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
+import { RevealSection } from '../../components/ui/RevealSection'
 import { PasswordInput } from '../../components/ui/PasswordInput'
 import { HugeiconsIcon } from '@hugeicons/react'
 import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
@@ -21,19 +22,6 @@ import Rotate01Icon from '@hugeicons/core-free-icons/Rotate01Icon'
 import Link01Icon from '@hugeicons/core-free-icons/Link01Icon'
 import CommandLineIcon from '@hugeicons/core-free-icons/CommandLineIcon'
 import Table01Icon from '@hugeicons/core-free-icons/Table01Icon'
-
-import {
-  estaActivoEnsayo,
-  ensayoListarMesas,
-  ensayoAgregarMesa,
-  ensayoActualizarMesa,
-  ensayoEliminarMesa,
-  ensayoContarMesas,
-  ensayoContarMesasActivas,
-  ensayoContarVotos,
-  ensayoContarVotantes,
-  ensayoContarVotaron,
-} from '../../lib/ensayoStore'
 
 type Mesa = {
   id: string
@@ -105,23 +93,6 @@ export default function MesasPage() {
     setCargando(true)
     setError(null)
 
-    if (estaActivoEnsayo()) {
-      const mesasEnsayo = ensayoListarMesas()
-      const lista: Mesa[] = mesasEnsayo.map((m) => ({
-        id: m.id,
-        nombre: m.nombre,
-        activo: m.activo,
-        creado_en: m.creado_en,
-        token_acceso: m.token_acceso,
-      }))
-      setMesas(lista)
-      guardarCache(CLAVES_CACHE.mesas, lista)
-      setTieneDatos(true)
-      setResumenes({})
-      setCargando(false)
-      return
-    }
-
     const [mesasRes, resumenRes] = await Promise.all([
       supabase.from('mesas').select('*').order('creado_en', { ascending: true }),
       supabase.rpc('obtener_resumen_mesas')
@@ -164,17 +135,6 @@ export default function MesasPage() {
     const nombreMesa = `${grado.trim()} ${seccion.trim()}`
     setGuardando(true)
 
-    if (estaActivoEnsayo()) {
-      ensayoAgregarMesa({ nombre: nombreMesa, activo: true, token_acceso: null })
-      setGuardando(false)
-      setGrado('')
-      setSeccion('')
-      const mensajeCambio = `se agregó la mesa ${nombreMesa}`
-      setExito(mensajeCambio)
-      await cargar()
-      return
-    }
-
     const { error: err } = await supabase.from('mesas')
       .insert({ nombre: nombreMesa, activo: true })
     setGuardando(false)
@@ -213,15 +173,6 @@ export default function MesasPage() {
     if (nombreTrim.length < 2) { setError('El nombre debe tener al menos 2 caracteres.'); return }
     if (nombreTrim === m.nombre) { setEditandoId(null); return }
 
-    if (estaActivoEnsayo()) {
-      ensayoActualizarMesa(m.id, nombreTrim, m.activo)
-      setEditandoId(null)
-      setEditNombre('')
-      setExito('Mesa actualizada.')
-      await cargar()
-      return
-    }
-
     const { error: err } = await supabase.from('mesas')
       .update({ nombre: nombreTrim }).eq('id', m.id)
     if (err) {
@@ -240,22 +191,6 @@ export default function MesasPage() {
     setError(null)
     setExito(null)
     setMenuAbierto(null)
-
-    if (estaActivoEnsayo()) {
-      ensayoActualizarMesa(m.id, m.nombre, !m.activo)
-      setMesas((prev) => {
-        const siguiente = prev.map((x) => (x.id === m.id ? { ...x, activo: !x.activo } : x))
-        guardarCache(CLAVES_CACHE.mesas, siguiente)
-        return siguiente
-      })
-      toast({
-        title: m.activo ? 'Mesa desactivada' : 'Mesa activada',
-        description: m.nombre,
-        variant: 'success',
-        duration: 3000
-      })
-      return
-    }
 
     const { error: err } = await supabase.from('mesas')
       .update({ activo: !m.activo }).eq('id', m.id)
@@ -390,17 +325,6 @@ export default function MesasPage() {
         return
       }
 
-      if (estaActivoEnsayo()) {
-        ensayoEliminarMesa(confirmandoEliminar.id)
-        const mensajeCambio = `se eliminó la mesa ${confirmandoEliminar.nombre}`
-        setExito(mensajeCambio)
-        toast({ title: 'Mesa eliminada', description: mensajeCambio, variant: 'success', duration: 3000 })
-        setConfirmandoEliminar(null)
-        setPasswordEliminar('')
-        await cargar()
-        return
-      }
-
       const resultado = await borrarMesa(confirmandoEliminar.id)
 
       if (!resultado.ok) {
@@ -425,14 +349,14 @@ export default function MesasPage() {
     0
   )
   const totales = {
-    mesas: estaActivoEnsayo() ? ensayoContarMesas() : mesas.length,
-    activas: estaActivoEnsayo() ? ensayoContarMesasActivas() : mesas.filter((m) => m.activo).length,
-    padron: estaActivoEnsayo() ? ensayoContarVotantes() : Number(resumenGlobal?.total_padron ?? 0),
-    votaron: estaActivoEnsayo() ? ensayoContarVotaron() : Number(resumenGlobal?.votaron ?? 0),
-    votos: estaActivoEnsayo() ? ensayoContarVotos() : totalVotos
+    mesas: mesas.length,
+    activas: mesas.filter((m) => m.activo).length,
+    padron: Number(resumenGlobal?.total_padron ?? 0),
+    votaron: Number(resumenGlobal?.votaron ?? 0),
+    votos: totalVotos
   }
 
-  return (    <section className="space-y-6">
+  return (    <RevealSection className="space-y-6">
       <SectionHeader
         title="Mesas / Salones"
         description="Administra las mesas, sus enlaces y la participación."
@@ -763,6 +687,6 @@ export default function MesasPage() {
           {errorEliminar && <p className="mt-3 text-sm text-red-400">{errorEliminar}</p>}
         </AdminModal>
       )}
-    </section>
+    </RevealSection>
   )
 }

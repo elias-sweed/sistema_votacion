@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import fondo from '../../assets/fondo.jpg'
 import {
   castVote,
   isValidDni,
@@ -274,21 +273,7 @@ export default function VotingKioskPage() {
 
   return (
     <main className="relative min-h-screen px-4 py-8 text-white sm:px-8 sm:py-12">
-      {/* Fondo de pantalla de votación: imagen de los votantes */}
-      <div className="absolute inset-0 z-0">
-        <img
-          src={fondo}
-          alt=""
-          className="w-full h-full object-cover"
-          aria-hidden="true"
-          decoding="async"
-          loading="eager"
-        />
-        <div className="absolute inset-0 bg-[#02040a]/50" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(1,3,10,0.75)_100%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(3,4,11,0.55),transparent_40%,rgba(3,4,11,0.7))]" />
-      </div>
-      <div className="relative z-10 mx-auto w-full max-w-3xl">
+      <div className="relative mx-auto w-full max-w-3xl">
         <header className="mb-8 text-center">
           {status?.logoUrl && (
             <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-white/95 p-2 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.85)] sm:h-28 sm:w-28">

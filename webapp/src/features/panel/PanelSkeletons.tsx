@@ -1,4 +1,5 @@
 import { Skeleton } from '../../components/ui/Skeleton'
+import { RevealSection } from '../../components/ui/RevealSection'
 
 export function DashboardSkeleton() {
   return (
@@ -59,7 +60,7 @@ export function MesasSkeleton() {
 
 export function PadronSkeleton() {
   return (
-    <section className="space-y-6" role="status" aria-live="polite" aria-busy="true">
+    <RevealSection className="space-y-6" role="status" aria-live="polite" aria-busy="true">
       <span className="sr-only">Cargando padrón electoral…</span>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -101,7 +102,7 @@ export function PadronSkeleton() {
           </div>
         ))}
       </div>
-    </section>
+    </RevealSection>
   )
 }
 

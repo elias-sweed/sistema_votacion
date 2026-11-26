@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+:root {
+  /* Tint del fondo animado compartido por panel, login y kiosco. */
+  --primary: #3b82f6;
+}
+
 @font-face {
   font-family: "Bungee Spice";
   src: url("./assets/Fonts/Tittle_Bungee_Spice/BungeeSpice-Regular.ttf") format("truetype");
@@ -58,6 +63,88 @@ a:focus-visible,
 [role="button"]:focus-visible {
   outline: 2px solid #60a5fa;
   outline-offset: 3px;
+}
+
+/* Anclas internas (#seccion): desplazamiento suave sin mover el layout. */
+html {
+  scroll-behavior: smooth;
+}
+
+[id] {
+  scroll-margin-top: 1.5rem;
+}
+
+/* El dock puede fijarse arriba: deja hueco para que no tape los títulos. */
+main[data-dock='top'] [id],
+main[data-dock='top'] section {
+  scroll-margin-top: 7rem;
+}
+
+main[data-dock='bottom'] [id] {
+  scroll-margin-bottom: 6rem;
+}
+
+/* El reveal de secciones lo gestiona RevealSection con Framer Motion. */
+
+/* Transiciones entre vistas de React Router (View Transitions API). */
+main[data-dock] {
+  view-transition-name: contenido-panel;
+}
+
+::view-transition-old(root) {
+  animation: transicion-salida 220ms ease both;
+}
+
+::view-transition-new(root) {
+  animation: transicion-entrada 260ms ease both;
+}
+
+::view-transition-old(contenido-panel) {
+  animation: transicion-panel-salida 200ms ease both;
+}
+
+::view-transition-new(contenido-panel) {
+  animation: transicion-panel-entrada 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes transicion-salida {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes transicion-entrada {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes transicion-panel-salida {
+  to {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+@keyframes transicion-panel-entrada {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .kiosk-button-primary,

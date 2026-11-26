@@ -15,6 +15,7 @@ import { AdminButton } from '../../components/ui/AdminButton'
 import { Badge } from '../../components/ui/Badge'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { StatCard } from '../../components/ui/StatCard'
+import { RevealSection } from '../../components/ui/RevealSection'
 
 type VistaDestino = 'candidatos' | 'mesas' | 'configuracion'
 
@@ -249,7 +250,7 @@ export default function ResultadosPage({ onNavigate }: ResultadosPageProps) {
     .sort((a, b) => numero(b.total) - numero(a.total) || a.mesa_nombre.localeCompare(b.mesa_nombre))
 
   return (
-    <section className="space-y-6">
+    <RevealSection className="space-y-6">
       <SectionHeader
         title="Resultados en vivo"
         description="Conteo actualizado de votos por candidato y participación por mesa."
@@ -662,6 +663,6 @@ export default function ResultadosPage({ onNavigate }: ResultadosPageProps) {
           </footer>
         </div>
       )}
-    </section>
+    </RevealSection>
   )
 }

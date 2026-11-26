@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { limpiarCachePanel } from '../../lib/panelCache'
+import { useNavegarConTransicion } from '../../lib/navegacion'
 import { useToast } from '../../components/ui/ToastProvider'
-import { Sidebar } from '../../components/ui/Sidebar'
-import { TopBar } from '../../components/ui/TopBar'
+import { PanelDock } from '../../components/ui/PanelDock'
+import type { DockSide } from '../../components/ui/Dock'
 import { SectionHeader } from '../../components/ui/SectionHeader'
 import { AdminCard } from '../../components/ui/AdminCard'
 import CandidatosPage from '../candidatos/CandidatosPage'
@@ -42,11 +43,28 @@ const BREADCRUMB: Record<Vista, string> = {
   configuracion: 'Panel > Configuración'
 }
 
+const POSICIONES_DOCK: DockSide[] = ['bottom', 'top', 'left', 'right']
+const CLAVE_POSICION_DOCK = 'dock-posicion'
+
+const PADDING_DOCK: Record<DockSide, string> = {
+  bottom: 'px-5 pb-28 pt-5 sm:px-8',
+  top: 'px-5 pb-5 pt-24 sm:px-8',
+  left: 'py-5 pl-24 pr-5 sm:pl-28',
+  right: 'py-5 pr-24 pl-5 sm:pr-28'
+}
+
 export default function PanelPage() {
   const location = useLocation()
-  const navigate = useNavigate()
+  const navigate = useNavegarConTransicion()
   const toast = useToast()
-  const [collapsed, setCollapsed] = useState(false)
+  const [posicionDock, setPosicionDock] = useState<DockSide>(() => {
+    const guardada = localStorage.getItem(CLAVE_POSICION_DOCK) as DockSide | null
+    return guardada && POSICIONES_DOCK.includes(guardada) ? guardada : 'bottom'
+  })
+
+  useEffect(() => {
+    localStorage.setItem(CLAVE_POSICION_DOCK, posicionDock)
+  }, [posicionDock])
 
   const segmento = location.pathname.split('/').filter(Boolean)[1] ?? ''
   const vista: Vista = VISTA_POR_SECCION[segmento] ?? 'inicio'
@@ -75,12 +93,6 @@ export default function PanelPage() {
         target.tagName === 'SELECT' ||
         target.isContentEditable
       )
-
-      if (event.key === 'Escape') {
-        if (document.querySelector('[role="dialog"][aria-modal="true"]')) return
-        setCollapsed(false)
-        return
-      }
 
       // Los atajos no deben interferir mientras se escribe ni con un modal abierto.
       if (escribiendo) return
@@ -129,17 +141,15 @@ export default function PanelPage() {
   }
 
   return (
-    <div className="min-h-screen text-white relative">
-      <Sidebar
-        collapsed={collapsed}
-        setCollapsed={setCollapsed}
+    <div className="min-h-screen text-white">
+      <PanelDock
         vista={vista}
         onNavigate={setVista}
+        position={posicionDock}
+        onLogout={cerrarSesion}
       />
 
-      <main className={`transition-all duration-300 ${collapsed ? 'ml-16' : 'ml-56'} min-h-screen px-5 py-4 sm:px-8`}>
-        <TopBar breadcrumb={BREADCRUMB[vista]} onLogout={cerrarSesion} />
-
+      <main data-dock={posicionDock} className={`min-h-screen ${PADDING_DOCK[posicionDock]}`}>
         <div className="max-w-6xl mx-auto mt-6 space-y-6">
           <SectionHeader
             title={vista === 'inicio' ? 'Panel de Control' : BREADCRUMB[vista]}
@@ -152,7 +162,12 @@ export default function PanelPage() {
             {vista === 'mesas' && <MesasPage />}
             {vista === 'padron' && <PadronPage />}
             {vista === 'resultados' && <ResultadosPage onNavigate={setVista} />}
-            {vista === 'configuracion' && <ConfiguracionPage />}
+            {vista === 'configuracion' && (
+              <ConfiguracionPage
+                posicionDock={posicionDock}
+                onPosicionDockChange={setPosicionDock}
+              />
+            )}
           </AdminCard>
         </div>
       </main>

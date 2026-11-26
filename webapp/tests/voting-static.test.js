@@ -20,6 +20,38 @@ const service = readFileSync(new URL('../src/features/voting/votingService.ts', 
 const proxyEntry = readFileSync(new URL('../supabase/functions/voting-proxy/index.ts', import.meta.url), 'utf8');
 const proxy = readFileSync(new URL('../supabase/functions/voting-proxy/handler.ts', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+const backgroundCanvas = readFileSync(
+  new URL('../src/components/ui/BackgroundCanvas.tsx', import.meta.url),
+  'utf8'
+);
+const globalBackground = readFileSync(
+  new URL('../src/components/ui/FondoGlobal.tsx', import.meta.url),
+  'utf8'
+);
+const panelPage = readFileSync(new URL('../src/features/panel/PanelPage.tsx', import.meta.url), 'utf8');
+const configuracionPage = readFileSync(
+  new URL('../src/features/configuracion/ConfiguracionPage.tsx', import.meta.url),
+  'utf8'
+);
+const estilos = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+const transiciones = readFileSync(
+  new URL('../src/components/ui/TransicionesSuaves.tsx', import.meta.url),
+  'utf8'
+);
+const revealSection = readFileSync(
+  new URL('../src/components/ui/RevealSection.tsx', import.meta.url),
+  'utf8'
+);
+const scrollProgress = readFileSync(
+  new URL('../src/components/ui/ScrollProgress.tsx', import.meta.url),
+  'utf8'
+);
+const dashboardPage = readFileSync(
+  new URL('../src/features/dashboard/DashboardPage.tsx', import.meta.url),
+  'utf8'
+);
+const statCard = readFileSync(new URL('../src/components/ui/StatCard.tsx', import.meta.url), 'utf8');
+const navegacion = readFileSync(new URL('../src/lib/navegacion.ts', import.meta.url), 'utf8');
 const sessionHelper = readFileSync(new URL('../src/lib/session.ts', import.meta.url), 'utf8');
 const supabaseClient = readFileSync(new URL('../src/lib/supabase.ts', import.meta.url), 'utf8');
 
@@ -36,6 +68,59 @@ test('admin gate only accepts the app_metadata admin role', () => {
 test('auth session is not persisted in localStorage', () => {
   assert.doesNotMatch(supabaseClient, /localStorage\s*\./);
   assert.match(supabaseClient, /sessionStorage/);
+});
+
+test('animated background is global, decorative and never interactive', () => {
+  assert.match(app, /<FondoGlobal \/>/, 'background is mounted once for every route');
+  assert.match(globalBackground, /fixed inset-0/, 'background covers every section and mode');
+  assert.match(backgroundCanvas, /pointer-events-none/, 'canvas never intercepts input');
+  assert.doesNotMatch(
+    backgroundCanvas,
+    /addEventListener\(\s*['"](pointer|mouse|click|touch)/,
+    'background has no pointer interaction'
+  );
+  assert.match(backgroundCanvas, /uTime/, 'only the background is animated');
+});
+
+test('admin panel navigation uses the dock with a switchable position', () => {
+  assert.match(panelPage, /<PanelDock\s/, 'sidebar was replaced by the dock');
+  assert.doesNotMatch(panelPage, /<Sidebar|components\/ui\/Sidebar/, 'old sidebar is gone');
+  assert.match(panelPage, /dock-posicion/, 'position is persisted between sessions');
+  assert.match(panelPage, /PADDING_DOCK\[posicionDock\]/, 'content adapts to the chosen side');
+  assert.doesNotMatch(panelPage, /TopBar/, 'header was removed');
+  assert.match(configuracionPage, /POSICIONES_MENU/, 'menu position is configured in Configuración');
+  assert.match(configuracionPage, /onPosicionDockChange\(posicion\.value\)/, 'selector updates the dock');
+});
+
+test('section and page transitions are smooth, animated and accessibility-safe', () => {
+  assert.match(app, /<TransicionesSuaves \/>/, 'transitions are mounted for every route');
+  assert.match(estilos, /html\s*\{[^}]*scroll-behavior:\s*smooth/s, 'internal anchors scroll smoothly');
+  assert.match(estilos, /scroll-margin-top/, 'fixed dock never covers an anchor target');
+  assert.match(estilos, /main\[data-dock='top'\]/, 'top dock gets extra scroll clearance');
+  assert.match(panelPage, /data-dock=\{posicionDock\}/, 'panel exposes the dock side to CSS');
+
+  assert.match(transiciones, /a\[href\^="#"\]/, 'internal anchor clicks are handled');
+  assert.match(transiciones, /scrollIntoView/, 'anchor navigation scrolls to the target');
+
+  assert.match(revealSection, /from ['"]motion\/react['"]/, 'reveal uses installed Framer Motion');
+  assert.match(revealSection, /whileInView/, 'sections reveal when they enter the viewport');
+  assert.match(revealSection, /type:\s*'spring'/, 'reveal uses an Apple-like spring');
+  assert.match(revealSection, /opacity:\s*0,\s*y:\s*30,\s*scale:\s*0\.985/, 'reveal animates opacity and transform only');
+  assert.match(revealSection, /useReducedMotion/, 'reveal respects reduced motion');
+  assert.match(frontend, /<RevealSection\s/g, 'every admin section uses the animated wrapper');
+  assert.match(dashboardPage, /staggerChildren/, 'dashboard cards appear in a stagger');
+  assert.match(statCard, /motion\.div/, 'stat cards are motion-driven');
+  assert.match(scrollProgress, /useScroll/, 'scroll progress follows the viewport');
+  assert.match(scrollProgress, /useSpring/, 'scroll progress is smoothed with a spring');
+  assert.match(scrollProgress, /pointer-events-none/, 'progress bar never intercepts input');
+
+  assert.match(estilos, /::view-transition-old\(root\)/, 'page transitions use View Transitions API');
+  assert.match(navegacion, /document\.startViewTransition/, 'browser router navigations are wrapped');
+  assert.match(navegacion, /flushSync/, 'new DOM is committed before capturing the transition');
+  assert.match(panelPage, /useNavegarConTransicion/, 'panel uses the animated navigator');
+  assert.match(estilos, /@media\s*\(prefers-reduced-motion:\s*reduce\)/, 'reduced motion is respected');
+  assert.match(estilos, /scroll-behavior:\s*auto/, 'reduced motion disables smooth scrolling');
+  assert.match(estilos, /::view-transition-group\(\*\)/, 'reduced motion neutralizes page transitions');
 });
 
 test('browser voting service never invokes the protected voting RPCs directly', () => {

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import { motion, useReducedMotion } from 'motion/react'
+import type { Variants } from 'motion/react'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
@@ -8,6 +10,17 @@ import { SectionHeader } from '../../components/ui/SectionHeader'
 import { Badge } from '../../components/ui/Badge'
 import { AdminCard } from '../../components/ui/AdminCard'
 import { AdminButton } from '../../components/ui/AdminButton'
+import { RevealSection } from '../../components/ui/RevealSection'
+
+const TARJETA_OCULTA: Variants = {
+  hidden: { opacity: 0, y: 24, scale: 0.97 },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { type: 'spring', stiffness: 170, damping: 22 }
+  }
+}
 
 type Vista = 'candidatos' | 'mesas' | 'padron' | 'resultados' | 'configuracion'
 
@@ -56,6 +69,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [cargando, setCargando] = useState(resumenInicial === null)
   const [tieneDatos, setTieneDatos] = useState(resumenInicial !== null)
   const [error, setError] = useState<string | null>(null)
+  const reducido = useReducedMotion()
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -121,7 +135,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
   const estadoColor = resumen.eleccionAbierta ? 'bg-emerald-400' : 'bg-amber-400'
 
   return (
-    <section className="space-y-6">
+    <RevealSection className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <SectionHeader
           title="Resumen general"
@@ -154,12 +168,18 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
         <p className="text-xs text-slate-500">{resumen.centro}</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Votantes en padrón" value={resumen.votantes} subtitle={`Pendientes: ${resumen.pendientes}`} />
-        <StatCard label="Ya votaron" value={resumen.votaron} subtitle={`${participacion}% de participación`} />
-        <StatCard label="Candidatos activos" value={resumen.candidatosActivos} subtitle={`de ${resumen.candidatosTotal}`} />
-        <StatCard label="Mesas activas" value={resumen.mesasActivas} subtitle={`de ${resumen.mesasTotal}`} />
-      </div>
+      <motion.div
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        initial={reducido ? false : 'hidden'}
+        whileInView={reducido ? undefined : 'show'}
+        viewport={{ once: true, amount: 0.25 }}
+        variants={{ show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } } }}
+      >
+        <StatCard label="Votantes en padrón" value={resumen.votantes} subtitle={`Pendientes: ${resumen.pendientes}`} variants={TARJETA_OCULTA} />
+        <StatCard label="Ya votaron" value={resumen.votaron} subtitle={`${participacion}% de participación`} variants={TARJETA_OCULTA} />
+        <StatCard label="Candidatos activos" value={resumen.candidatosActivos} subtitle={`de ${resumen.candidatosTotal}`} variants={TARJETA_OCULTA} />
+        <StatCard label="Mesas activas" value={resumen.mesasActivas} subtitle={`de ${resumen.mesasTotal}`} variants={TARJETA_OCULTA} />
+      </motion.div>
 
       {cargando && !tieneDatos ? (
         <DashboardSkeleton />
@@ -228,6 +248,6 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
           </AdminCard>
         </div>
       )}
-    </section>
+    </RevealSection>
   )
 }

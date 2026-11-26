@@ -7,8 +7,10 @@ import { ENTORNO_VALIDO, PROBLEMAS_ENTORNO } from './lib/env'
 import { esSesionAdmin } from './lib/session'
 import { limpiarCacheLegado, limpiarCachePanel } from './lib/panelCache'
 import ConfigErrorPage from './components/ConfigErrorPage'
+import { FondoGlobal } from './components/ui/FondoGlobal'
 import { ToastProvider } from './components/ui/ToastProvider'
 import { EstadoConexion } from './components/ui/EstadoConexion'
+import { TransicionesSuaves } from './components/ui/TransicionesSuaves'
 import AccessDeniedPage from './features/auth/AccessDeniedPage'
 import LoginPage from './features/auth/LoginPage'
 import PanelPage from './features/panel/PanelPage'
@@ -52,55 +54,67 @@ export default function App() {
     return () => listener.subscription.unsubscribe()
   }, [])
 
-  if (!ENTORNO_VALIDO) return <ConfigErrorPage problemas={PROBLEMAS_ENTORNO} />
-
+  if (!ENTORNO_VALIDO) {
+    return (
+      <>
+        <FondoGlobal />
+        <div className="relative z-10">
+          <ConfigErrorPage problemas={PROBLEMAS_ENTORNO} />
+        </div>
+      </>
+    )
+  }
 
   return (
-    <ToastProvider>
-      <div className="relative z-10">
-        {cargando ? (
-          <main className="min-h-screen flex items-center justify-center text-slate-400">
-            Cargando…
-          </main>
-        ) : (
-          <BrowserRouter>
-            <EstadoConexion />
-            <Routes>
-              <Route path="/votar/:token" element={<VotingKioskPage />} />
-              <Route path="/votar" element={<VotingKioskPage />} />
-              <Route
-                path="/login"
-                element={
-                  esAdmin
-                    ? <Navigate to="/admin" replace />
-                    : session
-                      ? <AccessDeniedPage />
-                      : <LoginPage />
-                }
-              />
-              <Route
-                path="/admin"
-                element={
-                  <AdminGate esAdmin={esAdmin} session={session}>
-                    <PanelPage />
-                  </AdminGate>
-                }
-              />
-              <Route
-                path="/admin/:seccion"
-                element={
-                  <AdminGate esAdmin={esAdmin} session={session}>
-                    <PanelPage />
-                  </AdminGate>
-                }
-              />
-              <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
-              <Route path="/" element={<Navigate to="/admin" replace />} />
-              <Route path="*" element={<Navigate to="/admin" replace />} />
-            </Routes>
-          </BrowserRouter>
-        )}
-      </div>
-    </ToastProvider>
+    <>
+      <FondoGlobal />
+      <ToastProvider>
+        <div className="relative z-10">
+          {cargando ? (
+            <main className="min-h-screen flex items-center justify-center text-slate-400">
+              Cargando…
+            </main>
+          ) : (
+            <BrowserRouter>
+              <TransicionesSuaves />
+              <EstadoConexion />
+              <Routes>
+                <Route path="/votar/:token" element={<VotingKioskPage />} />
+                <Route path="/votar" element={<VotingKioskPage />} />
+                <Route
+                  path="/login"
+                  element={
+                    esAdmin
+                      ? <Navigate to="/admin" replace />
+                      : session
+                        ? <AccessDeniedPage />
+                        : <LoginPage />
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <AdminGate esAdmin={esAdmin} session={session}>
+                      <PanelPage />
+                    </AdminGate>
+                  }
+                />
+                <Route
+                  path="/admin/:seccion"
+                  element={
+                    <AdminGate esAdmin={esAdmin} session={session}>
+                      <PanelPage />
+                    </AdminGate>
+                  }
+                />
+                <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
+                <Route path="/" element={<Navigate to="/admin" replace />} />
+                <Route path="*" element={<Navigate to="/admin" replace />} />
+              </Routes>
+            </BrowserRouter>
+          )}
+        </div>
+      </ToastProvider>
+    </>
   )
 }

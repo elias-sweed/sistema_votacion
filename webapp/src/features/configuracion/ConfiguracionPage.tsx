@@ -14,17 +14,13 @@ import {
   limpiarCachePanel,
 } from '../../lib/panelCache'
 import { useToast } from '../../components/ui/ToastProvider'
+import type { DockSide } from '../../components/ui/Dock'
 import { ConfiguracionSkeleton } from '../panel/PanelSkeletons'
 import { SectionHeader } from '../../components/ui/SectionHeader'
 import { AdminModal } from '../../components/ui/AdminModal'
 import { PasswordInput } from '../../components/ui/PasswordInput'
+import { RevealSection } from '../../components/ui/RevealSection'
 import candadoImg from '../../assets/candado.png'
-import {
-  estaActivoEnsayo,
-  activarEnsayo,
-  desactivarEnsayo,
-  limpiarEnsayo,
-} from '../../lib/ensayoStore'
 
 type Config = {
   eleccion_abierta: boolean
@@ -35,6 +31,18 @@ type Config = {
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024
 const CANDADO_IMG = candadoImg
+
+const POSICIONES_MENU: Array<{ value: DockSide; label: string }> = [
+  { value: 'bottom', label: 'Abajo' },
+  { value: 'top', label: 'Arriba' },
+  { value: 'left', label: 'Izquierda' },
+  { value: 'right', label: 'Derecha' }
+]
+
+type ConfiguracionPageProps = {
+  posicionDock: DockSide
+  onPosicionDockChange: (posicion: DockSide) => void
+}
 
 // Reduce el logo a 512 px. Se conserva PNG cuando el navegador no soporta WebP
 // para no perder la transparencia del escudo o logotipo.
@@ -66,7 +74,7 @@ function comprimirLogo(file: File): Promise<string> {
   })
 }
 
-export default function ConfiguracionPage() {
+export default function ConfiguracionPage({ posicionDock, onPosicionDockChange }: ConfiguracionPageProps) {
   const toast = useToast()
   const archivoRef = useRef<HTMLInputElement>(null)
   const [configInicial] = useState<Config | null>(() => leerCache<Config>(CLAVES_CACHE.configuracion))
@@ -89,9 +97,6 @@ export default function ConfiguracionPage() {
   const [passwordEliminarTodo, setPasswordEliminarTodo] = useState('')
   const [eliminandoTodoCargando, setEliminandoTodoCargando] = useState(false)
   const [errorEliminarTodo, setErrorEliminarTodo] = useState<string | null>(null)
-
-  // Modo ensayo (pruebas en memoria, se borra al salir)
-  const [modoEnsayo, setModoEnsayo] = useState(estaActivoEnsayo())
 
   // Borrar TODO de todo
   const [borrandoTodo, setBorrandoTodo] = useState(false)
@@ -292,32 +297,6 @@ export default function ConfiguracionPage() {
     }
   }
 
-  // --- MODO ENSAYO ---
-
-  async function toggleModoEnsayo(activar: boolean) {
-    setErrorEliminarTodo(null)
-
-    if (activar) {
-      activarEnsayo()
-      setModoEnsayo(true)
-      toast({
-        title: 'Modo ensayo activado',
-        description: 'Los cambios se guardan solo en memoria. Al recargar, todo se borra.',
-        variant: 'info',
-        duration: 5000,
-      })
-    } else {
-      desactivarEnsayo()
-      setModoEnsayo(false)
-      toast({
-        title: 'Modo ensayo desactivado',
-        description: 'Se limpiaron los datos de prueba.',
-        variant: 'info',
-        duration: 4000,
-      })
-    }
-  }
-
   // --- BORRAR TODO DE TODO ---
 
   async function cerrarBorrarTodo() {
@@ -401,10 +380,6 @@ export default function ConfiguracionPage() {
       setCentro('I.E. Jimenez Pimentel')
       setLogoUrl(null)
       setConfig(current => current ? { ...current, eleccion_abierta: false, titulo: 'Elección de Municipios Escolares', centro: 'I.E. Jimenez Pimentel', logo_url: null } : current)
-
-      // También limpiar el modo ensayo si estaba activo
-      limpiarEnsayo()
-      setModoEnsayo(false)
 
       // Descartar los datos cacheados de las demás secciones para que
       // reflejen el borrado sin mostrar mesas, candidatos o padrón viejos.
@@ -512,7 +487,7 @@ export default function ConfiguracionPage() {
   const abierta = config?.eleccion_abierta === true
 
   return (
-    <section className="space-y-6">
+    <RevealSection className="space-y-6">
       <SectionHeader
         title="Configuración de la elección"
         description="Administra el estado de la elección, los datos del centro y las acciones de seguridad."
@@ -743,42 +718,8 @@ export default function ConfiguracionPage() {
           {/* ===== PESTAÑA SEGURIDAD ===== */}
           {pestaniaActiva === 'seguridad' && (
             <>
-              {/* Toggle Modo Ensayo */}
+              {/* Configuración de PIN */}
               <div className="rounded-3xl border border-white/10 bg-white/4 p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4">
-                <div className="flex items-center gap-3">
-                  <span className="h-px w-8 bg-linear-to-r from-blue-400/80 to-transparent" />
-                  <h3 className="text-lg font-semibold text-white">Modo Ensayo</h3>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-2xl border border-white/10 bg-black/20 backdrop-blur-md">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={modoEnsayo}
-                        onChange={(e) => toggleModoEnsayo(e.target.checked)}
-                        className="rounded border-white/20 bg-black/25 text-blue-300 focus:ring-blue-500/40"
-                      />
-                      <span className={`text-sm font-semibold ${modoEnsayo ? 'text-blue-300' : 'text-slate-400'}`}>
-                        {modoEnsayo ? 'Modo Ensayo ACTIVO' : 'Modo Ensayo'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {modoEnsayo
-                        ? 'Los cambios se guardan solo en memoria RAM. Al recargar o cerrar la pestaña, todo se borra.'
-                        : 'Cuando está activo, los cambios no se guardan en Supabase. Solo para pruebas.'}
-                    </p>
-                  </div>
-                </div>
-
-                {modoEnsayo && (
-                  <p className="rounded-xl border border-blue-400/20 bg-blue-500/6 px-4 py-3 text-xs leading-relaxed text-blue-100/80">
-                    ⚠️ Modo ensayo activo: nada de lo que hagas aquí se guarda permanentemente.
-                  </p>
-                )}
-
-                {/* Configuración de PIN */}
-                <div className="rounded-3xl border border-white/10 bg-white/4 p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4 mt-6">
                   <div className="flex items-center gap-3">
                     <span className="h-px w-8 bg-linear-to-r from-amber-400/80 to-transparent" />
                     <h3 className="text-lg font-semibold text-white">PIN de seguridad</h3>
@@ -840,7 +781,6 @@ export default function ConfiguracionPage() {
                       {errorPin && <p className="text-sm text-red-400">{errorPin}</p>}
                     </>
                   )}
-                </div>
               </div>
             </>
           )}
@@ -1040,6 +980,39 @@ export default function ConfiguracionPage() {
         </>
       )}
 
+      {/* Posición del menú: disponible aunque falle la carga de la configuración */}
+      {!cargando && pestaniaActiva === 'general' && (
+        <div className="rounded-3xl border border-white/10 bg-white/4 p-6 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="h-px w-8 bg-linear-to-r from-blue-400/80 to-transparent" />
+            <h3 className="text-lg font-semibold text-white">Menú</h3>
+          </div>
+          <p className="text-sm text-slate-400">
+            Elige a qué lado aparece el menú de navegación. El cambio se guarda en este navegador.
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {POSICIONES_MENU.map((posicion) => {
+              const activa = posicionDock === posicion.value
+              return (
+                <button
+                  key={posicion.value}
+                  type="button"
+                  onClick={() => onPosicionDockChange(posicion.value)}
+                  aria-pressed={activa}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition ${
+                    activa
+                      ? 'border-blue-400/40 bg-blue-500/20 text-blue-200'
+                      : 'border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06] hover:text-white'
+                  }`}
+                >
+                  {posicion.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {confirmando !== null && (
         <AdminModal
           open={confirmando !== null}
@@ -1160,6 +1133,6 @@ export default function ConfiguracionPage() {
           />
         </AdminModal>
       )}
-    </section>
+    </RevealSection>
   )
 }

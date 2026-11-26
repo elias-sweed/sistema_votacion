@@ -18,14 +18,7 @@ import { AdminSelect } from '../../components/ui/AdminSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PasswordInput } from '../../components/ui/PasswordInput'
 import { StatCard } from '../../components/ui/StatCard'
-import {
-  estaActivoEnsayo,
-  ensayoListarVotantes,
-  ensayoAgregarVotante,
-  ensayoEliminarVotantes,
-  ensayoContarVotantes,
-  ensayoContarVotaron,
-} from '../../lib/ensayoStore'
+import { RevealSection } from '../../components/ui/RevealSection'
 
 type Votante = {
   dni: string
@@ -146,19 +139,6 @@ export default function PadronPage() {
 
   // Cargar estadísticas
   const cargarEstadisticas = useCallback(async () => {
-    if (estaActivoEnsayo()) {
-      const total = ensayoContarVotantes()
-      const votaron = ensayoContarVotaron()
-      setEstadisticas({
-        total_votantes: total,
-        total_votaron: votaron,
-        total_pendientes: total - votaron,
-        participacion_pct: total > 0 ? Math.round((votaron / total) * 100 * 100) / 100 : 0,
-        por_mesa: [],
-      })
-      return
-    }
-
     const { data, error: err } = await supabase.rpc('obtener_estadisticas_padron')
     if (err) {
       console.error('Error cargando estadísticas:', err)
@@ -176,28 +156,6 @@ export default function PadronPage() {
   const cargarVotantes = useCallback(async () => {
     setCargando(true)
     setError(null)
-
-    if (estaActivoEnsayo()) {
-      const { votantes: listaEnsayo, total } = ensayoListarVotantes({
-        busqueda,
-        soloPendientes,
-        pagina,
-        pageSize,
-      })
-      const lista: Votante[] = listaEnsayo.map((v) => ({
-        dni: v.dni,
-        nombre: v.nombre,
-        grado: v.grado ?? null,
-        seccion: v.seccion ?? null,
-        ha_votado: v.ha_votado,
-        creado_en: v.creado_en,
-      }))
-      setVotantes(lista)
-      setTotalCount(total)
-      setTieneDatos(true)
-      setCargando(false)
-      return
-    }
 
     const vistaPorDefecto = !busqueda && !soloPendientes && pagina === 1
     const { data, error: err } = await supabase.rpc('listar_votantes', {
@@ -260,32 +218,6 @@ export default function PadronPage() {
     }
 
     setGuardandoVotante(true)
-
-    if (estaActivoEnsayo()) {
-      ensayoAgregarVotante({
-        dni,
-        nombre: `${nombre} ${apellido}`,
-        grado: nuevoGrado || null,
-        seccion: nuevaSeccion || null,
-        ha_votado: false,
-      })
-      setGuardandoVotante(false)
-      setExitoManual(`Votante ${dni} agregado correctamente (modo ensayo).`)
-      toast({
-        title: 'Votante agregado (ensayo)',
-        description: `${nombre} ${apellido} · DNI ${dni}`,
-        variant: 'success',
-        duration: 4000,
-      })
-      setNuevoDni('')
-      setNuevoNombre('')
-      setNuevoApellido('')
-      setNuevoGrado('')
-      setNuevaSeccion('')
-      await cargarVotantes()
-      await cargarEstadisticas()
-      return
-    }
 
     const { error: err } = await supabase.from('votantes').insert({
       dni,
@@ -540,14 +472,10 @@ export default function PadronPage() {
         return
       }
 
-      if (estaActivoEnsayo()) {
-        ensayoEliminarVotantes(dnis)
-      } else {
-        const { error: err } = await supabase.from('votantes').delete().in('dni', dnis)
-        if (err) {
-          setErrorEliminar(mensajeDeError(err, 'No se pudieron eliminar los votantes.'))
-          return
-        }
+      const { error: err } = await supabase.from('votantes').delete().in('dni', dnis)
+      if (err) {
+        setErrorEliminar(mensajeDeError(err, 'No se pudieron eliminar los votantes.'))
+        return
       }
 
       toast({
@@ -579,49 +507,32 @@ export default function PadronPage() {
     try {
       const filas: Votante[] = []
 
-      if (estaActivoEnsayo()) {
-        const { votantes: lista } = ensayoListarVotantes({
-          busqueda,
-          soloPendientes,
-          pagina: 1,
-          pageSize: Number.MAX_SAFE_INTEGER
-        })
-        filas.push(...lista.map((v) => ({
-          dni: v.dni,
-          nombre: v.nombre,
-          grado: v.grado ?? null,
-          seccion: v.seccion ?? null,
-          ha_votado: v.ha_votado,
-          creado_en: v.creado_en
-        })))
-      } else {
-        const tamano = 200
-        let offset = 0
-        let total = Number.POSITIVE_INFINITY
+      const tamano = 200
+      let offset = 0
+      let total = Number.POSITIVE_INFINITY
 
-        while (offset < total) {
-          const { data, error: err } = await supabase.rpc('listar_votantes', {
-            p_busqueda: busqueda || null,
-            p_solo_pendientes: soloPendientes,
-            p_limit: tamano,
-            p_offset: offset
+      while (offset < total) {
+        const { data, error: err } = await supabase.rpc('listar_votantes', {
+          p_busqueda: busqueda || null,
+          p_solo_pendientes: soloPendientes,
+          p_limit: tamano,
+          p_offset: offset
+        })
+        if (err) throw err
+        const lista = (data ?? []) as Array<Record<string, unknown>>
+        if (lista.length === 0) break
+        total = Number(lista[0]?.total_count ?? 0)
+        for (const fila of lista) {
+          filas.push({
+            dni: String(fila.dni ?? ''),
+            nombre: String(fila.nombre ?? ''),
+            grado: fila.grado ? String(fila.grado) : null,
+            seccion: fila.seccion ? String(fila.seccion) : null,
+            ha_votado: fila.ha_votado === true,
+            creado_en: String(fila.creado_en ?? '')
           })
-          if (err) throw err
-          const lista = (data ?? []) as Array<Record<string, unknown>>
-          if (lista.length === 0) break
-          total = Number(lista[0]?.total_count ?? 0)
-          for (const fila of lista) {
-            filas.push({
-              dni: String(fila.dni ?? ''),
-              nombre: String(fila.nombre ?? ''),
-              grado: fila.grado ? String(fila.grado) : null,
-              seccion: fila.seccion ? String(fila.seccion) : null,
-              ha_votado: fila.ha_votado === true,
-              creado_en: String(fila.creado_en ?? '')
-            })
-          }
-          offset += tamano
         }
+        offset += tamano
       }
 
       if (filas.length === 0) {
@@ -686,7 +597,7 @@ export default function PadronPage() {
   }
 
   return (
-    <section className="space-y-6">
+    <RevealSection className="space-y-6">
       {/* Resumen del padrón */}
       <div className="flex items-center gap-3">
         <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
@@ -1232,6 +1143,6 @@ export default function PadronPage() {
           {errorEliminar && <p className="mt-3 text-sm text-red-400">{errorEliminar}</p>}
         </AdminModal>
       )}
-    </section>
+    </RevealSection>
   )
 }

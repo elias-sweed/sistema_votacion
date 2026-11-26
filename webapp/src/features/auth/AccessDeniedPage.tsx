@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 import { esSesionAdmin } from '../../lib/session'
+import { useNavegarConTransicion } from '../../lib/navegacion'
 
 export default function AccessDeniedPage() {
   const [session, setSession] = useState<Session | null>(null)
@@ -10,7 +11,7 @@ export default function AccessDeniedPage() {
   const [rpcAdmin, setRpcAdmin] = useState<boolean | null>(null)
   const [rpcError, setRpcError] = useState<string | null>(null)
   const [mensaje, setMensaje] = useState<string | null>(null)
-  const navigate = useNavigate()
+  const navigate = useNavegarConTransicion()
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => setSession(data.session))
