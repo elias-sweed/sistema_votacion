@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { filasARegistros, parsearCSV } from '../src/lib/importarPadron.ts';
 
 function sourceFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -142,6 +143,27 @@ test('padron imports Excel with six columns and manual entry uses both surnames'
   assert.match(importarPadron, /apellidopaterno/, 'paternal surname header is recognized');
   assert.match(importarPadron, /apellidomaterno/, 'maternal surname header is recognized');
   assert.match(importarPadron, /normalizarDni/, 'DNI values are normalized before reaching the RPC');
+});
+
+test('padron works even when the remote table lacks grado and seccion columns', () => {
+  assert.match(padronPage, /listarVotantes\(/, 'listado uses the compatibility helper');
+  assert.match(padronPage, /importarLotePadron\(/, 'import uses the compatibility helper');
+  assert.match(padronPage, /insertarVotantePadron\(/, 'manual entry uses the compatibility helper');
+  assert.match(padronPage, /detectarColumnasPadron\(/, 'schema is detected once');
+  assert.match(padronPage, /017_reparar_padron_grado_seccion\.sql/, 'warning explains how to complete the migration');
+  assert.doesNotMatch(padronPage, /supabase\.rpc\('listar_votantes'/, 'no direct RPC that returns 42703');
+  assert.doesNotMatch(padronPage, /supabase\.rpc\('importar_votantes'/, 'no direct RPC that inserts missing columns');
+});
+
+test('import accepts uppercase headers in the order GRADO SECCION DNI APELLIDOS NOMBRES', () => {
+  const filas = filasARegistros(parsearCSV(
+    'GRADO,SECCION,DNI,APELLIDO PATERNO,APELLIDO MATERNO,NOMBRES\n' +
+    '1°,A,12345678,Pérez,García,Ana María'
+  ));
+
+  assert.deepEqual(filas, [
+    { dni: '12345678', nombre: 'Ana María Pérez García', grado: '1°', seccion: 'A' }
+  ]);
 });
 
 test('manual padron form matches the template fields and a template can be downloaded', () => {

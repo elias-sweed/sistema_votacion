@@ -11,6 +11,12 @@ import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { dividirEnLotes, leerFilasPadron } from '../../lib/importarPadron'
 import { generarPlantillaCSV, generarPlantillaXlsx } from '../../lib/exportarPlantilla'
+import {
+  detectarColumnasPadron,
+  importarLotePadron,
+  insertarVotantePadron,
+  listarVotantes
+} from '../../lib/padronCompat'
 import { useToast } from '../../components/ui/ToastProvider'
 import { PadronSkeleton } from '../panel/PanelSkeletons'
 import { AdminCard } from '../../components/ui/AdminCard'
@@ -89,6 +95,7 @@ export default function PadronPage() {
   const [guardandoVotante, setGuardandoVotante] = useState(false)
   const [errorManual, setErrorManual] = useState<string | null>(null)
   const [exitoManual, setExitoManual] = useState<string | null>(null)
+  const [sinGradoSeccion, setSinGradoSeccion] = useState(false)
 
   // Datos
   const [votantes, setVotantes] = useState<Votante[]>(() => listaInicial?.votantes ?? [])
@@ -157,36 +164,34 @@ export default function PadronPage() {
     }
   }, [])
 
-  // Cargar votantes con filtros
+  // Cargar votantes con filtros (funciona con o sin columnas grado/sección)
   const cargarVotantes = useCallback(async () => {
     setCargando(true)
     setError(null)
 
     const vistaPorDefecto = !busqueda && !soloPendientes && pagina === 1
-    const { data, error: err } = await supabase.rpc('listar_votantes', {
-      p_busqueda: busqueda || null,
-      p_solo_pendientes: soloPendientes,
-      p_limit: pageSize,
-      p_offset: (pagina - 1) * pageSize
+    const { filas, total, error: err } = await listarVotantes({
+      busqueda,
+      soloPendientes,
+      limit: pageSize,
+      offset: (pagina - 1) * pageSize
     })
     setCargando(false)
     if (err) { setError(mensajeDeError(err, 'No se pudo cargar el padrón.')); return }
-    if (data) {
-      const lista: Votante[] = data.map((v: any) => ({
-        dni: v.dni,
-        nombre: v.nombre,
-        grado: v.grado ?? null,
-        seccion: v.seccion ?? null,
-        ha_votado: v.ha_votado,
-        creado_en: v.creado_en,
-      }))
-      const total = data[0]?.total_count ?? 0
-      setVotantes(lista)
-      setTotalCount(total)
-      setTieneDatos(true)
-      if (vistaPorDefecto) {
-        guardarCache(CLAVES_CACHE.padronLista, { votantes: lista, totalCount: total })
-      }
+
+    const lista: Votante[] = filas.map((v) => ({
+      dni: v.dni,
+      nombre: v.nombre,
+      grado: v.grado ?? null,
+      seccion: v.seccion ?? null,
+      ha_votado: v.ha_votado,
+      creado_en: v.creado_en
+    }))
+    setVotantes(lista)
+    setTotalCount(total)
+    setTieneDatos(true)
+    if (vistaPorDefecto) {
+      guardarCache(CLAVES_CACHE.padronLista, { votantes: lista, totalCount: total })
     }
   }, [busqueda, soloPendientes, pagina, pageSize])
 
@@ -197,6 +202,10 @@ export default function PadronPage() {
   useEffect(() => {
     cargarVotantes()
   }, [cargarVotantes])
+
+  useEffect(() => {
+    void detectarColumnasPadron().then((completa) => setSinGradoSeccion(!completa))
+  }, [])
 
   // --- ALTA MANUAL ---
 
@@ -234,7 +243,7 @@ export default function PadronPage() {
     const nombreCompleto = [nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' ')
     setGuardandoVotante(true)
 
-    const { error: err } = await supabase.from('votantes').insert({
+    const { error: err } = await insertarVotantePadron({
       dni,
       nombre: nombreCompleto,
       grado: nuevoGrado || null,
@@ -346,16 +355,11 @@ export default function PadronPage() {
       const resultado: ImportResult = { insertados: 0, duplicados: 0, errores: [], detalle: [] }
 
       for (const lote of dividirEnLotes(rows)) {
-        const { data, error: err } = await supabase.rpc('importar_votantes', {
-          p_votantes: lote
-        })
-        if (err) throw err
-        const parcial = data?.[0]
-        if (!parcial) continue
-        resultado.insertados += parcial.insertados ?? 0
-        resultado.duplicados += parcial.duplicados ?? 0
-        resultado.errores.push(...(parcial.errores ?? []))
-        resultado.detalle.push(...(parcial.detalle ?? []))
+        const parcial = await importarLotePadron(lote)
+        resultado.insertados += parcial.insertados
+        resultado.duplicados += parcial.duplicados
+        resultado.errores.push(...parcial.errores)
+        resultado.detalle.push(...parcial.detalle)
       }
 
       setResultadoImportacion(resultado)
@@ -528,20 +532,19 @@ export default function PadronPage() {
       let total = Number.POSITIVE_INFINITY
 
       while (offset < total) {
-        const { data, error: err } = await supabase.rpc('listar_votantes', {
-          p_busqueda: busqueda || null,
-          p_solo_pendientes: soloPendientes,
-          p_limit: tamano,
-          p_offset: offset
+        const { filas: lista, total: totalRemoto, error: err } = await listarVotantes({
+          busqueda,
+          soloPendientes,
+          limit: tamano,
+          offset
         })
         if (err) throw err
-        const lista = (data ?? []) as Array<Record<string, unknown>>
         if (lista.length === 0) break
-        total = Number(lista[0]?.total_count ?? 0)
+        total = totalRemoto
         for (const fila of lista) {
           filas.push({
-            dni: String(fila.dni ?? ''),
-            nombre: String(fila.nombre ?? ''),
+            dni: fila.dni,
+            nombre: fila.nombre,
             grado: fila.grado ? String(fila.grado) : null,
             seccion: fila.seccion ? String(fila.seccion) : null,
             ha_votado: fila.ha_votado === true,
@@ -619,6 +622,16 @@ export default function PadronPage() {
         <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
         <h2 className="text-xl font-bold text-white">Padrón Electoral</h2>
       </div>
+      {sinGradoSeccion && (
+        <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100" role="status">
+          <p className="font-semibold">La base de datos aún no tiene las columnas Grado y Sección.</p>
+          <p className="mt-1 text-amber-200/80">
+            El padrón funciona con DNI y nombre. Aplica el archivo{' '}
+            <code className="rounded bg-black/25 px-1.5 py-0.5">017_reparar_padron_grado_seccion.sql</code>{' '}
+            en el editor SQL de Supabase para guardar también esos campos.
+          </p>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-live="polite">
         <StatCard label="Total" value={estadisticas?.total_votantes ?? 0} />
         <StatCard
