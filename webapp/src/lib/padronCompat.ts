@@ -56,6 +56,13 @@ export async function detectarColumnasPadron(): Promise<boolean> {
   const faltan = Boolean(
     error && (error.code === '42703' || /grado|seccion/i.test(error.message))
   )
+  if (faltan) {
+    console.warn(
+      '[sistema-votacion] Padrón en modo compatible: la tabla votantes no tiene grado/seccion ' +
+        '(aplica la migración 017). Error original:',
+      error
+    )
+  }
   conColumnas = !faltan
   return conColumnas
 }

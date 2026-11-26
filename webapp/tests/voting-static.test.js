@@ -145,6 +145,29 @@ test('padron imports Excel with six columns and manual entry uses both surnames'
   assert.match(importarPadron, /normalizarDni/, 'DNI values are normalized before reaching the RPC');
 });
 
+test('padron declares selection state before the values derived from it', () => {
+  const declaracion = padronPage.indexOf('const [seleccionados, setSeleccionados]');
+  const derivado = padronPage.indexOf('const todosSeleccionados');
+  assert.ok(declaracion >= 0, 'selection state exists');
+  assert.ok(derivado >= 0, 'derived selection value exists');
+  assert.ok(declaracion < derivado, 'no temporal dead zone when a page has pending voters');
+});
+
+test('render failures are logged and shown instead of a black screen', () => {
+  const boundary = readFileSync(
+    new URL('../src/components/ui/ErrorBoundary.tsx', import.meta.url),
+    'utf8'
+  );
+  const main = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
+
+  assert.match(boundary, /componentDidCatch/);
+  assert.match(boundary, /\[sistema-votacion\] Error al renderizar/);
+  assert.match(boundary, /Stack de componentes/);
+  assert.match(main, /<ErrorBoundary>/);
+  assert.match(main, /\[sistema-votacion\] Error global/);
+  assert.match(main, /\[sistema-votacion\] Promesa no manejada/);
+});
+
 test('padron works even when the remote table lacks grado and seccion columns', () => {
   assert.match(padronPage, /listarVotantes\(/, 'listado uses the compatibility helper');
   assert.match(padronPage, /importarLotePadron\(/, 'import uses the compatibility helper');

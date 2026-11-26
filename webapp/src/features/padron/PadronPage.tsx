@@ -114,6 +114,15 @@ export default function PadronPage() {
   const [pageSize] = useState(50)
   const totalPages = Math.ceil(totalCount / pageSize)
 
+  // Acciones masivas y exportación (se declaran antes de los derivados que las usan)
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
+  const [passwordEliminar, setPasswordEliminar] = useState('')
+  const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
+  const [eliminandoVotantes, setEliminandoVotantes] = useState(false)
+  const [exportando, setExportando] = useState(false)
+  const seleccionarTodosRef = useRef<HTMLInputElement>(null)
+
   // Selección de la página actual. Solo se pueden eliminar votantes pendientes,
   // porque borrar a alguien que ya votó permitiría emitir un segundo voto.
   const pendientesPagina = votantes.filter((v) => !v.ha_votado)
@@ -139,15 +148,6 @@ export default function PadronPage() {
   const [previewInvalidos, setPreviewInvalidos] = useState(0)
   const [resultadoImportacion, setResultadoImportacion] = useState<ImportResult | null>(null)
   const [arrastrandoArchivo, setArrastrandoArchivo] = useState(false)
-
-  // Acciones masivas y exportación
-  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
-  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
-  const [passwordEliminar, setPasswordEliminar] = useState('')
-  const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
-  const [eliminandoVotantes, setEliminandoVotantes] = useState(false)
-  const [exportando, setExportando] = useState(false)
-  const seleccionarTodosRef = useRef<HTMLInputElement>(null)
 
   // Cargar estadísticas
   const cargarEstadisticas = useCallback(async () => {
