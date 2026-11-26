@@ -9,6 +9,7 @@ import Search01Icon from '@hugeicons/core-free-icons/Search01Icon'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
+import { dividirEnLotes, leerFilasPadron } from '../../lib/importarPadron'
 import { useToast } from '../../components/ui/ToastProvider'
 import { PadronSkeleton } from '../panel/PanelSkeletons'
 import { AdminCard } from '../../components/ui/AdminCard'
@@ -78,7 +79,8 @@ export default function PadronPage() {
   // Alta manual de votante
   const [nuevoDni, setNuevoDni] = useState('')
   const [nuevoNombre, setNuevoNombre] = useState('')
-  const [nuevoApellido, setNuevoApellido] = useState('')
+  const [nuevoApellidoPaterno, setNuevoApellidoPaterno] = useState('')
+  const [nuevoApellidoMaterno, setNuevoApellidoMaterno] = useState('')
   const [nuevoGrado, setNuevoGrado] = useState('')
   const [nuevaSeccion, setNuevaSeccion] = useState('')
   const [guardandoVotante, setGuardandoVotante] = useState(false)
@@ -201,27 +203,37 @@ export default function PadronPage() {
     setExitoManual(null)
 
     const dni = nuevoDni.trim()
-    const nombre = nuevoNombre.trim().replace(/\s+/g, ' ')
-    const apellido = nuevoApellido.trim().replace(/\s+/g, ' ')
+    const nombres = nuevoNombre.trim().replace(/\s+/g, ' ')
+    const apellidoPaterno = nuevoApellidoPaterno.trim().replace(/\s+/g, ' ')
+    const apellidoMaterno = nuevoApellidoMaterno.trim().replace(/\s+/g, ' ')
 
     if (!/^[0-9]{8}$/.test(dni)) {
       setErrorManual('El DNI debe tener exactamente 8 dígitos numéricos.')
       return
     }
-    if (nombre.length < 2 || !NOMBRE_REGEX.test(nombre)) {
-      setErrorManual('El nombre debe tener al menos 2 letras (solo letras y espacios).')
+    if (nombres.length < 2 || !NOMBRE_REGEX.test(nombres)) {
+      setErrorManual('Los nombres deben tener al menos 2 letras (solo letras y espacios).')
       return
     }
-    if (apellido.length < 2 || !NOMBRE_REGEX.test(apellido)) {
-      setErrorManual('El apellido debe tener al menos 2 letras (solo letras y espacios).')
+    if (apellidoPaterno && (apellidoPaterno.length < 2 || !NOMBRE_REGEX.test(apellidoPaterno))) {
+      setErrorManual('El apellido paterno solo debe tener letras y espacios.')
+      return
+    }
+    if (apellidoMaterno && (apellidoMaterno.length < 2 || !NOMBRE_REGEX.test(apellidoMaterno))) {
+      setErrorManual('El apellido materno solo debe tener letras y espacios.')
+      return
+    }
+    if (!apellidoPaterno && !apellidoMaterno) {
+      setErrorManual('Ingresa al menos un apellido (paterno o materno).')
       return
     }
 
+    const nombreCompleto = [nombres, apellidoPaterno, apellidoMaterno].filter(Boolean).join(' ')
     setGuardandoVotante(true)
 
     const { error: err } = await supabase.from('votantes').insert({
       dni,
-      nombre: `${nombre} ${apellido}`,
+      nombre: nombreCompleto,
       grado: nuevoGrado || null,
       seccion: nuevaSeccion || null
     })
@@ -243,13 +255,14 @@ export default function PadronPage() {
     setExitoManual(`Votante ${dni} agregado correctamente.`)
     toast({
       title: 'Votante agregado',
-      description: `${nombre} ${apellido} · DNI ${dni} ${nuevoGrado ? `· ${nuevoGrado} ${nuevaSeccion}` : ''}`.trim(),
+      description: `${nombreCompleto} · DNI ${dni} ${nuevoGrado ? `· ${nuevoGrado} ${nuevaSeccion}` : ''}`.trim(),
       variant: 'success',
       duration: 4000
     })
     setNuevoDni('')
     setNuevoNombre('')
-    setNuevoApellido('')
+    setNuevoApellidoPaterno('')
+    setNuevoApellidoMaterno('')
     setNuevoGrado('')
     setNuevaSeccion('')
     await cargarVotantes()
@@ -260,8 +273,8 @@ export default function PadronPage() {
 
   function procesarArchivoSeleccionado(file: File | null) {
     if (!file) return
-    if (!file.name.match(/\.csv$/i)) {
-      setError('Solo se permiten archivos CSV (.csv)')
+    if (!file.name.match(/\.(csv|xlsx|xlsm)$/i)) {
+      setError('Solo se permiten archivos Excel (.xlsx) o CSV (.csv)')
       return
     }
     setArchivoSeleccionado(file)
@@ -285,22 +298,35 @@ export default function PadronPage() {
     setImportando(true)
     setError(null)
     try {
-      const rows = await parseFile(file)
+      const rows = await leerFilasPadron(file)
       if (rows.length === 0) {
         setError('El archivo está vacío o no tiene datos válidos.')
         setImportando(false)
         return
       }
-      const { data, error: err } = await supabase.rpc('validar_importacion_votantes', {
-        p_votantes: rows
-      })
-      if (err) throw err
-      const result = data?.[0]
-      if (result) {
-        setPreviewData(result.preview ?? [])
-        setPreviewValidos(result.validos ?? 0)
-        setPreviewInvalidos(result.invalidos ?? 0)
+
+      const preview: ImportPreviewItem[] = []
+      let validos = 0
+      let invalidos = 0
+      let filaInicial = 1
+
+      for (const lote of dividirEnLotes(rows)) {
+        const { data, error: err } = await supabase.rpc('validar_importacion_votantes', {
+          p_votantes: lote
+        })
+        if (err) throw err
+        const resultado = data?.[0]
+        validos += resultado?.validos ?? 0
+        invalidos += resultado?.invalidos ?? 0
+        for (const item of resultado?.preview ?? []) {
+          preview.push({ ...item, fila: (item.fila ?? 0) + filaInicial - 1 })
+        }
+        filaInicial += lote.length
       }
+
+      setPreviewData(preview)
+      setPreviewValidos(validos)
+      setPreviewInvalidos(invalidos)
     } catch (e: any) {
       setError('Error al validar archivo: ' + (e.message || 'Error desconocido'))
     } finally {
@@ -313,31 +339,34 @@ export default function PadronPage() {
     setImportando(true)
     setError(null)
     try {
-      const rows = await parseFile(archivoSeleccionado)
-      const { data, error: err } = await supabase.rpc('importar_votantes', {
-        p_votantes: rows
-      })
-      if (err) throw err
-      const result = data?.[0]
-      if (result) {
-        setResultadoImportacion({
-          insertados: result.insertados ?? 0,
-          duplicados: result.duplicados ?? 0,
-          errores: result.errores ?? [],
-          detalle: result.detalle ?? []
+      const rows = await leerFilasPadron(archivoSeleccionado)
+      const resultado: ImportResult = { insertados: 0, duplicados: 0, errores: [], detalle: [] }
+
+      for (const lote of dividirEnLotes(rows)) {
+        const { data, error: err } = await supabase.rpc('importar_votantes', {
+          p_votantes: lote
         })
-        setPasoImportacion('resultado')
-        await cargarVotantes()
-        await cargarEstadisticas()
-        const totalErrores = result.errores?.length ?? 0
-        setExito(`Importación completada: ${result.insertados} insertados, ${result.duplicados} duplicados, ${totalErrores} errores.`)
-        toast({
-          title: 'Importación completada',
-          description: `${result.insertados} insertados · ${result.duplicados} duplicados · ${totalErrores} errores`,
-          variant: totalErrores > 0 ? 'info' : 'success',
-          duration: 5000
-        })
+        if (err) throw err
+        const parcial = data?.[0]
+        if (!parcial) continue
+        resultado.insertados += parcial.insertados ?? 0
+        resultado.duplicados += parcial.duplicados ?? 0
+        resultado.errores.push(...(parcial.errores ?? []))
+        resultado.detalle.push(...(parcial.detalle ?? []))
       }
+
+      setResultadoImportacion(resultado)
+      setPasoImportacion('resultado')
+      await cargarVotantes()
+      await cargarEstadisticas()
+      const totalErrores = resultado.errores.length
+      setExito(`Importación completada: ${resultado.insertados} insertados, ${resultado.duplicados} duplicados, ${totalErrores} errores.`)
+      toast({
+        title: 'Importación completada',
+        description: `${resultado.insertados} insertados · ${resultado.duplicados} duplicados · ${totalErrores} errores`,
+        variant: totalErrores > 0 ? 'info' : 'success',
+        duration: 5000
+      })
     } catch (e: any) {
       const mensaje = 'Error al importar: ' + (e.message || 'Error desconocido')
       setError(mensaje)
@@ -361,42 +390,6 @@ export default function PadronPage() {
     setPasoImportacion('archivo')
     const input = document.getElementById('file-input') as HTMLInputElement | null
     if (input) input.value = ''
-  }
-
-  // Helpers para parsing de archivos
-  async function parseFile(file: File): Promise<any[]> {
-    const text = await file.text()
-    if (file.name.endsWith('.csv')) {
-      return parseCSV(text)
-    }
-    // Para Excel necesitaríamos una librería como xlsx
-    // Por ahora solo CSV nativo; Excel se puede agregar con librería
-    throw new Error('Formato Excel no soportado aún. Use CSV.')
-  }
-
-  function parseCSV(text: string): any[] {
-    const lines = text.trim().split('\n')
-    if (lines.length < 2) return []
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
-    const dniIdx = headers.indexOf('dni')
-    const nombreIdx = headers.indexOf('nombre')
-    const gradoIdx = headers.indexOf('grado')
-    const seccionIdx = headers.indexOf('seccion')
-    if (dniIdx === -1 || nombreIdx === -1) {
-      throw new Error('CSV debe tener columnas: dni, nombre (opcional: grado, seccion)')
-    }
-    const rows: any[] = []
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',').map(c => c.trim())
-      if (cols.length < 2) continue
-      rows.push({
-        dni: cols[dniIdx],
-        nombre: cols[nombreIdx],
-        grado: gradoIdx >= 0 ? cols[gradoIdx] : null,
-        seccion: seccionIdx >= 0 ? cols[seccionIdx] : null
-      })
-    }
-    return rows
   }
 
   // --- SELECCIÓN, ELIMINACIÓN MASIVA Y EXPORTACIÓN ---
@@ -679,7 +672,7 @@ export default function PadronPage() {
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-base font-semibold text-white">Agregar votante</h3>
             <p className="text-xs text-slate-400">
-              DNI de 8 dígitos, nombre y apellido. Grado y sección son referencia del estudiante.
+              DNI de 8 dígitos, nombres, apellido paterno y apellido materno. Grado y sección son referencia del estudiante.
             </p>
           </div>
 
@@ -688,7 +681,7 @@ export default function PadronPage() {
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                 Identificación
               </p>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <div className="mb-1 flex items-center justify-between">
                     <label htmlFor="padron-dni" className="text-xs text-slate-400">DNI</label>
@@ -709,7 +702,7 @@ export default function PadronPage() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="padron-nombre" className="mb-1 block text-xs text-slate-400">Nombre</label>
+                  <label htmlFor="padron-nombre" className="mb-1 block text-xs text-slate-400">Nombres</label>
                   <input
                     id="padron-nombre"
                     type="text"
@@ -720,13 +713,24 @@ export default function PadronPage() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="padron-apellido" className="mb-1 block text-xs text-slate-400">Apellido</label>
+                  <label htmlFor="padron-apellido-paterno" className="mb-1 block text-xs text-slate-400">Apellido paterno</label>
                   <input
-                    id="padron-apellido"
+                    id="padron-apellido-paterno"
                     type="text"
-                    value={nuevoApellido}
-                    onChange={(e) => setNuevoApellido(e.target.value)}
-                    placeholder="Apellidos"
+                    value={nuevoApellidoPaterno}
+                    onChange={(e) => setNuevoApellidoPaterno(e.target.value)}
+                    placeholder="Apellido paterno"
+                    className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="padron-apellido-materno" className="mb-1 block text-xs text-slate-400">Apellido materno</label>
+                  <input
+                    id="padron-apellido-materno"
+                    type="text"
+                    value={nuevoApellidoMaterno}
+                    onChange={(e) => setNuevoApellidoMaterno(e.target.value)}
+                    placeholder="Apellido materno"
                     className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
                   />
                 </div>
@@ -781,7 +785,7 @@ export default function PadronPage() {
       {/* Importación */}
       <AdminCard>
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-white">Importar padrón (CSV)</h3>
+          <h3 className="text-lg font-semibold text-white">Importar padrón (Excel o CSV)</h3>
 
           {/* Stepper visual */}
           <ol className="flex items-center gap-2" aria-label="Pasos de la importación">
@@ -819,9 +823,9 @@ export default function PadronPage() {
           {pasoImportacion === 'archivo' && (
             <div>
               <p className="mb-3 text-sm text-slate-400">
-                Formato CSV requerido: columnas <code className="text-blue-300">dni,nombre</code>. Opcional:{' '}
-                <code className="text-blue-300">grado,seccion</code>. El archivo debe tener encabezados.
-                Máx. recomendado: 500 filas.
+                Columnas esperadas: <code className="text-blue-300">grado | sección | DNI | Apellido Paterno | Apellido Materno | Nombres</code>.
+                Se aceptan <strong className="text-slate-300">.xlsx</strong> y <strong className="text-slate-300">.csv</strong> con encabezados;
+                el orden de las columnas no importa. Grado y sección son opcionales.
               </p>
               <label
                 htmlFor="file-input"
@@ -842,13 +846,13 @@ export default function PadronPage() {
                   <HugeiconsIcon icon={File01Icon} size={20} strokeWidth={1.7} />
                 </span>
                 <span className="text-sm font-medium text-white">
-                  {arrastrandoArchivo ? 'Suelta el CSV aquí' : 'Arrastra tu CSV aquí o selecciona un archivo'}
+                  {arrastrandoArchivo ? 'Suelta el archivo aquí' : 'Arrastra tu Excel o CSV aquí, o selecciona un archivo'}
                 </span>
-                <span className="text-xs text-slate-500">Solo archivos .csv</span>
+                <span className="text-xs text-slate-500">Archivos .xlsx o .csv</span>
                 <input
                   id="file-input"
                   type="file"
-                  accept=".csv"
+                  accept=".xlsx,.xlsm,.csv"
                   onChange={manejarArchivo}
                   className="sr-only"
                 />
@@ -1004,7 +1008,7 @@ export default function PadronPage() {
                       <EmptyState
                         icon={<HugeiconsIcon icon={IdCardIcon} size={22} strokeWidth={1.7} />}
                         title="El padrón está vacío"
-                        description="Importa un archivo CSV o agrega votantes manualmente para empezar."
+                        description="Importa un archivo Excel o CSV, o agrega votantes manualmente para empezar."
                         action={
                           <div className="flex flex-wrap justify-center gap-2">
                             <AdminButton size="sm" onClick={() => document.getElementById('padron-dni')?.focus()}>
@@ -1015,7 +1019,7 @@ export default function PadronPage() {
                               variant="secondary"
                               onClick={() => document.getElementById('file-input')?.click()}
                             >
-                              Importar CSV
+                              Importar Excel o CSV
                             </AdminButton>
                           </div>
                         }

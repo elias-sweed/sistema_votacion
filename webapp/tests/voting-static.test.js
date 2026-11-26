@@ -52,6 +52,11 @@ const dashboardPage = readFileSync(
 );
 const statCard = readFileSync(new URL('../src/components/ui/StatCard.tsx', import.meta.url), 'utf8');
 const navegacion = readFileSync(new URL('../src/lib/navegacion.ts', import.meta.url), 'utf8');
+const padronPage = readFileSync(
+  new URL('../src/features/padron/PadronPage.tsx', import.meta.url),
+  'utf8'
+);
+const importarPadron = readFileSync(new URL('../src/lib/importarPadron.ts', import.meta.url), 'utf8');
 const sessionHelper = readFileSync(new URL('../src/lib/session.ts', import.meta.url), 'utf8');
 const supabaseClient = readFileSync(new URL('../src/lib/supabase.ts', import.meta.url), 'utf8');
 
@@ -121,6 +126,21 @@ test('section and page transitions are smooth, animated and accessibility-safe',
   assert.match(estilos, /@media\s*\(prefers-reduced-motion:\s*reduce\)/, 'reduced motion is respected');
   assert.match(estilos, /scroll-behavior:\s*auto/, 'reduced motion disables smooth scrolling');
   assert.match(estilos, /::view-transition-group\(\*\)/, 'reduced motion neutralizes page transitions');
+});
+
+test('padron imports Excel with six columns and manual entry uses both surnames', () => {
+  assert.match(padronPage, /leerFilasPadron/, 'page uses the shared import utility');
+  assert.match(padronPage, /accept="\.xlsx,\.xlsm,\.csv"/, 'file picker accepts Excel and CSV');
+  assert.doesNotMatch(padronPage, /parseFile|Formato Excel no soportado/, 'old CSV-only code is gone');
+  assert.match(padronPage, /id="padron-apellido-paterno"/, 'manual form asks for paternal surname');
+  assert.match(padronPage, /id="padron-apellido-materno"/, 'manual form asks for maternal surname');
+  assert.match(padronPage, /dividirEnLotes/, 'large files are split to respect the RPC limit');
+
+  assert.match(importarPadron, /parsearXlsx/, 'XLSX files are parsed locally');
+  assert.match(importarPadron, /DecompressionStream/, 'XLSX parsing needs no new dependency');
+  assert.match(importarPadron, /apellidopaterno/, 'paternal surname header is recognized');
+  assert.match(importarPadron, /apellidomaterno/, 'maternal surname header is recognized');
+  assert.match(importarPadron, /normalizarDni/, 'DNI values are normalized before reaching the RPC');
 });
 
 test('browser voting service never invokes the protected voting RPCs directly', () => {
