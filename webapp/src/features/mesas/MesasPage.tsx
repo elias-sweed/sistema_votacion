@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { borrarMesa, mensajeBorrado } from '../../lib/borrado'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
+import { nombresMesasGrupo } from '../../lib/mesas'
 import { useToast } from '../../components/ui/ToastProvider'
 import { MesasSkeleton } from '../panel/PanelSkeletons'
 import { SectionHeader } from '../../components/ui/SectionHeader'
@@ -11,7 +12,6 @@ import { AdminCard } from '../../components/ui/AdminCard'
 import { AdminButton } from '../../components/ui/AdminButton'
 import { Badge } from '../../components/ui/Badge'
 import { AdminModal } from '../../components/ui/AdminModal'
-import { AdminSelect } from '../../components/ui/AdminSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { RevealSection } from '../../components/ui/RevealSection'
 import { PasswordInput } from '../../components/ui/PasswordInput'
@@ -46,6 +46,9 @@ type ResumenMesa = {
 const GRADOS = ['1°', '2°', '3°', '4°', '5°', '6°'] as const
 const SECCIONES = ['A', 'B', 'C', 'D', 'E', 'F'] as const
 
+const CLASE_SELECT =
+  'w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15'
+
 function enlaceDeMesa(mesa: Mesa): string {
   if (!mesa.token_acceso) return ''
   return `${window.location.origin}/votar/${mesa.token_acceso}`
@@ -72,9 +75,12 @@ export default function MesasPage() {
   const [error, setError] = useState<string | null>(null)
   const [exito, setExito] = useState<string | null>(null)
 
-  // Grado y sección: empiezan vacíos, se pueden escribir libremente
+  // Alta individual (selects nativos) o alta en grupo (varios grados/secciones)
+  const [modoAlta, setModoAlta] = useState<'individual' | 'grupo'>('individual')
   const [grado, setGrado] = useState('')
   const [seccion, setSeccion] = useState('')
+  const [gradosGrupo, setGradosGrupo] = useState<string[]>([])
+  const [seccionesGrupo, setSeccionesGrupo] = useState<string[]>([])
   const [guardando, setGuardando] = useState(false)
 
   const [editandoId, setEditandoId] = useState<string | null>(null)
@@ -129,7 +135,7 @@ export default function MesasPage() {
     setError(null)
     setExito(null)
     if (!grado.trim() || !seccion.trim()) {
-      setError('Escribe el grado y la sección.')
+      setError('Selecciona el grado y la sección.')
       return
     }
     const nombreMesa = `${grado.trim()} ${seccion.trim()}`
@@ -150,6 +156,51 @@ export default function MesasPage() {
     const mensajeCambio = `se agregó la mesa ${nombreMesa}`
     setExito(mensajeCambio)
     toast({ title: 'Mesa agregada', description: mensajeCambio, variant: 'success', duration: 3000 })
+    await cargar()
+  }
+
+  const nombresGrupo = nombresMesasGrupo(gradosGrupo, seccionesGrupo)
+
+  function alternar(valor: string, seleccionados: string[], cambiar: (lista: string[]) => void) {
+    cambiar(
+      seleccionados.includes(valor)
+        ? seleccionados.filter((item) => item !== valor)
+        : [...seleccionados, valor]
+    )
+  }
+
+  async function agregarGrupo() {
+    setError(null)
+    setExito(null)
+    if (nombresGrupo.length === 0) {
+      setError('Selecciona al menos un grado y una sección.')
+      return
+    }
+
+    const existentes = new Set(mesas.map((m) => m.nombre.trim().toLowerCase()))
+    const nuevos = nombresGrupo.filter((nombre) => !existentes.has(nombre.toLowerCase()))
+    if (nuevos.length === 0) {
+      setError('Todas esas mesas ya existen. Cambia la selección o edita una mesa.')
+      return
+    }
+
+    setGuardando(true)
+    const { error: err } = await supabase.from('mesas')
+      .insert(nuevos.map((nombre) => ({ nombre, activo: true })))
+    setGuardando(false)
+
+    if (err) {
+      setError(mensajeDeError(err, 'No se pudieron agregar las mesas.'))
+      return
+    }
+
+    const omitidas = nombresGrupo.length - nuevos.length
+    const mensaje = `Se agregaron ${nuevos.length} ${nuevos.length === 1 ? 'mesa' : 'mesas'}` +
+      (omitidas > 0 ? ` (${omitidas} ya existían).` : '.')
+    setExito(mensaje)
+    toast({ title: 'Mesas agregadas', description: nuevos.join(', '), variant: 'success', duration: 5000 })
+    setGradosGrupo([])
+    setSeccionesGrupo([])
     await cargar()
   }
 
@@ -405,42 +456,156 @@ export default function MesasPage() {
       </div>
 
       <AdminCard>
-        <div className="space-y-3">
+        <div className="space-y-4">
           <p className="text-sm text-slate-400">
-            Escribe el grado y la sección de la mesa. Puedes usar cualquier valor, no solo los de la lista.
+            Agrega una mesa suelta o crea varias de una vez combinando grados y secciones.
           </p>
 
-          <form onSubmit={agregarMesa} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="sm:w-44">
-              <label htmlFor="mesa-grado" className="mb-1 block text-xs text-slate-400">Grado</label>
-              <AdminSelect
-                id="mesa-grado"
-                value={grado}
-                onChange={setGrado}
-                placeholder="Seleccionar el grado"
-                options={GRADOS.map((g) => ({ value: g, label: g }))}
-              />
-            </div>
-
-            <div className="sm:w-44">
-              <label htmlFor="mesa-seccion" className="mb-1 block text-xs text-slate-400">Sección</label>
-              <AdminSelect
-                id="mesa-seccion"
-                value={seccion}
-                onChange={setSeccion}
-                placeholder="Seleccionar la sección"
-                options={SECCIONES.map((s) => ({ value: s, label: s }))}
-              />
-            </div>
-
+          <div className="inline-flex rounded-xl border border-white/10 bg-black/25 p-1" role="group" aria-label="Modo de alta de mesas">
             <button
-              type="submit"
-              disabled={guardando || !grado || !seccion}
-              className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              type="button"
+              onClick={() => setModoAlta('individual')}
+              aria-pressed={modoAlta === 'individual'}
+              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${
+                modoAlta === 'individual' ? 'bg-blue-500/20 text-white' : 'text-slate-400 hover:text-white'
+              }`}
             >
-              {guardando ? 'Agregando…' : 'Agregar mesa'}
+              Individual
             </button>
-          </form>
+            <button
+              type="button"
+              onClick={() => setModoAlta('grupo')}
+              aria-pressed={modoAlta === 'grupo'}
+              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${
+                modoAlta === 'grupo' ? 'bg-blue-500/20 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Varios grados / secciones
+            </button>
+          </div>
+
+          {modoAlta === 'individual' ? (
+            <form onSubmit={agregarMesa} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="sm:w-44">
+                <label htmlFor="mesa-grado" className="mb-1 block text-xs text-slate-400">Grado</label>
+                <select
+                  id="mesa-grado"
+                  value={grado}
+                  onChange={(e) => setGrado(e.target.value)}
+                  className={CLASE_SELECT}
+                >
+                  <option value="">Seleccionar el grado</option>
+                  {GRADOS.map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+
+              <div className="sm:w-44">
+                <label htmlFor="mesa-seccion" className="mb-1 block text-xs text-slate-400">Sección</label>
+                <select
+                  id="mesa-seccion"
+                  value={seccion}
+                  onChange={(e) => setSeccion(e.target.value)}
+                  className={CLASE_SELECT}
+                >
+                  <option value="">Seleccionar la sección</option>
+                  {SECCIONES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                disabled={guardando || !grado || !seccion}
+                className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {guardando ? 'Agregando…' : 'Agregar mesa'}
+              </button>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Grados</p>
+                <div className="flex flex-wrap gap-2">
+                  {GRADOS.map((g) => {
+                    const activo = gradosGrupo.includes(g)
+                    return (
+                      <label
+                        key={g}
+                        className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm transition ${
+                          activo
+                            ? 'border-blue-400/50 bg-blue-500/15 text-white'
+                            : 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={activo}
+                          onChange={() => alternar(g, gradosGrupo, setGradosGrupo)}
+                          className="sr-only"
+                        />
+                        {g}
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Secciones</p>
+                <div className="flex flex-wrap gap-2">
+                  {SECCIONES.map((s) => {
+                    const activo = seccionesGrupo.includes(s)
+                    return (
+                      <label
+                        key={s}
+                        className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm transition ${
+                          activo
+                            ? 'border-blue-400/50 bg-blue-500/15 text-white'
+                            : 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={activo}
+                          onChange={() => alternar(s, seccionesGrupo, setSeccionesGrupo)}
+                          className="sr-only"
+                        />
+                        {s}
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <p className="text-xs text-slate-400">
+                  {nombresGrupo.length} {nombresGrupo.length === 1 ? 'mesa a crear' : 'mesas a crear'}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {nombresGrupo.length === 0 ? (
+                    <span className="text-xs text-slate-500">Selecciona grados y secciones…</span>
+                  ) : (
+                    nombresGrupo.map((nombre) => (
+                      <span key={nombre} className="rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-1 text-xs text-blue-100">
+                        {nombre}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void agregarGrupo()}
+                disabled={guardando || nombresGrupo.length === 0}
+                className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {guardando ? 'Agregando…' : `Agregar ${nombresGrupo.length} ${nombresGrupo.length === 1 ? 'mesa' : 'mesas'}`}
+              </button>
+              <p className="text-xs text-slate-500">
+                Ejemplo: 1° con A, B y C crea 1° A, 1° B y 1° C. Las mesas que ya existan se omiten.
+              </p>
+            </div>
+          )}
 
           {error && <p className="text-sm text-red-400">{error}</p>}
           {exito && <p className="text-sm text-emerald-400">{exito}</p>}
@@ -481,7 +646,10 @@ export default function MesasPage() {
             action={
               <AdminButton
                 size="sm"
-                onClick={() => document.getElementById('mesa-grado')?.focus()}
+                onClick={() => {
+                  setModoAlta('individual')
+                  requestAnimationFrame(() => document.getElementById('mesa-grado')?.focus())
+                }}
               >
                 Agregar mesa
               </AdminButton>

@@ -57,6 +57,7 @@ const padronPage = readFileSync(
   'utf8'
 );
 const importarPadron = readFileSync(new URL('../src/lib/importarPadron.ts', import.meta.url), 'utf8');
+const mesasPage = readFileSync(new URL('../src/features/mesas/MesasPage.tsx', import.meta.url), 'utf8');
 const sessionHelper = readFileSync(new URL('../src/lib/session.ts', import.meta.url), 'utf8');
 const supabaseClient = readFileSync(new URL('../src/lib/supabase.ts', import.meta.url), 'utf8');
 
@@ -141,6 +142,38 @@ test('padron imports Excel with six columns and manual entry uses both surnames'
   assert.match(importarPadron, /apellidopaterno/, 'paternal surname header is recognized');
   assert.match(importarPadron, /apellidomaterno/, 'maternal surname header is recognized');
   assert.match(importarPadron, /normalizarDni/, 'DNI values are normalized before reaching the RPC');
+});
+
+test('manual padron form matches the template fields and a template can be downloaded', () => {
+  const campos = [...padronPage.matchAll(/id="(padron-(?:grado|seccion|dni|apellido-paterno|apellido-materno|nombre))"/g)]
+    .map((coincidencia) => coincidencia[1]);
+  assert.deepEqual(campos, [
+    'padron-grado',
+    'padron-seccion',
+    'padron-dni',
+    'padron-apellido-paterno',
+    'padron-apellido-materno',
+    'padron-nombre'
+  ]);
+  assert.match(padronPage, /<select\s+id="padron-grado"/, 'grade uses a normal select');
+  assert.match(padronPage, /<select\s+id="padron-seccion"/, 'section uses a normal select');
+  assert.doesNotMatch(padronPage, /<AdminSelect/, 'custom dropdown was removed from the manual form');
+  assert.match(padronPage, /generarPlantillaXlsx\(\)/, 'Excel template can be downloaded');
+  assert.match(padronPage, /generarPlantillaCSV\(\)/, 'CSV template can be downloaded');
+  assert.match(padronPage, /Descargar plantilla Excel/);
+  assert.match(padronPage, /Apellido Paterno/, 'labels match the template headers');
+  assert.match(padronPage, /Apellido Materno/, 'labels match the template headers');
+});
+
+test('mesas support a single select or a group of grades and sections', () => {
+  assert.match(mesasPage, /<select\s+id="mesa-grado"/, 'grade uses a native select');
+  assert.match(mesasPage, /<select\s+id="mesa-seccion"/, 'section uses a native select');
+  assert.doesNotMatch(mesasPage, /<AdminSelect/, 'custom dropdown was removed from the mesa form');
+  assert.match(mesasPage, /nombresMesasGrupo\(gradosGrupo, seccionesGrupo\)/, 'group names come from a tested helper');
+  assert.match(mesasPage, /type="checkbox"/, 'grades and sections can be selected together');
+  assert.match(mesasPage, /onChange=\{\(\) => alternar\(g, gradosGrupo, setGradosGrupo\)\}/, 'grade chips toggle selection');
+  assert.match(mesasPage, /onChange=\{\(\) => alternar\(s, seccionesGrupo, setSeccionesGrupo\)\}/, 'section chips toggle selection');
+  assert.match(mesasPage, /existentes\.has\(nombre\.toLowerCase\(\)\)/, 'mesas already created are skipped');
 });
 
 test('browser voting service never invokes the protected voting RPCs directly', () => {

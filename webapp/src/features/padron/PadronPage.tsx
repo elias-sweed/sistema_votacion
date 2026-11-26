@@ -10,12 +10,12 @@ import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { dividirEnLotes, leerFilasPadron } from '../../lib/importarPadron'
+import { generarPlantillaCSV, generarPlantillaXlsx } from '../../lib/exportarPlantilla'
 import { useToast } from '../../components/ui/ToastProvider'
 import { PadronSkeleton } from '../panel/PanelSkeletons'
 import { AdminCard } from '../../components/ui/AdminCard'
 import { AdminButton } from '../../components/ui/AdminButton'
 import { AdminModal } from '../../components/ui/AdminModal'
-import { AdminSelect } from '../../components/ui/AdminSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { PasswordInput } from '../../components/ui/PasswordInput'
 import { StatCard } from '../../components/ui/StatCard'
@@ -66,6 +66,9 @@ type ListaCache = { votantes: Votante[]; totalCount: number }
 
 // Solo letras (con tildes/ñ) y espacios simples entre palabras.
 const NOMBRE_REGEX = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*$/
+
+const CLASE_SELECT =
+  'w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15'
 
 export default function PadronPage() {
   const toast = useToast()
@@ -494,6 +497,26 @@ export default function PadronPage() {
     }
   }
 
+  function descargarPlantilla(tipo: 'xlsx' | 'csv') {
+    const blob = tipo === 'xlsx' ? generarPlantillaXlsx() : generarPlantillaCSV()
+    const nombre = `plantilla-padron.${tipo}`
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.download = nombre
+    document.body.appendChild(enlace)
+    enlace.click()
+    enlace.remove()
+    URL.revokeObjectURL(url)
+
+    toast({
+      title: 'Plantilla descargada',
+      description: `${nombre} · complétala y súbela en esta misma pantalla.`,
+      variant: 'success',
+      duration: 4000
+    })
+  }
+
   async function exportarCSV() {
     if (exportando) return
     setExportando(true)
@@ -679,9 +702,33 @@ export default function PadronPage() {
           <form onSubmit={agregarVotanteManual} className="space-y-4">
             <div className="space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Identificación
+                Mismos campos que la plantilla
               </p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <label htmlFor="padron-grado" className="mb-1 block text-xs text-slate-400">Grado</label>
+                  <select
+                    id="padron-grado"
+                    value={nuevoGrado}
+                    onChange={(e) => setNuevoGrado(e.target.value)}
+                    className={CLASE_SELECT}
+                  >
+                    <option value="">Grado</option>
+                    {GRADOS.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="padron-seccion" className="mb-1 block text-xs text-slate-400">Sección</label>
+                  <select
+                    id="padron-seccion"
+                    value={nuevaSeccion}
+                    onChange={(e) => setNuevaSeccion(e.target.value)}
+                    className={CLASE_SELECT}
+                  >
+                    <option value="">Sección</option>
+                    {SECCIONES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
                 <div>
                   <div className="mb-1 flex items-center justify-between">
                     <label htmlFor="padron-dni" className="text-xs text-slate-400">DNI</label>
@@ -702,6 +749,28 @@ export default function PadronPage() {
                   />
                 </div>
                 <div>
+                  <label htmlFor="padron-apellido-paterno" className="mb-1 block text-xs text-slate-400">Apellido Paterno</label>
+                  <input
+                    id="padron-apellido-paterno"
+                    type="text"
+                    value={nuevoApellidoPaterno}
+                    onChange={(e) => setNuevoApellidoPaterno(e.target.value)}
+                    placeholder="Apellido Paterno"
+                    className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="padron-apellido-materno" className="mb-1 block text-xs text-slate-400">Apellido Materno</label>
+                  <input
+                    id="padron-apellido-materno"
+                    type="text"
+                    value={nuevoApellidoMaterno}
+                    onChange={(e) => setNuevoApellidoMaterno(e.target.value)}
+                    placeholder="Apellido Materno"
+                    className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                  />
+                </div>
+                <div>
                   <label htmlFor="padron-nombre" className="mb-1 block text-xs text-slate-400">Nombres</label>
                   <input
                     id="padron-nombre"
@@ -712,57 +781,10 @@ export default function PadronPage() {
                     className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
                   />
                 </div>
-                <div>
-                  <label htmlFor="padron-apellido-paterno" className="mb-1 block text-xs text-slate-400">Apellido paterno</label>
-                  <input
-                    id="padron-apellido-paterno"
-                    type="text"
-                    value={nuevoApellidoPaterno}
-                    onChange={(e) => setNuevoApellidoPaterno(e.target.value)}
-                    placeholder="Apellido paterno"
-                    className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="padron-apellido-materno" className="mb-1 block text-xs text-slate-400">Apellido materno</label>
-                  <input
-                    id="padron-apellido-materno"
-                    type="text"
-                    value={nuevoApellidoMaterno}
-                    onChange={(e) => setNuevoApellidoMaterno(e.target.value)}
-                    placeholder="Apellido materno"
-                    className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-                  />
-                </div>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Ubicación · opcional
+              <p className="text-xs text-slate-500">
+                Grado y sección son opcionales. El apellido materno también puede quedar vacío.
               </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="padron-grado" className="mb-1 block text-xs text-slate-400">Grado</label>
-                  <AdminSelect
-                    id="padron-grado"
-                    value={nuevoGrado}
-                    onChange={setNuevoGrado}
-                    placeholder="Grado"
-                    options={GRADOS.map((g) => ({ value: g, label: g }))}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="padron-seccion" className="mb-1 block text-xs text-slate-400">Sección</label>
-                  <AdminSelect
-                    id="padron-seccion"
-                    value={nuevaSeccion}
-                    onChange={setNuevaSeccion}
-                    placeholder="Sección"
-                    options={SECCIONES.map((s) => ({ value: s, label: s }))}
-                  />
-                </div>
-              </div>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -827,6 +849,33 @@ export default function PadronPage() {
                 Se aceptan <strong className="text-slate-300">.xlsx</strong> y <strong className="text-slate-300">.csv</strong> con encabezados;
                 el orden de las columnas no importa. Grado y sección son opcionales.
               </p>
+
+              <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="mr-auto text-xs text-slate-400">
+                  <p className="font-semibold text-slate-300">Descarga la plantilla, complétala y súbela aquí.</p>
+                  <p>1) Descargar · 2) Llenar con los datos · 3) Elegir el archivo terminado</p>
+                </div>
+                <AdminButton
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => descargarPlantilla('xlsx')}
+                  className="inline-flex items-center gap-2"
+                >
+                  <HugeiconsIcon icon={Download01Icon} size={15} strokeWidth={1.8} />
+                  Descargar plantilla Excel
+                </AdminButton>
+                <AdminButton
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => descargarPlantilla('csv')}
+                  className="inline-flex items-center gap-2"
+                >
+                  <HugeiconsIcon icon={Download01Icon} size={15} strokeWidth={1.8} />
+                  Plantilla CSV
+                </AdminButton>
+              </div>
               <label
                 htmlFor="file-input"
                 onDragEnter={(e) => { e.preventDefault(); setArrastrandoArchivo(true) }}
