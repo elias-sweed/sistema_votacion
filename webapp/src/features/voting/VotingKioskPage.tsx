@@ -330,13 +330,14 @@ export default function VotingKioskPage() {
     )
   }
 
-  // Tarjetas cuadradas y moderadas: caben enteras sin lag ni imágenes gigantes.
-  const claseTamanoTarjeta =
-    candidates.length > 4
-      ? 'max-w-[min(28vh,15rem)]'
-      : candidates.length > 2
-        ? 'max-w-[min(38vh,20rem)]'
-        : 'max-w-[min(58vh,22rem)]'
+  // Cuadradas y lo más grandes posible sin salirse del viewport (ni con varias filas).
+  const filasTarjetas = Math.max(1, Math.ceil(candidates.length / 2))
+  const huecosVerticales = Array.from(
+    { length: filasTarjetas - 1 },
+    () => ' - var(--kiosk-gap)'
+  ).join('')
+  const anchoMaximoTarjeta = `min(28rem, calc((100vw - var(--kiosk-pad) - var(--kiosk-pad) - var(--kiosk-gap)) / 2), calc((100dvh - var(--kiosk-pad) - var(--kiosk-pad)${huecosVerticales}) / ${filasTarjetas}))`
+  const estiloTamanoTarjeta = { maxWidth: anchoMaximoTarjeta }
 
   // Pantalla de candidatos a pantalla completa: sin títulos ni panel central.
   if (eleccionLista && (step === 'candidates' || (step === 'confirm' && selectedCandidate))) {
@@ -352,10 +353,10 @@ export default function VotingKioskPage() {
         <p className="sr-only" aria-live="polite">
           {marcando ? 'Opción marcada. Preparando la confirmación…' : 'Toca la tarjeta de tu candidato.'}
         </p>
-        <div className="relative grid min-h-dvh w-full grid-cols-2 content-center justify-items-center gap-3 p-4 sm:gap-5">
+        <div className="kiosk-grid relative grid min-h-dvh w-full grid-cols-2 content-center justify-items-center gap-3 p-4 sm:gap-5">
           {candidates.map(candidate => {
             const selected = candidate.id === selectedCandidateId
-            const tamanoTarjeta = `aspect-square w-full ${claseTamanoTarjeta}`
+            const tamanoTarjeta = 'aspect-square w-full'
             const boton = (
               <button
                 type="button"
@@ -403,11 +404,14 @@ export default function VotingKioskPage() {
                     borderRadius={24}
                     interactive={false}
                     className={tamanoTarjeta}
+                    style={estiloTamanoTarjeta}
                   >
                     {boton}
                   </ElectricBorder>
                 ) : (
-                  <div className={tamanoTarjeta}>{boton}</div>
+                  <div className={tamanoTarjeta} style={estiloTamanoTarjeta}>
+                    {boton}
+                  </div>
                 )}
               </li>
             )

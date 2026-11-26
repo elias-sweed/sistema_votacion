@@ -247,9 +247,13 @@ test('kiosk shows plain outcomes for already voted and unknown DNI', () => {
 test('candidate selection uses moderate square cards and no title', () => {
   assert.doesNotMatch(kiosk, /AccordionGallery/, 'the accordion was removed');
   assert.match(kiosk, /min-h-dvh w-full text-white/, 'the step still fills the viewport');
-  assert.match(kiosk, /grid min-h-dvh w-full grid-cols-2 content-center justify-items-center/, 'cards are centered');
-  assert.match(kiosk, /aspect-square w-full \$\{claseTamanoTarjeta\}/, 'cards are square');
-  assert.match(kiosk, /max-w-\[min\(38vh,20rem\)\]/, 'images are not oversized');
+  assert.match(kiosk, /kiosk-grid relative grid min-h-dvh w-full grid-cols-2 content-center justify-items-center/, 'cards are centered');
+  assert.match(kiosk, /const tamanoTarjeta = 'aspect-square w-full'/, 'cards are square');
+  assert.match(kiosk, /const filasTarjetas = Math\.max\(1, Math\.ceil\(candidates\.length \/ 2\)\)/, 'size accounts for every row');
+  assert.match(kiosk, /min\(28rem, calc\(\(100vw/, 'cards grow up to 28rem');
+  assert.match(kiosk, /calc\(\(100dvh - var\(--kiosk-pad\) - var\(--kiosk-pad\)/, 'cards fit the viewport height');
+  assert.match(kiosk, /style=\{estiloTamanoTarjeta\}/, 'the computed size is applied');
+  assert.match(estilos, /\.kiosk-grid \{\s*--kiosk-pad: 1rem;\s*--kiosk-gap: 0\.75rem;/, 'grid spacing is shared with the sizing math');
   assert.match(kiosk, /text-xl font-bold text-white drop-shadow-lg sm:text-2xl/, 'names are readable, not huge');
   assert.doesNotMatch(kiosk, /Elige a tu candidato/, 'no step title');
   assert.doesNotMatch(kiosk, /Toca para seleccionar/, 'no instructional text on the cards');
