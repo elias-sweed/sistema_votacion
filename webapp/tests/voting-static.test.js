@@ -244,11 +244,18 @@ test('kiosk shows plain outcomes for already voted and unknown DNI', () => {
   assert.match(kiosk, /title: 'No existe'/);
 });
 
-test('kiosk shows large individual candidate cards instead of an accordion', () => {
+test('candidate selection fills the whole screen without a title or panel', () => {
   assert.doesNotMatch(kiosk, /AccordionGallery/, 'the accordion was removed');
-  assert.match(kiosk, /grid grid-cols-1 gap-5 sm:grid-cols-2/, 'cards are laid out as a roomy grid');
-  assert.match(kiosk, /min-h-\[240px\][^"]*sm:min-h-\[280px\]/, 'cards are big enough to read');
-  assert.match(kiosk, /text-2xl font-bold text-white sm:text-3xl/, 'candidate name is large and clear');
+  assert.match(kiosk, /h-dvh w-full overflow-hidden/, 'the step uses the full viewport');
+  assert.match(
+    kiosk,
+    /grid h-full w-full auto-rows-fr grid-cols-1 gap-2 sm:grid-cols-2/,
+    'the grid stretches to every edge'
+  );
+  assert.match(kiosk, /group relative flex h-full w-full flex-col/, 'cards fill their grid cell');
+  assert.match(kiosk, /text-3xl font-bold text-white drop-shadow-lg sm:text-5xl/, 'names are very large');
+  assert.doesNotMatch(kiosk, /Elige a tu candidato/, 'no step title');
+  assert.doesNotMatch(kiosk, /Toca para seleccionar/, 'no instructional text on the cards');
   assert.match(kiosk, /aria-pressed=\{selected\}/, 'the tapped card is marked individually');
   assert.match(kiosk, /onClick=\{\(\) => chooseCandidate\(candidate\.id\)\}/, 'each card is selectable');
 });

@@ -348,6 +348,92 @@ export default function VotingKioskPage() {
     )
   }
 
+  // Pantalla de candidatos a pantalla completa: sin títulos ni panel central.
+  if (eleccionLista && step === 'candidates') {
+    return (
+      <main className="relative h-dvh w-full overflow-hidden text-white">
+        <button
+          type="button"
+          onClick={resetFlow}
+          className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-30 focus:rounded-xl focus:bg-slate-950/90 focus:px-4 focus:py-2 focus:text-sm"
+        >
+          Volver
+        </button>
+        <p className="sr-only" aria-live="polite">
+          {marcando ? 'Opción marcada. Preparando la confirmación…' : 'Toca la tarjeta de tu candidato.'}
+        </p>
+        <div ref={gridRef} className="relative grid h-full w-full auto-rows-fr grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+          <div
+            ref={marcaWashRef}
+            aria-hidden="true"
+            className="pointer-events-none absolute -inset-2 z-10 bg-sky-400/15 opacity-0"
+          />
+          {candidates.map(candidate => {
+            const selected = candidate.id === selectedCandidateId
+            return (
+              <li
+                key={candidate.id}
+                ref={(el) => {
+                  cardRefs.current[candidate.id] = el
+                }}
+                className="min-h-0"
+              >
+                <button
+                  type="button"
+                  onClick={() => chooseCandidate(candidate.id)}
+                  aria-pressed={selected}
+                  className={`group relative flex h-full w-full flex-col overflow-hidden rounded-3xl border text-left ${
+                    selected
+                      ? 'border-sky-300/80 bg-sky-400/10'
+                      : 'border-white/10 bg-white/5 hover:border-sky-300/60'
+                  }`}
+                >
+                  <img
+                    src={fotoOColor(candidate)}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="absolute inset-0 h-full w-full object-cover opacity-80 transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-950/45 to-transparent"
+                  />
+                  <span className="relative mt-auto block p-6 sm:p-10">
+                    <span className="block text-3xl font-bold text-white drop-shadow-lg sm:text-5xl">
+                      {candidate.nombre}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+          {marcando && selectedCandidateId && (
+            <LaserFlow
+              surfaceRef={superficieSeleccionada}
+              className="absolute! inset-0 z-20"
+              beamPosition={beamDeLaTarjeta}
+              color="#3847ff"
+              intensity={1.8}
+              beamWidth={1.5}
+              flare={1.5}
+              spread={1.5}
+              spill={1}
+              fog={0.2}
+              dust={1.6}
+              streaks={1.5}
+              dots={1}
+              pulse={1.5}
+              speed={1.5}
+              seed={3}
+              mouseInteraction
+              intro
+            />
+          )}
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="relative min-h-screen px-4 py-8 text-white sm:px-8 sm:py-12">
       <div className="relative mx-auto w-full max-w-3xl">
@@ -498,96 +584,6 @@ export default function VotingKioskPage() {
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {step === 'candidates' && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h2 className="text-2xl font-semibold">Elige a tu candidato</h2>
-                <p className="mt-2 text-sm text-slate-300">
-                  Toca una sola tarjeta: se iluminará con el láser y aparecerá la confirmación.
-                </p>
-              </div>
-
-              <div ref={gridRef} className="relative">
-                <div
-                  ref={marcaWashRef}
-                  aria-hidden="true"
-                  className="pointer-events-none absolute -inset-2 z-10 rounded-4xl bg-sky-400/15 opacity-0"
-                />
-                <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {candidates.map(candidate => {
-                    const selected = candidate.id === selectedCandidateId
-                    return (
-                      <li
-                        key={candidate.id}
-                        ref={(el) => {
-                          cardRefs.current[candidate.id] = el
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => chooseCandidate(candidate.id)}
-                          aria-pressed={selected}
-                          className={`group relative flex min-h-60 w-full flex-col overflow-hidden rounded-3xl border text-left sm:min-h-70 ${
-                            selected
-                              ? 'border-sky-300/80 bg-sky-400/10'
-                              : 'border-white/15 bg-white/5 hover:border-sky-300/60 hover:bg-white/9'
-                          }`}
-                        >
-                          <img
-                            src={fotoOColor(candidate)}
-                            alt=""
-                            referrerPolicy="no-referrer"
-                            className="absolute inset-0 h-full w-full object-cover opacity-75 transition-transform duration-500 group-hover:scale-105"
-                          />
-                          <span
-                            aria-hidden="true"
-                            className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-950/55 to-transparent"
-                          />
-                          <span className="relative mt-auto block p-6">
-                            <span className="block text-2xl font-bold text-white sm:text-3xl">
-                              {candidate.nombre}
-                            </span>
-                            <span className="mt-1 block text-sm text-sky-100">Toca para seleccionar</span>
-                          </span>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-                {marcando && selectedCandidateId && (
-                  <LaserFlow
-                    surfaceRef={superficieSeleccionada}
-                    className="absolute! inset-0 z-20 rounded-4xl"
-                    beamPosition={beamDeLaTarjeta}
-                    color="#3847ff"
-                    intensity={1.8}
-                    beamWidth={1.5}
-                    flare={1.5}
-                    spread={1.5}
-                    spill={1}
-                    fog={0.2}
-                    dust={1.6}
-                    streaks={1.5}
-                    dots={1}
-                    pulse={1.5}
-                    speed={1.5}
-                    seed={3}
-                    mouseInteraction
-                    intro
-                  />
-                )}
-              </div>
-              <p className="text-center text-sm text-sky-100" aria-live="polite">
-                {marcando ? 'Opción marcada. Preparando la confirmación…' : 'Toca la tarjeta de tu candidato.'}
-              </p>
-              <div className="text-center">
-                <button type="button" onClick={resetFlow} className="kiosk-button-secondary">
-                  Volver
-                </button>
-              </div>
             </div>
           )}
 
