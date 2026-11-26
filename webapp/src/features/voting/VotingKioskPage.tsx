@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { gsap } from 'gsap'
+import AccordionGallery from '../../components/ui/AccordionGallery'
+import LaserFlow from '../../components/ui/LaserFlow'
 import {
   castVote,
   isValidDni,
@@ -43,6 +46,26 @@ const toneStyles: Record<DniResult['tone'], { panel: string; title: string; deta
 
 function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('')
+}
+
+/** Imagen de respaldo para candidatos sin foto: nunca se ve un <img> roto. */
+function fotoOColor(candidate: Candidate): string {
+  if (candidate.foto_url) return candidate.foto_url
+  const siglas = initials(candidate.nombre)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0c4a6e"/><stop offset="1" stop-color="#1e3a8a"/>
+    </linearGradient></defs>
+    <rect width="640" height="800" fill="url(#g)"/>
+    <circle cx="320" cy="330" r="150" fill="#7dd3fc" opacity="0.18"/>
+    <text x="320" y="390" fill="#e0f2fe" font-family="monospace" font-size="150" font-weight="bold" text-anchor="middle">${siglas}</text>
+  </svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
 function dniResultFromError(error: unknown): DniResult {
@@ -97,12 +120,16 @@ export default function VotingKioskPage() {
   const lastCheckedDni = useRef<string | null>(null)
   const requestIdRef = useRef(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const marcaWashRef = useRef<HTMLDivElement>(null)
+  const marcandoTimerRef = useRef<number | null>(null)
   const [status, setStatus] = useState<ElectionStatus | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [step, setStep] = useState<Step>('dni')
   const [dniInput, setDniInput] = useState('')
   const [dniResult, setDniResult] = useState<DniResult | null>(null)
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
+  const [marcando, setMarcando] = useState(false)
   const [loading, setLoading] = useState(true)
   const [checking, setChecking] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -154,6 +181,10 @@ export default function VotingKioskPage() {
   }, [step, loading])
 
   function clearVoterState() {
+    if (marcandoTimerRef.current !== null) {
+      window.clearTimeout(marcandoTimerRef.current)
+      marcandoTimerRef.current = null
+    }
     dniRef.current = ''
     lastCheckedDni.current = null
     requestIdRef.current += 1
@@ -161,6 +192,7 @@ export default function VotingKioskPage() {
     setDniInput('')
     setDniResult(null)
     setSelectedCandidateId(null)
+    setMarcando(false)
     setChecking(false)
   }
 
@@ -208,9 +240,41 @@ export default function VotingKioskPage() {
   }, [dniInput, step, canStart, checking])
 
   function chooseCandidate(candidateId: string) {
+    if (marcando || submitting) return
     setSelectedCandidateId(candidateId)
-    setStep('confirm')
+    setMarcando(true)
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    if (marcandoTimerRef.current !== null) window.clearTimeout(marcandoTimerRef.current)
+    marcandoTimerRef.current = window.setTimeout(() => {
+      marcandoTimerRef.current = null
+      setMarcando(false)
+      setStep('confirm')
+    }, reduce ? 0 : 950)
   }
+
+  // Marca todo el grid con GSAP (sólo transform/opacity) mientras cae el láser.
+  useEffect(() => {
+    if (!marcando) return
+    const wash = marcaWashRef.current
+    const grid = gridRef.current
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    if (reduce || !wash || !grid) return
+
+    const tl = gsap.timeline()
+    tl.fromTo(wash, { opacity: 0 }, { opacity: 1, duration: 0.22, ease: 'power2.out' })
+      .to(grid, { scale: 1.015, duration: 0.28, ease: 'power2.out' }, 0)
+      .to(grid, { scale: 1, duration: 0.45, ease: 'elastic.out(1, 0.65)' }, 0.28)
+      .to(wash, { opacity: 0, duration: 0.25, ease: 'power2.in' }, 0.68)
+
+    return () => {
+      tl.kill()
+      gsap.set([wash, grid], { clearProps: 'opacity,transform' })
+    }
+  }, [marcando])
+
+  useEffect(() => () => {
+    if (marcandoTimerRef.current !== null) window.clearTimeout(marcandoTimerRef.current)
+  }, [])
 
   async function submitVote() {
     if (submittingRef.current || submitting || step !== 'confirm') return
@@ -428,34 +492,70 @@ export default function VotingKioskPage() {
             <div className="space-y-6">
               <div className="text-center">
                 <h2 className="text-2xl font-semibold">Elige a tu candidato</h2>
-                <p className="mt-2 text-sm text-slate-300">Toca una sola opción. Todavía no se ha registrado nada.</p>
+                <p className="mt-2 text-sm text-slate-300">
+                  Toca una sola opción: se marcará todo el grid y después aparecerá la confirmación.
+                </p>
               </div>
-              <ul className="grid gap-4 sm:grid-cols-2">
-                {candidates.map(candidate => (
-                  <li key={candidate.id}>
-                    <button
-                      type="button"
-                      onClick={() => chooseCandidate(candidate.id)}
-                      className="flex min-h-28 w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:border-sky-300/50 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-                    >
-                      {candidate.foto_url ? (
-                        <img
-                          src={candidate.foto_url}
-                          alt=""
-                          referrerPolicy="no-referrer"
-                          loading="lazy"
-                          className="h-16 w-16 shrink-0 rounded-xl object-cover"
-                        />
-                      ) : (
-                        <span aria-hidden="true" className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-blue-500/20 text-xl font-bold text-sky-100">
-                          {initials(candidate.nombre)}
-                        </span>
-                      )}
-                      <span className="text-lg font-semibold">{candidate.nombre}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+
+              <div ref={gridRef} className="relative">
+                <div
+                  ref={marcaWashRef}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -inset-3 z-10 rounded-4xl bg-sky-400/15 opacity-0"
+                />
+                <AccordionGallery
+                  items={candidates.map(candidate => ({
+                    image: fotoOColor(candidate),
+                    label: candidate.nombre,
+                    alt: candidate.nombre
+                  }))}
+                  onSelect={(index) => {
+                    const candidate = candidates[index]
+                    if (candidate) chooseCandidate(candidate.id)
+                  }}
+                  selectedIndex={candidates.findIndex(candidate => candidate.id === selectedCandidateId)}
+                  defaultIndex={0}
+                  height={380}
+                  gap={8}
+                  radius={18}
+                  expandRatio={0.5}
+                  tilt={6}
+                  parallax={0.35}
+                  duration={0.55}
+                  ease="power3.out"
+                  trigger="click"
+                  grayscale={false}
+                  accentColor="#7dd3fc"
+                  overlayColor="#020617"
+                  textColor="#ffffff"
+                  labelClassName="text-2xl font-bold sm:text-3xl"
+                  className="kiosco-acordeon"
+                />
+                {marcando && (
+                  <LaserFlow
+                    surfaceRef={gridRef}
+                    className="absolute! inset-0 z-20 rounded-4xl"
+                    color="#38bdf8"
+                    intensity={1.4}
+                    beamWidth={1.3}
+                    flare={1.2}
+                    spread={1.25}
+                    spill={0.9}
+                    fog={0.1}
+                    dust={0.5}
+                    streaks={0.9}
+                    dots={0}
+                    pulse={0}
+                    speed={3.2}
+                    dpr={0.85}
+                    mouseInteraction={false}
+                    intro
+                  />
+                )}
+              </div>
+              <p className="text-center text-sm text-sky-100" aria-live="polite">
+                {marcando ? 'Opción marcada. Preparando la confirmación…' : 'Toca el nombre de tu candidato.'}
+              </p>
               <div className="text-center">
                 <button type="button" onClick={resetFlow} className="kiosk-button-secondary">
                   Volver

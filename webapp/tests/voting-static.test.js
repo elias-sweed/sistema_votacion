@@ -244,6 +244,36 @@ test('kiosk shows plain outcomes for already voted and unknown DNI', () => {
   assert.match(kiosk, /title: 'No existe'/);
 });
 
+test('kiosk candidate picker is a half-open, large accordion', () => {
+  const accordion = readFileSync(
+    new URL('../src/components/ui/AccordionGallery.tsx', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(kiosk, /<AccordionGallery/, 'the gallery replaces the old button grid');
+  assert.match(kiosk, /expandRatio=\{0\.5\}/, 'the panel stays half open');
+  assert.match(kiosk, /labelClassName="text-2xl font-bold sm:text-3xl"/, 'candidate name is large and clear');
+  assert.match(kiosk, /trigger="click"/, 'touch selection works on kiosk screens');
+  assert.match(accordion, /from 'gsap'/, 'GSAP drives the accordion');
+  assert.match(accordion, /prefers-reduced-motion/, 'reduced motion is respected');
+  assert.match(accordion, /tlRef\.current\?\.kill\(\)/, 'old timelines are killed');
+});
+
+test('selecting a candidate marks the whole grid with a lightweight LaserFlow', () => {
+  const laser = readFileSync(new URL('../src/components/ui/LaserFlow.tsx', import.meta.url), 'utf8');
+
+  assert.match(kiosk, /const \[marcando, setMarcando\]/);
+  assert.match(kiosk, /{marcando && \(\s*<LaserFlow/, 'the beam appears on selection');
+  assert.match(kiosk, /surfaceRef=\{gridRef\}/, 'the beam covers the whole grid');
+  assert.match(kiosk, /mouseInteraction=\{false\}/, 'no pointer tracking on the kiosk');
+  assert.match(kiosk, /dpr=\{0\.85\}/, 'low resolution keeps old machines fast');
+  assert.match(kiosk, /gsap\.timeline\(\)/, 'the grid mark uses GSAP');
+  assert.match(kiosk, /clearProps: 'opacity,transform'/, 'only cheap properties are animated');
+  assert.match(laser, /MAX_DPR = 1\.25/, 'DPR is capped');
+  assert.match(laser, /if \(pointerEnabled\)/, 'unused pointer listeners are skipped');
+  assert.match(laser, /prefers-reduced-motion/, 'reduced motion is respected');
+});
+
 test('choosing a candidate asks for confirmation before recording the vote', () => {
   const start = kiosk.indexOf('function chooseCandidate(');
   const end = kiosk.indexOf('async function submitVote(', start);

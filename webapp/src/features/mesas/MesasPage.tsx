@@ -515,7 +515,7 @@ export default function MesasPage() {
               <button
                 type="submit"
                 disabled={guardando || !grado || !seccion}
-                className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-xl bg-linear-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {guardando ? 'Agregando…' : 'Agregar mesa'}
               </button>
@@ -533,7 +533,7 @@ export default function MesasPage() {
                         className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm transition ${
                           activo
                             ? 'border-blue-400/50 bg-blue-500/15 text-white'
-                            : 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
+                            : 'border-white/10 bg-white/4 text-slate-300 hover:bg-white/8'
                         }`}
                       >
                         <input
@@ -560,7 +560,7 @@ export default function MesasPage() {
                         className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm transition ${
                           activo
                             ? 'border-blue-400/50 bg-blue-500/15 text-white'
-                            : 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
+                            : 'border-white/10 bg-white/4 text-slate-300 hover:bg-white/8'
                         }`}
                       >
                         <input
@@ -597,7 +597,7 @@ export default function MesasPage() {
                 type="button"
                 onClick={() => void agregarGrupo()}
                 disabled={guardando || nombresGrupo.length === 0}
-                className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-xl bg-linear-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {guardando ? 'Agregando…' : `Agregar ${nombresGrupo.length} ${nombresGrupo.length === 1 ? 'mesa' : 'mesas'}`}
               </button>
@@ -668,18 +668,18 @@ export default function MesasPage() {
           const menuEstaAbierto = menuAbierto === m.id
 
           return (
-            <li key={m.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl space-y-3">
+            <li key={m.id} className="rounded-2xl border border-white/10 bg-white/4 p-4 backdrop-blur-xl space-y-3">
               {estaEditando ? (
                 <form onSubmit={(e) => { e.preventDefault(); void guardarEdicion(m); }} className="flex flex-col gap-2">
                   <input value={editNombre} onChange={(e) => setEditNombre(e.target.value)}
                     className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15" />
                   <div className="flex gap-2">
                     <button type="submit"
-                      className="flex-1 rounded-lg bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:brightness-110">
+                      className="flex-1 rounded-lg bg-linear-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:brightness-110">
                       Guardar
                     </button>
                     <button type="button" onClick={cancelarEdicion}
-                      className="flex-1 rounded-lg border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white backdrop-blur-md transition hover:bg-white/[0.1]">
+                      className="flex-1 rounded-lg border border-white/10 bg-white/6 px-4 py-2 text-sm text-white backdrop-blur-md transition hover:bg-white/10">
                       Cancelar
                     </button>
                   </div>
@@ -715,7 +715,7 @@ export default function MesasPage() {
                     </div>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-blue-400 to-sky-500"
+                        className="h-full rounded-full bg-linear-to-r from-blue-400 to-sky-500"
                         style={{ width: `${Math.min(100, Math.max(0, porcentajeVotos))}%` }}
                       />
                     </div>
@@ -735,7 +735,7 @@ export default function MesasPage() {
                       type="button"
                       onClick={() => abrirEnlace(m)}
                       disabled={!enlace || !m.activo}
-                      className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-40"
+                      className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <HugeiconsIcon icon={Link01Icon} size={13} strokeWidth={1.8} />
                       Abrir kiosco
@@ -746,7 +746,7 @@ export default function MesasPage() {
                       <button
                         type="button"
                         onClick={() => setMenuAbierto(menuEstaAbierto ? null : m.id)}
-                        className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/[0.1]"
+                        className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/10"
                       >
                         <HugeiconsIcon icon={Edit02Icon} size={13} strokeWidth={1.8} />
                         Más
@@ -756,7 +756,7 @@ export default function MesasPage() {
                           <button
                             type="button"
                             onClick={() => { setMenuAbierto(null); void rotarEnlace(m) }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.05] hover:text-white transition"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/5 hover:text-white transition"
                           >
                             <HugeiconsIcon icon={Rotate01Icon} size={13} strokeWidth={1.8} />
                             Regenerar enlace
@@ -765,7 +765,7 @@ export default function MesasPage() {
                             type="button"
                             onClick={() => { setMenuAbierto(null); void copiarComandoKiosco(m) }}
                             disabled={!enlace}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.05] hover:text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/5 hover:text-white transition disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             <HugeiconsIcon icon={CommandLineIcon} size={13} strokeWidth={1.8} />
                             {copiadoComandoId === m.id ? 'Comando copiado' : 'Copiar comando kiosco'}
@@ -773,7 +773,7 @@ export default function MesasPage() {
                           <button
                             type="button"
                             onClick={() => { setMenuAbierto(null); iniciarEdicion(m) }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.05] hover:text-white transition"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/5 hover:text-white transition"
                           >
                             <HugeiconsIcon icon={Edit02Icon} size={13} strokeWidth={1.8} />
                             Editar nombre
@@ -781,7 +781,7 @@ export default function MesasPage() {
                           <button
                             type="button"
                             onClick={() => { setMenuAbierto(null); void alternarActivo(m) }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.05] hover:text-white transition"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/5 hover:text-white transition"
                           >
                             {m.activo ? 'Desactivar' : 'Activar'}
                           </button>
@@ -835,7 +835,7 @@ export default function MesasPage() {
           loading={eliminando}
           onConfirm={() => void eliminarMesa()}
         >
-          <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
+          <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/6 px-3 py-2 text-xs text-amber-100/80">
             Escribe tu contraseña para confirmar.
           </p>
 
