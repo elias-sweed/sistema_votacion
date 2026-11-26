@@ -530,10 +530,10 @@ export default function VotingKioskPage() {
                           type="button"
                           onClick={() => chooseCandidate(candidate.id)}
                           aria-pressed={selected}
-                          className={`group relative flex min-h-[240px] w-full flex-col overflow-hidden rounded-3xl border text-left sm:min-h-[280px] ${
+                          className={`group relative flex min-h-60 w-full flex-col overflow-hidden rounded-3xl border text-left sm:min-h-70 ${
                             selected
                               ? 'border-sky-300/80 bg-sky-400/10'
-                              : 'border-white/15 bg-white/[0.05] hover:border-sky-300/60 hover:bg-white/[0.09]'
+                              : 'border-white/15 bg-white/5 hover:border-sky-300/60 hover:bg-white/9'
                           }`}
                         >
                           <img
@@ -544,7 +544,7 @@ export default function VotingKioskPage() {
                           />
                           <span
                             aria-hidden="true"
-                            className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent"
+                            className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-950/55 to-transparent"
                           />
                           <span className="relative mt-auto block p-6">
                             <span className="block text-2xl font-bold text-white sm:text-3xl">
