@@ -4,6 +4,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { filasARegistros, parsearCSV } from '../src/lib/importarPadron.ts';
+import {
+  cumpleFiltroDatos,
+  dnisDuplicadosPadron,
+  evaluarDatosPadron
+} from '../src/lib/padronIncompleto.ts';
 
 function sourceFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -71,6 +76,10 @@ const padronPage = readFileSync(
 const importarPadron = readFileSync(new URL('../src/lib/importarPadron.ts', import.meta.url), 'utf8');
 const padronCompat = readFileSync(new URL('../src/lib/padronCompat.ts', import.meta.url), 'utf8');
 const padronIncompleto = readFileSync(new URL('../src/lib/padronIncompleto.ts', import.meta.url), 'utf8');
+const migracionEdicionPadron = readFileSync(
+  new URL('../supabase/migrations/020_editar_padron_auditoria.sql', import.meta.url),
+  'utf8'
+);
 const mesasPage = readFileSync(new URL('../src/features/mesas/MesasPage.tsx', import.meta.url), 'utf8');
 const candidatosPage = readFileSync(new URL('../src/features/candidatos/CandidatosPage.tsx', import.meta.url), 'utf8');
 const candidatoImageField = readFileSync(new URL('../src/features/candidatos/CandidatoImageField.tsx', import.meta.url), 'utf8');
@@ -286,10 +295,57 @@ test('padron loads every page and can filter incomplete records', () => {
   assert.match(padronCompat, /limit: tamano/, 'each batch respects the 200-row RPC cap');
   assert.match(padronIncompleto, /digitos\.length !== 8/, 'DNI length is checked');
   assert.match(padronIncompleto, /palabras\.length < 3/, 'missing surnames are detected');
-  assert.match(padronPage, /etiqueta: 'Datos incompletos'/, 'incomplete-data filter is offered');
+  assert.match(padronPage, /etiqueta: 'Datos faltantes'/, 'missing-data filter is offered');
+  assert.match(padronPage, /etiqueta: 'Completos'/, 'complete-data filter is offered');
+  assert.match(padronPage, /etiqueta: 'Duplicados'/, 'duplicates filter is offered');
+  assert.match(padronPage, /etiqueta: 'Falta grado'/, 'grade filter is offered');
+  assert.match(padronPage, /etiqueta: 'Falta sección'/, 'section filter is offered');
   assert.match(padronPage, /etiqueta: 'DNI incompleto'/, 'DNI filter is offered');
   assert.match(padronPage, /etiqueta: 'Nombre incompleto'/, 'name filter is offered');
   assert.match(padronPage, /etiqueta: 'Falta apellido'/, 'surname filter is offered');
+});
+
+test('padron detects duplicate names, missing fields and complete records', () => {
+  const votantes = [
+    { dni: '11111111', nombre: 'Ana Pérez García', grado: '1°', seccion: 'A' },
+    { dni: '22222222', nombre: 'ana perez garcia', grado: '2°', seccion: 'B' },
+    { dni: '33333333', nombre: 'Luis Torres', grado: '', seccion: null }
+  ];
+
+  const duplicados = dnisDuplicadosPadron(votantes);
+  assert.deepEqual([...duplicados], ['11111111', '22222222'], 'accents and case are ignored');
+  assert.equal(cumpleFiltroDatos(votantes[0], 'duplicados', duplicados), true);
+  assert.equal(cumpleFiltroDatos(votantes[2], 'duplicados', duplicados), false);
+  assert.equal(cumpleFiltroDatos(votantes[0], 'completos'), true);
+  assert.equal(cumpleFiltroDatos(votantes[2], 'completos'), false);
+  assert.equal(cumpleFiltroDatos(votantes[2], 'grado'), true);
+  assert.equal(cumpleFiltroDatos(votantes[2], 'seccion'), true);
+  assert.equal(cumpleFiltroDatos(votantes[2], 'incompletos'), true);
+  assert.deepEqual(evaluarDatosPadron(votantes[2]).motivos, [
+    'Falta un apellido',
+    'Falta grado',
+    'Falta sección'
+  ]);
+});
+
+test('padron rows have an edit button and edits are audited', () => {
+  assert.match(padronPage, /import Edit02Icon/);
+  assert.match(padronPage, /actualizarVotantePadron/, 'the compatibility update helper is used');
+  assert.match(padronCompat, /export async function actualizarVotantePadron/);
+  assert.match(padronCompat, /\.update\(registro\)\.eq\('dni', dniOriginal\)/, 'the original DNI is the key');
+  assert.match(padronPage, /aria-label=\{`Editar a \$\{v\.nombre\}`\}/, 'one edit button per row');
+  assert.match(padronPage, /modalId="modal-editar-votante"/, 'editing uses a modal');
+  assert.match(padronPage, /editando\.ha_votado && dni !== editando\.dni/, 'voted voters keep their DNI');
+  assert.match(padronPage, /Completa el apellido paterno y el apellido materno/, 'new records are complete');
+  assert.match(padronPage, /Selecciona el grado del estudiante/, 'grade is required');
+  assert.match(padronPage, /Selecciona la sección del estudiante/, 'section is required');
+  assert.match(padronPage, /filasValidas/, 'incomplete import rows are skipped');
+
+  assert.match(migracionEdicionPadron, /for update to authenticated[\s\S]*public\.es_admin_uuid\(\)/);
+  assert.match(migracionEdicionPadron, /for update to authenticated[\s\S]*public\.es_operador\(\)/);
+  assert.match(migracionEdicionPadron, /after insert or update or delete on public\.votantes/);
+  assert.match(migracionEdicionPadron, /'editar', 'votante', new\.dni/);
+  assert.match(migracionEdicionPadron, /before update on public\.votantes/, 'integrity trigger');
 });
 
 test('manual padron form matches the template fields and a template can be downloaded', () => {

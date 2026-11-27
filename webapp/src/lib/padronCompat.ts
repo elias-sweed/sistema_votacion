@@ -188,3 +188,16 @@ export async function insertarVotantePadron(fila: FilaPadron) {
 
   return supabase.from('votantes').insert(registro)
 }
+
+/**
+ * Edita un votante existente. Si el esquema remoto todavía no tiene grado y
+ * sección, solo se actualizan los campos que la tabla sí posee.
+ * `dniOriginal` es la clave primaria: permite corregir un DNI mal cargado.
+ */
+export async function actualizarVotantePadron(dniOriginal: string, fila: FilaPadron) {
+  const registro = (await detectarColumnasPadron())
+    ? fila
+    : { dni: fila.dni, nombre: fila.nombre }
+
+  return supabase.from('votantes').update(registro).eq('dni', dniOriginal)
+}
