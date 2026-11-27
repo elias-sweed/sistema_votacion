@@ -107,6 +107,14 @@ export default function App() {
                     </AdminGate>
                   }
                 />
+                <Route
+                  path="/admin/:seccion/:subseccion"
+                  element={
+                    <AdminGate esAdmin={esAdmin} session={session}>
+                      <PanelPage />
+                    </AdminGate>
+                  }
+                />
                 <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
                 <Route path="/" element={<Navigate to="/admin" replace />} />
                 <Route path="*" element={<Navigate to="/admin" replace />} />

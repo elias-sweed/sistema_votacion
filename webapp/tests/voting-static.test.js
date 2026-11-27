@@ -30,6 +30,8 @@ const globalBackground = readFileSync(
   'utf8'
 );
 const panelPage = readFileSync(new URL('../src/features/panel/PanelPage.tsx', import.meta.url), 'utf8');
+const panelDock = readFileSync(new URL('../src/components/ui/PanelDock.tsx', import.meta.url), 'utf8');
+const dock = readFileSync(new URL('../src/components/ui/Dock.tsx', import.meta.url), 'utf8');
 const configuracionPage = readFileSync(
   new URL('../src/features/configuracion/ConfiguracionPage.tsx', import.meta.url),
   'utf8'
@@ -100,6 +102,42 @@ test('admin panel navigation uses the dock with a switchable position', () => {
   assert.match(configuracionPage, /onPosicionDockChange\(posicion\.value\)/, 'selector updates the dock');
 });
 
+test('the dock opens iOS-style sub-actions for the padrón', () => {
+  assert.match(panelDock, /menuPadron/, 'padrón has a contextual menu');
+  assert.match(panelDock, /menuOnClick:\s*true/, 'tapping padrón opens its sub-actions');
+  assert.match(panelDock, /label: 'Agregar manualmente'/, 'manual entry is a dock action');
+  assert.match(panelDock, /label: 'Importar desde Excel'/, 'Excel import is a dock action');
+  assert.match(panelDock, /label: 'Ver padrón cargado'/, 'loaded list is a dock action');
+  assert.match(panelDock, /onNavigate\('padron', 'agregar'\)/, 'manual action navigates to its screen');
+  assert.match(panelDock, /onNavigate\('padron', 'excel'\)/, 'Excel action navigates to its screen');
+  assert.match(panelDock, /onNavigate\('padron', 'lista'\)/, 'list action navigates to its screen');
+  assert.match(panelDock, /subvista/, 'dock shows the active sub-screen');
+  assert.match(dock, /menuOnClick/, 'dock supports opening a menu on click');
+  assert.match(dock, /if \(item\.menu\?\.length && item\.menuOnClick\)/, 'click opens the contextual menu');
+});
+
+test('the dock opens iOS-style sub-actions for configuración', () => {
+  assert.match(panelDock, /menuConfiguracion/, 'configuración has a contextual menu');
+  assert.match(panelDock, /label: 'General'/, 'general settings are a dock action');
+  assert.match(panelDock, /label: 'Seguridad'/, 'security is a dock action');
+  assert.match(panelDock, /label: 'Zona peligrosa'/, 'danger zone is a dock action');
+  assert.match(panelDock, /onNavigate\('configuracion', 'general'\)/, 'general action navigates to its screen');
+  assert.match(panelDock, /onNavigate\('configuracion', 'seguridad'\)/, 'security action navigates to its screen');
+  assert.match(panelDock, /onNavigate\('configuracion', 'peligro'\)/, 'danger action navigates to its screen');
+  assert.match(panelDock, /item\.vista === 'configuracion' \? \{ menu: menuConfiguracion, menuOnClick: true \}/, 'tapping configuración opens its sub-actions');
+
+  assert.match(configuracionPage, /type ConfigVista = 'general' \| 'seguridad' \| 'peligro'/, 'three screens exist');
+  assert.match(
+    configuracionPage,
+    /segmentoConfiguracion === 'seguridad' \|\| segmentoConfiguracion === 'peligro'/,
+    'the URL picks the screen'
+  );
+  assert.match(configuracionPage, /role="tablist"/, 'the three screens can be switched');
+  assert.match(configuracionPage, /pestaniaActiva === 'general'/, 'general screen is isolated');
+  assert.match(configuracionPage, /pestaniaActiva === 'seguridad'/, 'security screen is isolated');
+  assert.match(configuracionPage, /pestaniaActiva === 'peligro'/, 'danger screen is isolated');
+});
+
 test('section and page transitions are smooth, animated and accessibility-safe', () => {
   assert.match(app, /<TransicionesSuaves \/>/, 'transitions are mounted for every route');
   assert.match(estilos, /html\s*\{[^}]*scroll-behavior:\s*smooth/s, 'internal anchors scroll smoothly');
@@ -126,6 +164,8 @@ test('section and page transitions are smooth, animated and accessibility-safe',
   assert.match(navegacion, /document\.startViewTransition/, 'browser router navigations are wrapped');
   assert.match(navegacion, /flushSync/, 'new DOM is committed before capturing the transition');
   assert.match(panelPage, /useNavegarConTransicion/, 'panel uses the animated navigator');
+  assert.match(app, /path="\/admin\/:seccion\/:subseccion"/, 'sub-screens such as padrón have their own route');
+  assert.match(navegacion, /transicion\.finished\.catch/, 'a skipped view transition is not an unhandled rejection');
   assert.match(estilos, /@media\s*\(prefers-reduced-motion:\s*reduce\)/, 'reduced motion is respected');
   assert.match(estilos, /scroll-behavior:\s*auto/, 'reduced motion disables smooth scrolling');
   assert.match(estilos, /::view-transition-group\(\*\)/, 'reduced motion neutralizes page transitions');
@@ -227,6 +267,12 @@ test('padron separates individual entry, the Excel padrón and the loaded list',
   const lista = padronPage.indexOf('data-busqueda-padron');
 
   assert.ok(individual >= 0 && excel > individual && lista > excel, 'sections appear in that order');
+  assert.match(padronPage, /type PadronVista = 'agregar' \| 'excel' \| 'lista'/, 'three screens exist');
+  assert.match(padronPage, /segmentoPadron === 'excel' \|\| segmentoPadron === 'lista'/, 'the URL picks the screen');
+  assert.match(padronPage, /subvista === 'agregar' &&/, 'manual screen is isolated');
+  assert.match(padronPage, /subvista === 'excel' &&/, 'Excel screen is isolated');
+  assert.match(padronPage, /subvista === 'lista' &&/, 'list screen is isolated');
+  assert.match(padronPage, /role="tablist"/, 'the three screens can be switched');
   assert.match(padronPage, /Agregar una persona/, 'individual area is labelled');
   assert.match(padronPage, /Padrón desde Excel/, 'Excel area is labelled');
   assert.match(padronPage, /Padrón cargado/, 'loaded list area is labelled');

@@ -1,11 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { HugeiconsIcon } from '@hugeicons/react'
 import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
 import Download01Icon from '@hugeicons/core-free-icons/Download01Icon'
 import File01Icon from '@hugeicons/core-free-icons/File01Icon'
+import FileAddIcon from '@hugeicons/core-free-icons/FileAddIcon'
 import IdCardIcon from '@hugeicons/core-free-icons/IdCardIcon'
 import Search01Icon from '@hugeicons/core-free-icons/Search01Icon'
+import UserAdd01Icon from '@hugeicons/core-free-icons/UserAdd01Icon'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
@@ -70,6 +73,14 @@ type ImportResult = {
 
 type ListaCache = { votantes: Votante[]; totalCount: number }
 
+type PadronVista = 'agregar' | 'excel' | 'lista'
+
+const VISTAS_PADRON: Array<{ valor: PadronVista; etiqueta: string; icon: typeof IdCardIcon }> = [
+  { valor: 'agregar', etiqueta: 'Agregar', icon: UserAdd01Icon },
+  { valor: 'excel', etiqueta: 'Excel', icon: FileAddIcon },
+  { valor: 'lista', etiqueta: 'Ver padrón', icon: IdCardIcon }
+]
+
 // Solo letras (con tildes/ñ) y espacios simples entre palabras.
 const NOMBRE_REGEX = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*$/
 
@@ -78,6 +89,20 @@ const CLASE_SELECT =
 
 export default function PadronPage() {
   const toast = useToast()
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  // Cada pantalla del padrón tiene su propia ruta: /admin/padron/agregar,
+  // /admin/padron/excel y /admin/padron/lista. Así el dock puede abrir
+  // directamente la que el usuario elija.
+  const segmentoPadron = location.pathname.split('/').filter(Boolean)[2]
+  const subvista: PadronVista =
+    segmentoPadron === 'excel' || segmentoPadron === 'lista' ? segmentoPadron : 'agregar'
+
+  const irAPantalla = (destino: PadronVista) => {
+    navigate(`/admin/padron/${destino}`)
+  }
+
   // Estados principales
   const [listaInicial] = useState(() => leerCache<ListaCache>(CLAVES_CACHE.padronLista))
   const [cargando, setCargando] = useState(listaInicial === null)
@@ -96,6 +121,7 @@ export default function PadronPage() {
   const [errorManual, setErrorManual] = useState<string | null>(null)
   const [exitoManual, setExitoManual] = useState<string | null>(null)
   const [sinGradoSeccion, setSinGradoSeccion] = useState(false)
+  const [enfocarDni, setEnfocarDni] = useState(false)
 
   // Datos
   const [votantes, setVotantes] = useState<Votante[]>(() => listaInicial?.votantes ?? [])
@@ -213,6 +239,12 @@ export default function PadronPage() {
   useEffect(() => {
     void detectarColumnasPadron().then((completa) => setSinGradoSeccion(!completa))
   }, [])
+
+  useEffect(() => {
+    if (subvista !== 'agregar' || !enfocarDni) return
+    document.getElementById('padron-dni')?.focus()
+    setEnfocarDni(false)
+  }, [subvista, enfocarDni])
 
   // --- ALTA MANUAL ---
 
@@ -620,18 +652,47 @@ export default function PadronPage() {
   }
 
 
-  if (cargando && !tieneDatos) {
+  if (cargando && !tieneDatos && subvista === 'lista') {
     return <PadronSkeleton />
   }
 
   return (
     <RevealSection className="space-y-6">
-      {/* Resumen del padrón */}
-      <div className="flex items-center gap-3">
-        <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
-        <h2 className="text-xl font-bold text-white">Padrón Electoral</h2>
+      {/* Encabezado con las tres pantallas del padrón */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
+          <h2 className="text-xl font-bold text-white">Padrón Electoral</h2>
+        </div>
+        <div
+          role="tablist"
+          aria-label="Pantallas del padrón"
+          className="flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-white/10 bg-black/30 p-1 backdrop-blur-xl"
+        >
+          {VISTAS_PADRON.map(({ valor, etiqueta, icon }) => {
+            const activa = subvista === valor
+            return (
+              <button
+                key={valor}
+                type="button"
+                role="tab"
+                aria-selected={activa}
+                onClick={() => irAPantalla(valor)}
+                className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition sm:text-sm ${
+                  activa
+                    ? 'bg-white/[0.14] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <HugeiconsIcon icon={icon} size={16} strokeWidth={1.8} />
+                {etiqueta}
+              </button>
+            )
+          })}
+        </div>
       </div>
-      {sinGradoSeccion && (
+
+      {subvista !== 'lista' && sinGradoSeccion && (
         <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100" role="status">
           <p className="font-semibold">La base de datos aún no tiene las columnas Grado y Sección.</p>
           <p className="mt-1 text-amber-200/80">
@@ -641,37 +702,21 @@ export default function PadronPage() {
           </p>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-live="polite">
-        <StatCard label="Total" value={estadisticas?.total_votantes ?? 0} />
-        <StatCard
-          label="Votaron"
-          value={estadisticas?.total_votaron ?? 0}
-          valueClassName="text-emerald-300"
-        />
-        <StatCard
-          label="Pendientes"
-          value={estadisticas?.total_pendientes ?? 0}
-          valueClassName="text-sky-300"
-        />
-        <StatCard
-          label="Participación"
-          value={`${estadisticas?.participacion_pct ?? 0}%`}
-          valueClassName="text-blue-300"
-        />
-      </div>
 
-      {/* 1. Alta individual */}
-      <div className="flex items-center gap-3">
-        <span className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-2 py-1 text-xs font-bold text-blue-200">
-          01
-        </span>
-        <div>
-          <h3 className="text-lg font-bold text-white">Agregar una persona</h3>
-          <p className="text-xs text-slate-400">Para sumar o corregir un votante suelto, sin usar el Excel.</p>
-        </div>
-      </div>
+      <div key={subvista} className="seccion-entrada space-y-6">
+        {subvista === 'agregar' && (
+          <>
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/30 bg-blue-500/10 text-blue-200">
+                <HugeiconsIcon icon={UserAdd01Icon} size={18} strokeWidth={1.8} />
+              </span>
+              <div>
+                <h3 className="text-lg font-bold text-white">Agregar una persona</h3>
+                <p className="text-xs text-slate-400">Para sumar o corregir un votante suelto, sin usar el Excel.</p>
+              </div>
+            </div>
 
-      <AdminCard>
+            <AdminCard>
         <div className="space-y-4">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-base font-semibold text-white">Agregar votante</h3>
@@ -783,20 +828,23 @@ export default function PadronPage() {
             </div>
           </form>
         </div>
-      </AdminCard>
+            </AdminCard>
+          </>
+        )}
 
-      {/* 2. Padrón desde Excel */}
-      <div className="flex items-center gap-3">
-        <span className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-2 py-1 text-xs font-bold text-blue-200">
-          02
-        </span>
-        <div>
-          <h3 className="text-lg font-bold text-white">Padrón desde Excel</h3>
-          <p className="text-xs text-slate-400">Descarga la plantilla, revísala y corrige las filas con datos faltantes antes de importar.</p>
-        </div>
-      </div>
+        {subvista === 'excel' && (
+          <>
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/30 bg-blue-500/10 text-blue-200">
+                <HugeiconsIcon icon={FileAddIcon} size={18} strokeWidth={1.8} />
+              </span>
+              <div>
+                <h3 className="text-lg font-bold text-white">Padrón desde Excel</h3>
+                <p className="text-xs text-slate-400">Descarga la plantilla, revísala y corrige las filas con datos faltantes antes de importar.</p>
+              </div>
+            </div>
 
-      <AdminCard>
+            <AdminCard>
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-white">Importar padrón (Excel o CSV)</h3>
 
@@ -1016,20 +1064,42 @@ export default function PadronPage() {
           </div>
         )}
         </div>
-      </AdminCard>
+            </AdminCard>
+          </>
+        )}
 
-      {/* 3. Padrón cargado */}
-      <div className="flex items-center gap-3">
-        <span className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-2 py-1 text-xs font-bold text-blue-200">
-          03
-        </span>
-        <div>
-          <h3 className="text-lg font-bold text-white">Padrón cargado</h3>
-          <p className="text-xs text-slate-400">Busca, revisa quién falta votar y exporta la lista filtrada.</p>
-        </div>
-      </div>
+        {subvista === 'lista' && (
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-live="polite">
+              <StatCard label="Total" value={estadisticas?.total_votantes ?? 0} />
+              <StatCard
+                label="Votaron"
+                value={estadisticas?.total_votaron ?? 0}
+                valueClassName="text-emerald-300"
+              />
+              <StatCard
+                label="Pendientes"
+                value={estadisticas?.total_pendientes ?? 0}
+                valueClassName="text-sky-300"
+              />
+              <StatCard
+                label="Participación"
+                value={`${estadisticas?.participacion_pct ?? 0}%`}
+                valueClassName="text-blue-300"
+              />
+            </div>
 
-      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 space-y-3 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/30 bg-blue-500/10 text-blue-200">
+                <HugeiconsIcon icon={IdCardIcon} size={18} strokeWidth={1.8} />
+              </span>
+              <div>
+                <h3 className="text-lg font-bold text-white">Padrón cargado</h3>
+                <p className="text-xs text-slate-400">Busca, revisa quién falta votar y exporta la lista filtrada.</p>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 space-y-3 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="flex-1">
             <label htmlFor="padron-busqueda" className="mb-1 block text-xs text-slate-400">
@@ -1140,13 +1210,19 @@ export default function PadronPage() {
                         description="Importa un archivo Excel o CSV, o agrega votantes manualmente para empezar."
                         action={
                           <div className="flex flex-wrap justify-center gap-2">
-                            <AdminButton size="sm" onClick={() => document.getElementById('padron-dni')?.focus()}>
+                            <AdminButton
+                              size="sm"
+                              onClick={() => {
+                                setEnfocarDni(true)
+                                irAPantalla('agregar')
+                              }}
+                            >
                               Agregar votante
                             </AdminButton>
                             <AdminButton
                               size="sm"
                               variant="secondary"
-                              onClick={() => document.getElementById('file-input')?.click()}
+                              onClick={() => irAPantalla('excel')}
                             >
                               Importar Excel o CSV
                             </AdminButton>
@@ -1227,6 +1303,9 @@ export default function PadronPage() {
               </button>
             </div>
           </div>
+        )}
+            </div>
+          </>
         )}
       </div>
 

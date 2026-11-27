@@ -34,6 +34,8 @@ export type DockItemData = {
   active?: boolean;
   badge?: ReactNode;
   menu?: DockMenuItem[];
+  /** Abre el menú al tocar el icono en vez de navegar directamente. */
+  menuOnClick?: boolean;
   separator?: boolean;
 };
 
@@ -1190,9 +1192,18 @@ export default function Dock({
               endPress();
               openMenu(index, 'pointer');
             }}
-            onClick={() => {
+            onClick={event => {
               if (skipRef.current === index) {
                 skipRef.current = -1;
+                return;
+              }
+              if (item.menu?.length && item.menuOnClick) {
+                if (openIndex === index) {
+                  closeMenu(false);
+                  return;
+                }
+                actionsRef.current?.hop(index);
+                openMenu(index, event.detail === 0 ? 'keyboard' : 'pointer');
                 return;
               }
               actionsRef.current?.hop(index);

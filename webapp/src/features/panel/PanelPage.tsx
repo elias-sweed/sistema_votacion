@@ -21,9 +21,9 @@ const SUBTITULOS: Record<Vista, string> = {
   inicio: 'Estado general del proceso electoral.',
   candidatos: 'Gestiona los candidatos y su estado.',
   mesas: 'Administra las mesas, sus enlaces y la participación.',
-  padron: 'Importa y supervisa el padrón electoral.',
+  padron: 'Agrega una persona, importa el Excel o revisa el padrón cargado.',
   resultados: 'Sigue el conteo de votos y la participación en vivo.',
-  configuracion: 'Abre o cierra la elección y define los datos del centro.'
+  configuracion: 'Estado de la elección, seguridad y zona peligrosa.'
 }
 
 const VISTA_POR_SECCION: Record<string, Vista> = {
@@ -67,10 +67,12 @@ export default function PanelPage() {
   }, [posicionDock])
 
   const segmento = location.pathname.split('/').filter(Boolean)[1] ?? ''
+  const subsegmento = location.pathname.split('/').filter(Boolean)[2] ?? ''
   const vista: Vista = VISTA_POR_SECCION[segmento] ?? 'inicio'
 
-  const setVista = (next: Vista) => {
-    navigate(next === 'inicio' ? '/admin' : `/admin/${next}`)
+  const setVista = (next: Vista, sub?: string) => {
+    const base = next === 'inicio' ? '/admin' : `/admin/${next}`
+    navigate(sub ? `${base}/${sub}` : base)
   }
 
   useEffect(() => {
@@ -144,6 +146,7 @@ export default function PanelPage() {
     <div className="min-h-screen text-white">
       <PanelDock
         vista={vista}
+        subvista={subsegmento}
         onNavigate={setVista}
         position={posicionDock}
         onLogout={cerrarSesion}

@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { HugeiconsIcon } from '@hugeicons/react'
+import Alert02Icon from '@hugeicons/core-free-icons/Alert02Icon'
 import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
 import ImageAdd01Icon from '@hugeicons/core-free-icons/ImageAdd01Icon'
 import ImageUpload01Icon from '@hugeicons/core-free-icons/ImageUpload01Icon'
+import Settings01Icon from '@hugeicons/core-free-icons/Settings01Icon'
+import Shield01Icon from '@hugeicons/core-free-icons/Shield01Icon'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { borrarTabla, borrarTodo, mensajeBorrado } from '../../lib/borrado'
@@ -44,6 +48,14 @@ type ConfiguracionPageProps = {
   onPosicionDockChange: (posicion: DockSide) => void
 }
 
+type ConfigVista = 'general' | 'seguridad' | 'peligro'
+
+const VISTAS_CONFIGURACION: Array<{ valor: ConfigVista; etiqueta: string; icon: typeof Settings01Icon }> = [
+  { valor: 'general', etiqueta: 'General', icon: Settings01Icon },
+  { valor: 'seguridad', etiqueta: 'Seguridad', icon: Shield01Icon },
+  { valor: 'peligro', etiqueta: 'Zona peligrosa', icon: Alert02Icon }
+]
+
 // Reduce el logo a 512 px. Se conserva PNG cuando el navegador no soporta WebP
 // para no perder la transparencia del escudo o logotipo.
 function comprimirLogo(file: File): Promise<string> {
@@ -76,7 +88,21 @@ function comprimirLogo(file: File): Promise<string> {
 
 export default function ConfiguracionPage({ posicionDock, onPosicionDockChange }: ConfiguracionPageProps) {
   const toast = useToast()
+  const location = useLocation()
+  const navigate = useNavigate()
   const archivoRef = useRef<HTMLInputElement>(null)
+
+  // Cada pantalla de configuración tiene su propia ruta, igual que Padrón.
+  const segmentoConfiguracion = location.pathname.split('/').filter(Boolean)[2]
+  const pestaniaActiva: ConfigVista =
+    segmentoConfiguracion === 'seguridad' || segmentoConfiguracion === 'peligro'
+      ? segmentoConfiguracion
+      : 'general'
+
+  const irAPantalla = (destino: ConfigVista) => {
+    navigate(`/admin/configuracion/${destino}`)
+  }
+
   const [configInicial] = useState<Config | null>(() => leerCache<Config>(CLAVES_CACHE.configuracion))
   const [config, setConfig] = useState<Config | null>(configInicial)
   const [titulo, setTitulo] = useState(configInicial?.titulo ?? '')
@@ -109,8 +135,7 @@ export default function ConfiguracionPage({ posicionDock, onPosicionDockChange }
   const [pinAccion, setPinAccion] = useState('')
   const [errorPin, setErrorPin] = useState<string | null>(null)
 
-  // Pestañas de configuración
-  const [pestaniaActiva, setPestaniaActiva] = useState<'general' | 'seguridad' | 'peligro'>('general')
+  // La pantalla activa viene de la ruta (general, seguridad o peligro).
 
   // Bloqueo de zona peligrosa (candado)
   const [zonaPeligroBloqueada, setZonaPeligroBloqueada] = useState(true)
@@ -490,27 +515,38 @@ export default function ConfiguracionPage({ posicionDock, onPosicionDockChange }
     <RevealSection className="space-y-6">
       <SectionHeader
         title="Configuración de la elección"
-        description="Administra el estado de la elección, los datos del centro y las acciones de seguridad."
+        description="Estado de la elección, datos del centro, seguridad y acciones destructivas."
         actions={
-          <div className="flex gap-1">
-            <button
-              onClick={() => setPestaniaActiva('general')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pestaniaActiva === 'general' ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white border border-transparent'}`}
-            >
-              General
-            </button>
-            <button
-              onClick={() => setPestaniaActiva('seguridad')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pestaniaActiva === 'seguridad' ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white border border-transparent'}`}
-            >
-              Seguridad
-            </button>
-            <button
-              onClick={() => setPestaniaActiva('peligro')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pestaniaActiva === 'peligro' ? 'bg-red-500/20 text-red-200 border border-red-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white border border-transparent'}`}
-            >
-              Zona peligrosa
-            </button>
+          <div
+            role="tablist"
+            aria-label="Pantallas de configuración"
+            className="flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-white/10 bg-black/30 p-1 backdrop-blur-xl"
+          >
+            {VISTAS_CONFIGURACION.map(({ valor, etiqueta, icon }) => {
+              const activa = pestaniaActiva === valor
+              const peligro = valor === 'peligro'
+              return (
+                <button
+                  key={valor}
+                  type="button"
+                  role="tab"
+                  aria-selected={activa}
+                  onClick={() => irAPantalla(valor)}
+                  className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition sm:text-sm ${
+                    activa
+                      ? peligro
+                        ? 'bg-red-500/20 text-red-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
+                        : 'bg-white/[0.14] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
+                      : peligro
+                        ? 'text-red-300/70 hover:text-red-200'
+                        : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <HugeiconsIcon icon={icon} size={16} strokeWidth={1.8} />
+                  {etiqueta}
+                </button>
+              )
+            })}
           </div>
         }
       />
@@ -524,8 +560,8 @@ export default function ConfiguracionPage({ posicionDock, onPosicionDockChange }
       )}
 
       {!cargando && config && (
-        <>
-          {/* ===== PESTAÑA GENERAL ===== */}
+        <div key={pestaniaActiva} className="seccion-entrada space-y-6">
+          {/* ===== PANTALLA GENERAL ===== */}
           {pestaniaActiva === 'general' && (
             <>
               {/* Barra de estado de la elección */}
@@ -977,7 +1013,7 @@ export default function ConfiguracionPage({ posicionDock, onPosicionDockChange }
               </div>
             </>
           )}
-        </>
+        </div>
       )}
 
       {/* Posición del menú: disponible aunque falle la carga de la configuración */}
