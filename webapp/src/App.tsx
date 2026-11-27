@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import { ENTORNO_VALIDO, PROBLEMAS_ENTORNO } from './lib/env'
-import { esSesionAdmin } from './lib/session'
+import { esSesionAdmin, puedeEntrarPanel } from './lib/session'
 import { limpiarCacheLegado, limpiarCachePanel } from './lib/panelCache'
 import ConfigErrorPage from './components/ConfigErrorPage'
 import { FondoGlobal } from './components/ui/FondoGlobal'
@@ -16,14 +16,14 @@ import LoginPage from './features/auth/LoginPage'
 import PanelPage from './features/panel/PanelPage'
 import VotingKioskPage from './features/voting/VotingKioskPage'
 
-type AdminGateProps = {
-  esAdmin: boolean
+type PanelGateProps = {
+  puedeEntrar: boolean
   session: Session | null
   children: ReactNode
 }
 
-function AdminGate({ esAdmin, session, children }: AdminGateProps) {
-  if (esAdmin) return <>{children}</>
+function PanelGate({ puedeEntrar, session, children }: PanelGateProps) {
+  if (puedeEntrar) return <>{children}</>
   if (session) return <AccessDeniedPage />
   return <Navigate to="/login" replace />
 }
@@ -31,9 +31,11 @@ function AdminGate({ esAdmin, session, children }: AdminGateProps) {
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [cargando, setCargando] = useState(true)
-  // Solo un usuario con app_metadata.role = 'admin' puede abrir el panel.
-  // Cualquier otra sesión autenticada ve la pantalla de acceso denegado.
+  // admin y operador pueden abrir el panel. Cualquier otra sesión autenticada
+  // ve la pantalla de acceso denegado. esSesionAdmin se mantiene para las
+  // acciones exclusivas del administrador principal.
   const esAdmin = esSesionAdmin(session)
+  const puedeEntrar = esAdmin || puedeEntrarPanel(session)
 
   useEffect(() => {
     limpiarCacheLegado()
@@ -84,7 +86,7 @@ export default function App() {
                 <Route
                   path="/login"
                   element={
-                    esAdmin
+                    puedeEntrar
                       ? <Navigate to="/admin" replace />
                       : session
                         ? <AccessDeniedPage />
@@ -94,25 +96,25 @@ export default function App() {
                 <Route
                   path="/admin"
                   element={
-                    <AdminGate esAdmin={esAdmin} session={session}>
+                    <PanelGate puedeEntrar={puedeEntrar} session={session}>
                       <PanelPage />
-                    </AdminGate>
+                    </PanelGate>
                   }
                 />
                 <Route
                   path="/admin/:seccion"
                   element={
-                    <AdminGate esAdmin={esAdmin} session={session}>
+                    <PanelGate puedeEntrar={puedeEntrar} session={session}>
                       <PanelPage />
-                    </AdminGate>
+                    </PanelGate>
                   }
                 />
                 <Route
                   path="/admin/:seccion/:subseccion"
                   element={
-                    <AdminGate esAdmin={esAdmin} session={session}>
+                    <PanelGate puedeEntrar={puedeEntrar} session={session}>
                       <PanelPage />
-                    </AdminGate>
+                    </PanelGate>
                   }
                 />
                 <Route path="/dashboard" element={<Navigate to="/admin" replace />} />

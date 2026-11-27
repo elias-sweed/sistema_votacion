@@ -5,17 +5,20 @@ import { limpiarCachePanel } from '../../lib/panelCache'
 import { useNavegarConTransicion } from '../../lib/navegacion'
 import { useToast } from '../../components/ui/ToastProvider'
 import { PanelDock } from '../../components/ui/PanelDock'
+import type { Vista } from '../../components/ui/PanelDock'
 import type { DockSide } from '../../components/ui/Dock'
 import { SectionHeader } from '../../components/ui/SectionHeader'
 import { AdminCard } from '../../components/ui/AdminCard'
+import { primeraSeccion, puedeVerSeccion, type RolPanel } from '../../lib/roles'
+import { rolDeSesion } from '../../lib/session'
+import AuditoriaPage from '../auditoria/AuditoriaPage'
 import CandidatosPage from '../candidatos/CandidatosPage'
 import ConfiguracionPage from '../configuracion/ConfiguracionPage'
 import DashboardPage from '../dashboard/DashboardPage'
 import MesasPage from '../mesas/MesasPage'
+import OperadoresPage from '../operadores/OperadoresPage'
 import PadronPage from '../padron/PadronPage'
 import ResultadosPage from '../resultados/ResultadosPage'
-
-type Vista = 'inicio' | 'candidatos' | 'mesas' | 'padron' | 'resultados' | 'configuracion'
 
 const SUBTITULOS: Record<Vista, string> = {
   inicio: 'Estado general del proceso electoral.',
@@ -23,7 +26,9 @@ const SUBTITULOS: Record<Vista, string> = {
   mesas: 'Un solo enlace para toda la votación.',
   padron: 'Agrega una persona, importa el Excel o revisa el padrón cargado.',
   resultados: 'Sigue el conteo de votos y la participación en vivo.',
-  configuracion: 'Estado de la elección, seguridad y zona peligrosa.'
+  configuracion: 'Estado de la elección, seguridad y zona peligrosa.',
+  auditoria: 'Movimientos realizados por los operadores.',
+  operadores: 'Cuentas con acceso limitado al panel.'
 }
 
 const VISTA_POR_SECCION: Record<string, Vista> = {
@@ -31,7 +36,9 @@ const VISTA_POR_SECCION: Record<string, Vista> = {
   mesas: 'mesas',
   padron: 'padron',
   resultados: 'resultados',
-  configuracion: 'configuracion'
+  configuracion: 'configuracion',
+  auditoria: 'auditoria',
+  operadores: 'operadores'
 }
 
 const BREADCRUMB: Record<Vista, string> = {
@@ -40,7 +47,9 @@ const BREADCRUMB: Record<Vista, string> = {
   mesas: 'Panel > Mesa principal',
   padron: 'Panel > Padrón',
   resultados: 'Panel > Resultados',
-  configuracion: 'Panel > Configuración'
+  configuracion: 'Panel > Configuración',
+  auditoria: 'Panel > Auditoría',
+  operadores: 'Panel > Operadores'
 }
 
 const POSICIONES_DOCK: DockSide[] = ['bottom', 'top', 'left', 'right']
@@ -53,14 +62,34 @@ const PADDING_DOCK: Record<DockSide, string> = {
   right: 'py-5 pr-24 pl-5 sm:pr-28'
 }
 
+function rutaDeVista(vista: Vista, sub?: string): string {
+  const base = vista === 'inicio' ? '/admin' : `/admin/${vista}`
+  return sub ? `${base}/${sub}` : base
+}
+
 export default function PanelPage() {
   const location = useLocation()
   const navigate = useNavegarConTransicion()
   const toast = useToast()
+  const [rol, setRol] = useState<RolPanel | null>(null)
   const [posicionDock, setPosicionDock] = useState<DockSide>(() => {
     const guardada = localStorage.getItem(CLAVE_POSICION_DOCK) as DockSide | null
     return guardada && POSICIONES_DOCK.includes(guardada) ? guardada : 'bottom'
   })
+
+  useEffect(() => {
+    let activo = true
+    supabase.auth.getSession().then(({ data }) => {
+      if (activo) setRol(rolDeSesion(data.session))
+    })
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (activo) setRol(rolDeSesion(session))
+    })
+    return () => {
+      activo = false
+      listener.subscription.unsubscribe()
+    }
+  }, [])
 
   useEffect(() => {
     localStorage.setItem(CLAVE_POSICION_DOCK, posicionDock)
@@ -68,11 +97,23 @@ export default function PanelPage() {
 
   const segmento = location.pathname.split('/').filter(Boolean)[1] ?? ''
   const subsegmento = location.pathname.split('/').filter(Boolean)[2] ?? ''
-  const vista: Vista = VISTA_POR_SECCION[segmento] ?? 'inicio'
+  const vistaSolicitada: Vista = VISTA_POR_SECCION[segmento] ?? 'inicio'
+  const vista: Vista = rol && !puedeVerSeccion(rol, vistaSolicitada)
+    ? primeraSeccion(rol)
+    : vistaSolicitada
+
+  // Un operador que abra una URL de administrador ve directamente su primera
+  // sección permitida; nunca se renderiza una vista para la que no tiene rol.
+  useEffect(() => {
+    if (!rol) return
+    if (vista !== vistaSolicitada) {
+      navigate(rutaDeVista(vista), { replace: true })
+    }
+  }, [rol, vista, vistaSolicitada, navigate])
 
   const setVista = (next: Vista, sub?: string) => {
-    const base = next === 'inicio' ? '/admin' : `/admin/${next}`
-    navigate(sub ? `${base}/${sub}` : base)
+    if (!puedeVerSeccion(rol, next)) return
+    navigate(rutaDeVista(next, sub))
   }
 
   useEffect(() => {
@@ -82,7 +123,9 @@ export default function PanelPage() {
       '3': 'mesas',
       '4': 'padron',
       '5': 'configuracion',
-      '6': 'resultados'
+      '6': 'resultados',
+      '7': 'auditoria',
+      '8': 'operadores'
     }
 
     const alPresionar = (event: KeyboardEvent) => {
@@ -101,13 +144,13 @@ export default function PanelPage() {
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return
 
       const destino = atajos[event.key]
-      if (destino) {
+      if (destino && puedeVerSeccion(rol, destino)) {
         event.preventDefault()
-        navigate(destino === 'inicio' ? '/admin' : `/admin/${destino}`)
+        navigate(rutaDeVista(destino))
         return
       }
 
-      if (event.key === '/') {
+      if (event.key === '/' && puedeVerSeccion(rol, 'padron')) {
         const buscador = document.querySelector<HTMLInputElement>('[data-busqueda-padron]')
         if (buscador) {
           event.preventDefault()
@@ -119,7 +162,7 @@ export default function PanelPage() {
 
     window.addEventListener('keydown', alPresionar)
     return () => window.removeEventListener('keydown', alPresionar)
-  }, [navigate])
+  }, [navigate, rol])
 
   async function cerrarSesion() {
     const { error } = await supabase.auth.signOut()
@@ -147,6 +190,7 @@ export default function PanelPage() {
       <PanelDock
         vista={vista}
         subvista={subsegmento}
+        rol={rol}
         onNavigate={setVista}
         position={posicionDock}
         onLogout={cerrarSesion}
@@ -160,17 +204,19 @@ export default function PanelPage() {
           />
 
           <AdminCard className="seccion-entrada" key={vista}>
-            {vista === 'inicio' && <DashboardPage onNavigate={setVista} />}
-            {vista === 'candidatos' && <CandidatosPage />}
-            {vista === 'mesas' && <MesasPage />}
+            {vista === 'inicio' && rol === 'admin' && <DashboardPage onNavigate={setVista} />}
+            {vista === 'candidatos' && <CandidatosPage rol={rol} />}
+            {vista === 'mesas' && <MesasPage rol={rol} />}
             {vista === 'padron' && <PadronPage />}
-            {vista === 'resultados' && <ResultadosPage onNavigate={setVista} />}
-            {vista === 'configuracion' && (
+            {vista === 'resultados' && rol === 'admin' && <ResultadosPage onNavigate={setVista} />}
+            {vista === 'configuracion' && rol === 'admin' && (
               <ConfiguracionPage
                 posicionDock={posicionDock}
                 onPosicionDockChange={setPosicionDock}
               />
             )}
+            {vista === 'auditoria' && rol === 'admin' && <AuditoriaPage />}
+            {vista === 'operadores' && rol === 'admin' && <OperadoresPage />}
           </AdminCard>
         </div>
       </main>

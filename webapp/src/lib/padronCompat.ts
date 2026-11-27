@@ -20,11 +20,15 @@ export type VotanteListado = {
   total_count?: number
 }
 
-type OpcionesListado = {
+export type OpcionesListado = {
   busqueda: string
   soloPendientes: boolean
   limit: number
   offset: number
+}
+
+export type OpcionesTodosVotantes = Omit<OpcionesListado, 'limit' | 'offset'> & {
+  tamanoPagina?: number
 }
 
 type ErrorListado = { message: string; code?: string } | null
@@ -106,6 +110,43 @@ export async function listarVotantes(opciones: OpcionesListado): Promise<{
     creado_en: fila.creado_en
   }))
   return { filas, total: count ?? 0, error: null }
+}
+
+/**
+ * `listar_votantes` acepta como máximo 200 filas por llamada. Para que el
+ * padrón muestre los registros reales aunque supere el límite de una sola
+ * petición, se recorre con offset hasta completar todas las páginas.
+ */
+export async function listarTodosVotantes(opciones: OpcionesTodosVotantes): Promise<{
+  filas: VotanteListado[]
+  total: number
+  error: ErrorListado
+}> {
+  const tamano = Math.min(200, Math.max(1, Math.floor(opciones.tamanoPagina ?? 200)))
+  const filas: VotanteListado[] = []
+  let total = 0
+  let offset = 0
+
+  while (true) {
+    const pagina = await listarVotantes({
+      busqueda: opciones.busqueda,
+      soloPendientes: opciones.soloPendientes,
+      limit: tamano,
+      offset
+    })
+    if (pagina.error) return { filas: [], total: 0, error: pagina.error }
+
+    total = Number(pagina.total ?? pagina.filas.length)
+    filas.push(...pagina.filas)
+    if (pagina.filas.length < tamano) break
+
+    offset += tamano
+    if (total > 0 && offset >= total) break
+    // Si el backend ignorara el offset, esto evita un bucle infinito.
+    if (offset > 100000) break
+  }
+
+  return { filas, total: total || filas.length, error: null }
 }
 
 export async function importarLotePadron(filas: FilaPadron[]): Promise<ResultadoLote> {

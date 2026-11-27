@@ -14,6 +14,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { RevealSection } from '../../components/ui/RevealSection'
 import { PasswordInput } from '../../components/ui/PasswordInput'
 import { HugeiconsIcon } from '@hugeicons/react'
+import type { RolPanel } from '../../lib/roles'
 import Cancel01Icon from '@hugeicons/core-free-icons/Cancel01Icon'
 import CommandLineIcon from '@hugeicons/core-free-icons/CommandLineIcon'
 import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
@@ -66,7 +67,10 @@ function comandoKiosco(mesa: Mesa): string {
   return `& "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --kiosk "${enlace}"`
 }
 
-export default function MesasPage() {
+type MesasPageProps = { rol?: RolPanel | null }
+
+export default function MesasPage({ rol }: MesasPageProps) {
+  const soloLectura = rol === 'operador'
   const toast = useToast()
   const menuRef = useRef<HTMLDivElement>(null)
   const [mesasInicial] = useState(() => leerCache<Mesa[]>(CLAVES_CACHE.mesas))
@@ -142,6 +146,7 @@ export default function MesasPage() {
   }
 
   async function crearMesaPrincipal() {
+    if (soloLectura) return
     setError(null)
     setExito(null)
     setGuardando(true)
@@ -161,7 +166,7 @@ export default function MesasPage() {
   }
 
   function iniciarEdicion() {
-    if (!mesa) return
+    if (soloLectura || !mesa) return
     setEditNombre(mesa.nombre)
     setError(null)
     setExito(null)
@@ -170,7 +175,7 @@ export default function MesasPage() {
   }
 
   async function guardarNombre() {
-    if (!mesa) return
+    if (soloLectura || !mesa) return
     const nombre = editNombre.trim()
     if (!nombre) {
       setError('Escribe un nombre para la mesa.')
@@ -192,7 +197,7 @@ export default function MesasPage() {
   }
 
   async function alternarActivo() {
-    if (!mesa) return
+    if (soloLectura || !mesa) return
     setError(null)
     setExito(null)
     setMenuAbierto(false)
@@ -258,7 +263,7 @@ export default function MesasPage() {
   }
 
   async function rotarEnlace() {
-    if (!mesa || rotando) return
+    if (soloLectura || !mesa || rotando) return
     setRotando(true)
     setError(null)
     setExito(null)
@@ -293,7 +298,7 @@ export default function MesasPage() {
   }
 
   async function eliminarMesa() {
-    if (!mesa || eliminando) return
+    if (soloLectura || !mesa || eliminando) return
 
     setErrorEliminar(null)
     if (!passwordEliminar) {
@@ -401,11 +406,11 @@ export default function MesasPage() {
             icon={<HugeiconsIcon icon={Table01Icon} size={22} strokeWidth={1.7} />}
             title="No hay mesa principal"
             description="Crea la mesa principal para generar el enlace único de votación."
-            action={
+            action={soloLectura ? undefined : (
               <AdminButton onClick={() => void crearMesaPrincipal()} disabled={guardando}>
                 {guardando ? 'Creando…' : 'Crear mesa principal'}
               </AdminButton>
-            }
+            )}
           />
         </AdminCard>
       )}
@@ -453,12 +458,14 @@ export default function MesasPage() {
                 Abrir kiosco
               </span>
             </AdminButton>
-            <AdminButton variant="secondary" onClick={() => setMenuAbierto(true)}>
-              <span className="inline-flex items-center gap-2">
-                <HugeiconsIcon icon={Edit02Icon} size={15} strokeWidth={1.8} />
-                Más
-              </span>
-            </AdminButton>
+            {!soloLectura && (
+              <AdminButton variant="secondary" onClick={() => setMenuAbierto(true)}>
+                <span className="inline-flex items-center gap-2">
+                  <HugeiconsIcon icon={Edit02Icon} size={15} strokeWidth={1.8} />
+                  Más
+                </span>
+              </AdminButton>
+            )}
           </div>
 
           <details className="group mt-5 text-xs text-slate-500">
@@ -474,11 +481,13 @@ export default function MesasPage() {
               <code className="block overflow-x-auto rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-[11px] text-slate-300">
                 chrome --kiosk "https://tu-dominio/votar/TOKEN"
               </code>
-              <p>
-                En <span className="text-slate-300">Más</span> puedes{' '}
-                <span className="text-slate-300">copiar el comando kiosco</span>. La guía completa
-                está en <span className="text-slate-300">MODO_KIOSCO.md</span>.
-              </p>
+              {!soloLectura && (
+                <p>
+                  En <span className="text-slate-300">Más</span> puedes{' '}
+                  <span className="text-slate-300">copiar el comando kiosco</span>. La guía completa
+                  está en <span className="text-slate-300">MODO_KIOSCO.md</span>.
+                </p>
+              )}
             </div>
           </details>
         </AdminCard>

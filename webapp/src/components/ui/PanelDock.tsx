@@ -14,13 +14,23 @@ import UserAdd01Icon from '@hugeicons/core-free-icons/UserAdd01Icon'
 import UserGroupIcon from '@hugeicons/core-free-icons/UserGroupIcon'
 import Dock from './Dock'
 import type { DockItemData, DockMenuItem, DockSide } from './Dock'
+import { puedeVerSeccion, type RolPanel } from '../../lib/roles'
 
-export type Vista = 'inicio' | 'candidatos' | 'mesas' | 'padron' | 'resultados' | 'configuracion'
+export type Vista =
+  | 'inicio'
+  | 'candidatos'
+  | 'mesas'
+  | 'padron'
+  | 'resultados'
+  | 'configuracion'
+  | 'auditoria'
+  | 'operadores'
 
 type PanelDockProps = {
   vista: Vista
   /** Subpantalla activa, por ejemplo dentro de Padrón. */
   subvista?: string
+  rol?: RolPanel | null
   onNavigate: (vista: Vista, sub?: string) => void
   position: DockSide
   onLogout: () => void
@@ -32,12 +42,14 @@ const ITEMS: Array<{ vista: Vista; label: string; icon: typeof UserGroupIcon }> 
   { vista: 'mesas', label: 'Mesa', icon: Table01Icon },
   { vista: 'padron', label: 'Padrón', icon: IdCardIcon },
   { vista: 'resultados', label: 'Resultados', icon: ChartBarBigIcon },
-  { vista: 'configuracion', label: 'Configuración', icon: Settings01Icon }
+  { vista: 'configuracion', label: 'Configuración', icon: Settings01Icon },
+  { vista: 'auditoria', label: 'Auditoría', icon: Shield01Icon },
+  { vista: 'operadores', label: 'Operadores', icon: UserAdd01Icon }
 ]
 
 const glyph = (icon: typeof UserGroupIcon) => <HugeiconsIcon icon={icon} size="1em" strokeWidth={1.8} />
 
-export function PanelDock({ vista, subvista, onNavigate, position, onLogout }: PanelDockProps) {
+export function PanelDock({ vista, subvista, rol, onNavigate, position, onLogout }: PanelDockProps) {
   // Acciones rápidas del dock, como el menú contextual de iOS: al tocar Padrón
   // se eligen las tres pantallas en las que está dividido.
   const menuPadron: DockMenuItem[] = [
@@ -82,8 +94,10 @@ export function PanelDock({ vista, subvista, onNavigate, position, onLogout }: P
     }
   ]
 
+  const visibles = ITEMS.filter((item) => puedeVerSeccion(rol ?? null, item.vista))
+
   const items: DockItemData[] = [
-    ...ITEMS.map((item) => ({
+    ...visibles.map((item) => ({
       icon: glyph(item.icon),
       label: item.label,
       active: vista === item.vista,

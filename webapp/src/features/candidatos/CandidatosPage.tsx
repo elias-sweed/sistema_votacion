@@ -9,6 +9,7 @@ import Edit02Icon from '@hugeicons/core-free-icons/Edit02Icon'
 import PlusSignIcon from '@hugeicons/core-free-icons/PlusSignIcon'
 import UserIcon from '@hugeicons/core-free-icons/UserIcon'
 import { supabase } from '../../lib/supabase'
+import type { RolPanel } from '../../lib/roles'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { borrarCandidato, mensajeBorrado } from '../../lib/borrado'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
@@ -41,10 +42,10 @@ function iniciales(texto: string) {
 
 function imagenPlaceholder(nombre: string) {
   const siglas = iniciales(nombre) || '?'
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="853" viewBox="0 0 640 853">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">
 <defs><linearGradient id="f" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b82f6"/><stop offset="0.55" stop-color="#1e3a8a"/><stop offset="1" stop-color="#050a1a"/></linearGradient></defs>
-<rect width="640" height="853" fill="url(#f)"/>
-<text x="320" y="470" text-anchor="middle" font-family="system-ui,sans-serif" font-size="220" font-weight="700" fill="rgba(255,255,255,0.92)">${siglas}</text>
+<rect width="640" height="480" fill="url(#f)"/>
+<text x="320" y="288" text-anchor="middle" font-family="system-ui,sans-serif" font-size="180" font-weight="700" fill="rgba(255,255,255,0.92)">${siglas}</text>
 </svg>`
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
@@ -79,7 +80,10 @@ function comprimirImagen(file: File): Promise<string> {
   })
 }
 
-export default function CandidatosPage() {
+type CandidatosPageProps = { rol?: RolPanel | null }
+
+export default function CandidatosPage({ rol }: CandidatosPageProps) {
+  const puedeEliminar = rol !== 'operador'
   const toast = useToast()
   const [candidatosInicial] = useState(() => leerCache<Candidato[]>(CLAVES_CACHE.candidatos))
   const [candidatos, setCandidatos] = useState<Candidato[]>(candidatosInicial ?? [])
@@ -290,6 +294,7 @@ export default function CandidatosPage() {
   }
 
   async function eliminarCandidato(c: Candidato) {
+    if (!puedeEliminar) return
     setEliminando(true)
     try {
       const resultado = await borrarCandidato(c.id)
@@ -342,14 +347,16 @@ export default function CandidatosPage() {
           <HugeiconsIcon icon={Edit02Icon} size={14} strokeWidth={1.8} />
           Editar
         </button>
-        <button
-          type="button"
-          onClick={() => { setEditandoId(null); setConfirmandoEliminar(c) }}
-          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-200 transition hover:bg-red-500/10"
-        >
-          <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={1.8} />
-          Eliminar
-        </button>
+        {puedeEliminar && (
+          <button
+            type="button"
+            onClick={() => { setEditandoId(null); setConfirmandoEliminar(c) }}
+            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-200 transition hover:bg-red-500/10"
+          >
+            <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={1.8} />
+            Eliminar
+          </button>
+        )}
       </div>
     )
   }
@@ -595,10 +602,10 @@ export default function CandidatosPage() {
                   squeeze={0.2}
                   focusOnClick
                   captions
-                  fit="natural"
+                  fit="landscape"
                   radius={0}
-                  lensWidth={0.74}
-                  lensHeight={1.18}
+                  lensWidth={1.18}
+                  lensHeight={0.74}
                   tilt={62}
                   roundness={1}
                   bend={0.34}

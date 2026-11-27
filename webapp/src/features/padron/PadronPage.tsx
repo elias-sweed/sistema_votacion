@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -18,8 +18,10 @@ import {
   detectarColumnasPadron,
   importarLotePadron,
   insertarVotantePadron,
-  listarVotantes
+  listarTodosVotantes
 } from '../../lib/padronCompat'
+import { cumpleFiltroDatos } from '../../lib/padronIncompleto'
+import type { FiltroDatosPadron } from '../../lib/padronIncompleto'
 import { useToast } from '../../components/ui/ToastProvider'
 import { PadronSkeleton } from '../panel/PanelSkeletons'
 import { AdminCard } from '../../components/ui/AdminCard'
@@ -87,6 +89,14 @@ const NOMBRE_REGEX = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓ�
 const CLASE_SELECT =
   'w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15'
 
+const FILTROS_DATOS: Array<{ valor: FiltroDatosPadron; etiqueta: string }> = [
+  { valor: 'todos', etiqueta: 'Todos' },
+  { valor: 'incompletos', etiqueta: 'Datos incompletos' },
+  { valor: 'dni', etiqueta: 'DNI incompleto' },
+  { valor: 'nombre', etiqueta: 'Nombre incompleto' },
+  { valor: 'apellidos', etiqueta: 'Falta apellido' }
+]
+
 export default function PadronPage() {
   const toast = useToast()
   const location = useLocation()
@@ -124,8 +134,7 @@ export default function PadronPage() {
   const [enfocarDni, setEnfocarDni] = useState(false)
 
   // Datos
-  const [votantes, setVotantes] = useState<Votante[]>(() => listaInicial?.votantes ?? [])
-  const [totalCount, setTotalCount] = useState(() => listaInicial?.totalCount ?? 0)
+  const [todosVotantes, setTodosVotantes] = useState<Votante[]>(() => listaInicial?.votantes ?? [])
   const [estadisticasInicial] = useState(() => leerCache<Estadisticas>(CLAVES_CACHE.padronEstadisticas))
   const [estadisticas, setEstadisticas] = useState<Estadisticas | null>(estadisticasInicial)
 
@@ -136,9 +145,29 @@ export default function PadronPage() {
   // Filtros y paginación
   const [busqueda, setBusqueda] = useState('')
   const [soloPendientes, setSoloPendientes] = useState(false)
+  const [filtroDatos, setFiltroDatos] = useState<FiltroDatosPadron>('todos')
   const [pagina, setPagina] = useState(1)
   const [pageSize] = useState(50)
-  const totalPages = Math.ceil(totalCount / pageSize)
+
+  const votantesFiltrados = useMemo(() => {
+    const terminos = busqueda.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    return todosVotantes.filter((votante) => {
+      if (soloPendientes && votante.ha_votado) return false
+      if (terminos.length > 0) {
+        const texto = `${votante.dni} ${votante.nombre}`.toLowerCase()
+        if (!terminos.every((termino) => texto.includes(termino))) return false
+      }
+      return cumpleFiltroDatos(votante, filtroDatos)
+    })
+  }, [todosVotantes, busqueda, soloPendientes, filtroDatos])
+
+  const totalCount = todosVotantes.length
+  const totalPages = Math.ceil(votantesFiltrados.length / pageSize)
+  const paginaActual = Math.min(pagina, Math.max(1, totalPages))
+  const votantes = useMemo(
+    () => votantesFiltrados.slice((paginaActual - 1) * pageSize, paginaActual * pageSize),
+    [votantesFiltrados, paginaActual, pageSize]
+  )
 
   // Acciones masivas y exportación (se declaran antes de los derivados que las usan)
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
@@ -163,7 +192,7 @@ export default function PadronPage() {
 
   useEffect(() => {
     setSeleccionados(new Set())
-  }, [busqueda, soloPendientes, pagina])
+  }, [busqueda, soloPendientes, filtroDatos, pagina])
 
   // Importación
   const [importando, setImportando] = useState(false)
@@ -197,17 +226,15 @@ export default function PadronPage() {
     }
   }, [])
 
-  // Cargar votantes con filtros (funciona con o sin columnas grado/sección)
+  // Carga completa del padrón: el RPC acepta 200 filas por petición, así que
+  // se repite con offset hasta reunir todos los registros reales.
   const cargarVotantes = useCallback(async () => {
     setCargando(true)
     setError(null)
 
-    const vistaPorDefecto = !busqueda && !soloPendientes && pagina === 1
-    const { filas, total, error: err } = await listarVotantes({
-      busqueda,
-      soloPendientes,
-      limit: pageSize,
-      offset: (pagina - 1) * pageSize
+    const { filas, total, error: err } = await listarTodosVotantes({
+      busqueda: '',
+      soloPendientes: false
     })
     setCargando(false)
     if (err) { setError(mensajeDeError(err, 'No se pudo cargar el padrón.')); return }
@@ -220,13 +247,11 @@ export default function PadronPage() {
       ha_votado: v.ha_votado,
       creado_en: v.creado_en
     }))
-    setVotantes(lista)
-    setTotalCount(total)
+    setTodosVotantes(lista)
     setTieneDatos(true)
-    if (vistaPorDefecto) {
-      guardarCache(CLAVES_CACHE.padronLista, { votantes: lista, totalCount: total })
-    }
-  }, [busqueda, soloPendientes, pagina, pageSize])
+    setPagina(1)
+    guardarCache(CLAVES_CACHE.padronLista, { votantes: lista, totalCount: total })
+  }, [])
 
   useEffect(() => {
     cargarEstadisticas()
@@ -481,7 +506,7 @@ export default function PadronPage() {
     if (eliminandoVotantes) return
 
     const dnis = Array.from(seleccionados).filter((dni) => {
-      const votante = votantes.find((v) => v.dni === dni)
+      const votante = todosVotantes.find((v) => v.dni === dni)
       return votante ? !votante.ha_votado : false
     })
 
@@ -529,13 +554,7 @@ export default function PadronPage() {
       setPasswordEliminar('')
       setSeleccionados(new Set())
 
-      const restantes = Math.max(0, totalCount - dnis.length)
-      const ultimaPagina = Math.max(1, Math.ceil(restantes / pageSize))
-      if (pagina > ultimaPagina) {
-        setPagina(ultimaPagina)
-      } else {
-        await cargarVotantes()
-      }
+      await cargarVotantes()
       await cargarEstadisticas()
     } finally {
       setEliminandoVotantes(false)
@@ -566,34 +585,7 @@ export default function PadronPage() {
     if (exportando) return
     setExportando(true)
     try {
-      const filas: Votante[] = []
-
-      const tamano = 200
-      let offset = 0
-      let total = Number.POSITIVE_INFINITY
-
-      while (offset < total) {
-        const { filas: lista, total: totalRemoto, error: err } = await listarVotantes({
-          busqueda,
-          soloPendientes,
-          limit: tamano,
-          offset
-        })
-        if (err) throw err
-        if (lista.length === 0) break
-        total = totalRemoto
-        for (const fila of lista) {
-          filas.push({
-            dni: fila.dni,
-            nombre: fila.nombre,
-            grado: fila.grado ? String(fila.grado) : null,
-            seccion: fila.seccion ? String(fila.seccion) : null,
-            ha_votado: fila.ha_votado === true,
-            creado_en: String(fila.creado_en ?? '')
-          })
-        }
-        offset += tamano
-      }
+      const filas = votantesFiltrados
 
       if (filas.length === 0) {
         toast({
@@ -1143,9 +1135,29 @@ export default function PadronPage() {
           </AdminButton>
         </div>
 
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por calidad de datos">
+          {FILTROS_DATOS.map(({ valor, etiqueta }) => (
+            <button
+              key={valor}
+              type="button"
+              onClick={() => { setFiltroDatos(valor); setPagina(1) }}
+              aria-pressed={filtroDatos === valor}
+              className={`rounded-xl border px-3 py-1.5 text-xs transition ${
+                filtroDatos === valor
+                  ? 'border-blue-400/40 bg-blue-500/15 text-blue-100'
+                  : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              {etiqueta}
+            </button>
+          ))}
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-          <span>Mostrando {votantes.length} de {totalCount} votantes</span>
-          <span>Página {pagina} de {Math.max(1, totalPages)}</span>
+          <span>
+            Mostrando {votantes.length} de {votantesFiltrados.length} votantes filtrados · {totalCount} en total
+          </span>
+          <span>Página {paginaActual} de {Math.max(1, totalPages)}</span>
         </div>
       </div>
 
@@ -1203,7 +1215,7 @@ export default function PadronPage() {
               {votantes.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-4">
-                    {totalCount === 0 && !busqueda && !soloPendientes ? (
+                    {totalCount === 0 && !busqueda && !soloPendientes && filtroDatos === 'todos' ? (
                       <EmptyState
                         icon={<HugeiconsIcon icon={IdCardIcon} size={22} strokeWidth={1.7} />}
                         title="El padrón está vacío"
@@ -1291,13 +1303,13 @@ export default function PadronPage() {
         {/* Paginación */}
         {totalPages > 1 && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-4 py-3 text-sm text-slate-300">
-            <span>Página {pagina} de {totalPages} · Total: {totalCount}</span>
+            <span>Página {paginaActual} de {totalPages} · Total: {votantesFiltrados.length}</span>
             <div className="flex gap-2">
-              <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
+              <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={paginaActual === 1}
                 className="rounded-lg border border-white/10 bg-white/6 px-3 py-1 backdrop-blur-md transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
                 Anterior
               </button>
-              <button onClick={() => setPagina(p => Math.min(totalPages, p + 1))} disabled={pagina >= totalPages}
+              <button onClick={() => setPagina(p => Math.min(totalPages, p + 1))} disabled={paginaActual >= totalPages}
                 className="rounded-lg border border-white/10 bg-white/6 px-3 py-1 backdrop-blur-md transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
                 Siguiente
               </button>

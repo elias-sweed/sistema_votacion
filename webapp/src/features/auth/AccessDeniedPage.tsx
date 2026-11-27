@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
-import { esSesionAdmin } from '../../lib/session'
+import { esSesionAdmin, puedeEntrarPanel } from '../../lib/session'
 import { useNavegarConTransicion } from '../../lib/navegacion'
 
 export default function AccessDeniedPage() {
@@ -41,13 +41,13 @@ export default function AccessDeniedPage() {
       return
     }
 
-    if (esSesionAdmin(data.session)) {
+    if (esSesionAdmin(data.session) || puedeEntrarPanel(data.session)) {
       navigate('/admin', { replace: true })
       return
     }
 
     setMensaje(
-      'La sesión sigue sin el rol admin. Verifica que el rol esté en App Metadata (no en User Metadata) y vuelve a intentarlo.'
+      'La sesión sigue sin un rol válido (admin u operador). Verifica que el rol esté en App Metadata (no en User Metadata) y vuelve a intentarlo.'
     )
   }
 
@@ -75,8 +75,8 @@ export default function AccessDeniedPage() {
           <div className="min-w-0">
             <h1 className="text-xl font-semibold text-white">Acceso al panel restringido</h1>
             <p className="mt-1 text-sm text-slate-400">
-              La sesión se inició correctamente, pero este usuario no tiene el rol de administrador.
-              Por eso no se abrió el panel de gestión.
+              La sesión se inició correctamente, pero este usuario no tiene un rol con acceso al
+              panel (admin u operador). Por eso no se abrió la gestión.
             </p>
           </div>
         </div>
@@ -109,7 +109,9 @@ export default function AccessDeniedPage() {
         <p className="mt-4 text-xs leading-relaxed text-slate-500">
           Para habilitar el panel: en Supabase Dashboard → Authentication → Users → selecciona el
           usuario → <span className="text-slate-300">App Metadata</span> y agrega{' '}
-          <code className="rounded bg-white/10 px-1.5 py-0.5 text-slate-200">{'{"role":"admin"}'}</code>.
+          <code className="rounded bg-white/10 px-1.5 py-0.5 text-slate-200">{'{"role":"admin"}'}</code>{' '}
+          o{' '}
+          <code className="rounded bg-white/10 px-1.5 py-0.5 text-slate-200">{'{"role":"operador"}'}</code>.
           El rol debe estar en App Metadata; si está en User Metadata no se reconoce. Después usa
           «Volver a revisar» o cierra sesión y vuelve a ingresar.
         </p>

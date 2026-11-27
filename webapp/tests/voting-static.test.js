@@ -19,7 +19,6 @@ const frontend = sourceFiles(fileURLToPath(new URL('../src/', import.meta.url)))
 const kiosk = readFileSync(new URL('../src/features/voting/VotingKioskPage.tsx', import.meta.url), 'utf8');
 const kioskHeader = readFileSync(new URL('../src/features/voting/KioskHeader.tsx', import.meta.url), 'utf8');
 const maskedHeading = readFileSync(new URL('../src/components/ui/MaskedHeading.tsx', import.meta.url), 'utf8');
-const electricLogo = readFileSync(new URL('../src/components/ui/ElectricLogo.tsx', import.meta.url), 'utf8');
 const resultadosPage = readFileSync(new URL('../src/features/resultados/ResultadosPage.tsx', import.meta.url), 'utf8');
 const acta = readFileSync(new URL('../src/features/resultados/ActaImprimible.tsx', import.meta.url), 'utf8');
 const service = readFileSync(new URL('../src/features/voting/votingService.ts', import.meta.url), 'utf8');
@@ -65,6 +64,8 @@ const padronPage = readFileSync(
   'utf8'
 );
 const importarPadron = readFileSync(new URL('../src/lib/importarPadron.ts', import.meta.url), 'utf8');
+const padronCompat = readFileSync(new URL('../src/lib/padronCompat.ts', import.meta.url), 'utf8');
+const padronIncompleto = readFileSync(new URL('../src/lib/padronIncompleto.ts', import.meta.url), 'utf8');
 const mesasPage = readFileSync(new URL('../src/features/mesas/MesasPage.tsx', import.meta.url), 'utf8');
 const candidatosPage = readFileSync(new URL('../src/features/candidatos/CandidatosPage.tsx', import.meta.url), 'utf8');
 const candidatoImageField = readFileSync(new URL('../src/features/candidatos/CandidatoImageField.tsx', import.meta.url), 'utf8');
@@ -72,16 +73,49 @@ const flexCarousel = readFileSync(new URL('../src/components/ui/FlexCarousel.tsx
 const flipCard = readFileSync(new URL('../src/components/ui/FlipCard.tsx', import.meta.url), 'utf8');
 const chromaGrid = readFileSync(new URL('../src/components/ui/ChromaGrid.tsx', import.meta.url), 'utf8');
 const sessionHelper = readFileSync(new URL('../src/lib/session.ts', import.meta.url), 'utf8');
+const rolesHelper = readFileSync(new URL('../src/lib/roles.ts', import.meta.url), 'utf8');
 const supabaseClient = readFileSync(new URL('../src/lib/supabase.ts', import.meta.url), 'utf8');
+const auditoriaPage = readFileSync(
+  new URL('../src/features/auditoria/AuditoriaPage.tsx', import.meta.url),
+  'utf8'
+);
+const operadoresPage = readFileSync(
+  new URL('../src/features/operadores/OperadoresPage.tsx', import.meta.url),
+  'utf8'
+);
 
 test('frontend sources never include a service role key', () => {
   assert.doesNotMatch(frontend, /SUPABASE_SERVICE_ROLE_KEY|service_role/i);
 });
 
-test('admin gate only accepts the app_metadata admin role', () => {
+test('panel gate accepts only app_metadata admin or operador roles', () => {
   assert.doesNotMatch(app, /const\s+esAdmin\s*=\s*session\s*!==\s*null/);
   assert.match(app, /esSesionAdmin\(session\)/);
+  assert.match(app, /puedeEntrarPanel\(session\)/);
   assert.match(sessionHelper, /app_metadata\?\.role/);
+  assert.match(sessionHelper, /esSesionOperador/);
+  assert.match(rolesHelper, /ROL_ADMIN\s*=\s*'admin'/);
+  assert.match(rolesHelper, /ROL_OPERADOR\s*=\s*'operador'/);
+});
+
+test('operador is limited to candidates, padrón and read-only mesa', () => {
+  assert.match(rolesHelper, /operador:\s*\['candidatos',\s*'mesas',\s*'padron'\]/);
+  assert.match(panelDock, /puedeVerSeccion\(rol \?\? null, item\.vista\)/);
+  assert.match(panelPage, /puedeVerSeccion\(rol, vistaSolicitada\)/);
+  assert.match(mesasPage, /const soloLectura = rol === 'operador'/);
+  assert.match(mesasPage, /\{!soloLectura && \(\s*<AdminButton variant="secondary" onClick=\{\(\) => setMenuAbierto\(true\)\}/);
+  assert.match(candidatosPage, /const puedeEliminar = rol !== 'operador'/);
+  assert.match(candidatosPage, /\{puedeEliminar && \(/);
+});
+
+test('admin dashboard shows operator movements and can toggle operator accounts', () => {
+  assert.match(dashboardPage, /auditoria_operador/);
+  assert.match(dashboardPage, /Últimos movimientos/);
+  assert.match(auditoriaPage, /from\('auditoria_operador'\)/);
+  assert.match(operadoresPage, /activar \? 'activar' : 'desactivar'/);
+  assert.match(operadoresPage, /operacion: 'listar'/);
+  assert.match(proxy, /action: "operadores"/);
+  assert.match(proxy, /ban_duration: activar \? "none" : "876000h"/);
 });
 
 test('auth session is not persisted in localStorage', () => {
@@ -222,7 +256,7 @@ test('render failures are logged and shown instead of a black screen', () => {
 });
 
 test('padron works even when the remote table lacks grado and seccion columns', () => {
-  assert.match(padronPage, /listarVotantes\(/, 'listado uses the compatibility helper');
+  assert.match(padronPage, /listarTodosVotantes\(/, 'listado uses the paginated compatibility helper');
   assert.match(padronPage, /importarLotePadron\(/, 'import uses the compatibility helper');
   assert.match(padronPage, /insertarVotantePadron\(/, 'manual entry uses the compatibility helper');
   assert.match(padronPage, /detectarColumnasPadron\(/, 'schema is detected once');
@@ -240,6 +274,18 @@ test('import accepts uppercase headers in the order GRADO SECCION DNI APELLIDOS 
   assert.deepEqual(filas, [
     { dni: '12345678', nombre: 'Ana María Pérez García', grado: '1°', seccion: 'A' }
   ]);
+});
+
+test('padron loads every page and can filter incomplete records', () => {
+  assert.match(padronCompat, /export async function listarTodosVotantes/, 'a helper reads all pages');
+  assert.match(padronCompat, /offset \+= tamano/, 'each page advances the offset');
+  assert.match(padronCompat, /limit: tamano/, 'each batch respects the 200-row RPC cap');
+  assert.match(padronIncompleto, /digitos\.length !== 8/, 'DNI length is checked');
+  assert.match(padronIncompleto, /palabras\.length < 3/, 'missing surnames are detected');
+  assert.match(padronPage, /etiqueta: 'Datos incompletos'/, 'incomplete-data filter is offered');
+  assert.match(padronPage, /etiqueta: 'DNI incompleto'/, 'DNI filter is offered');
+  assert.match(padronPage, /etiqueta: 'Nombre incompleto'/, 'name filter is offered');
+  assert.match(padronPage, /etiqueta: 'Falta apellido'/, 'surname filter is offered');
 });
 
 test('manual padron form matches the template fields and a template can be downloaded', () => {
@@ -294,7 +340,7 @@ test('the candidate image preview is a FlipCard', () => {
   assert.match(candidatoImageField, /tiltMax=\{12\}/, 'tilt uses the requested intensity');
   assert.match(candidatoImageField, /glareOpacity=\{0\.22\}/, 'glare uses the requested opacity');
   assert.match(candidatoImageField, /hoverScale=\{1\.03\}/, 'hover scale matches the example');
-  assert.match(candidatoImageField, /width=\{300\}\s+height=\{400\}/, 'card uses the example size');
+  assert.match(candidatoImageField, /width=\{400\}\s+height=\{300\}/, 'card uses a 4:3 landscape size');
   assert.match(candidatoImageField, /radius=\{22\}/, 'card uses the example radius');
   assert.match(candidatoImageField, /shadowOpacity=\{0\.45\}/, 'shadow matches the example');
 
@@ -313,7 +359,8 @@ test('candidates can be browsed as Lista, Galería and Carrusel', () => {
   assert.match(candidatosPage, /from '\.\.\/\.\.\/components\/ui\/FlexCarousel'/, 'the local FlexCarousel is imported');
   assert.match(candidatosPage, /<FlexCarousel[\s\S]*?preset="liquid"/, 'the liquid preset is used');
   assert.match(candidatosPage, /intro="rise"[\s\S]*?cardHeight=\{0\.5\}/, 'the example intro and card height are used');
-  assert.match(candidatosPage, /lensWidth=\{0\.74\}[\s\S]*?lensHeight=\{1\.18\}/, 'the lens matches the example');
+  assert.match(candidatosPage, /fit="landscape"/, 'the carousel uses landscape cards');
+  assert.match(candidatosPage, /lensWidth=\{1\.18\}[\s\S]*?lensHeight=\{0\.74\}/, 'the lens matches landscape photos');
   assert.match(candidatosPage, /tilt=\{62\}[\s\S]*?bend=\{0\.34\}/, 'the bend matches the example');
   assert.match(candidatosPage, /curl="twist"[\s\S]*?dispersion=\{0\.45\}/, 'the curl and dispersion match the example');
   assert.match(candidatosPage, /onChange=\{\(indice\) => setCarruselIndice\(indice\)\}/, 'the focused candidate is tracked');
@@ -467,7 +514,7 @@ test('selecting a card shows ElectricBorder, then the candidate photo with yes/n
   assert.match(kiosk, /gsap\.timeline\(\)/, 'GSAP marks the selected card');
   assert.match(kiosk, /clearProps: 'transform'/, 'only cheap properties are animated');
   assert.match(kiosk, /if \(eleccionLista && step === 'confirm' && selectedCandidate\)/, 'confirmation is its own screen');
-  assert.match(kiosk, /h-\[58dvh\] w-auto max-w-full rounded-3xl object-contain/, 'the photo is large and fully visible');
+  assert.match(kiosk, /max-h-\[58dvh\] w-\[min\(90vw,900px\)\] max-w-full rounded-3xl object-contain/, 'the photo is large and fully visible');
   assert.match(kiosk, /alt=\{`Foto de \$\{selectedCandidate\.nombre\}`\}/, 'the photo has an accessible label');
   assert.doesNotMatch(kiosk, /bg-slate-950\/65 backdrop-blur-xl/, 'the blurred confirmation dialog was removed');
   assert.doesNotMatch(kiosk, /role=\"dialog\"/, 'no modal dialog remains');
@@ -544,46 +591,12 @@ test('the DNI header fits one screen with a video MaskedHeading, one-line names 
   assert.match(maskedHeading, /prefers-reduced-motion/, 'video and reveal respect reduced motion');
 
   assert.match(kioskHeader, /measureText/, 'the I.E. name is measured to avoid clipping');
-  assert.match(kioskHeader, /import ElectricLogo from '\.\.\/\.\.\/components\/ui\/ElectricLogo'/, 'the I.E. logo uses the electric renderer');
-  assert.match(kioskHeader, /import logoIE from '\.\.\/\.\.\/assets\/logo\.png'/, 'the local logo is the fallback');
-  assert.match(kioskHeader, /const fuenteLogo = logoUrl \|\| logoIE/, 'the configured logo is preferred');
-  assert.match(kioskHeader, /<ElectricLogo[\s\S]*?src=\{fuenteLogo\}/, 'the logo image is traced by the effect');
-  assert.match(kioskHeader, /color="#ecc7ff"/, 'the electric stroke colour is explicit');
-  assert.match(kioskHeader, /glowColor="#ad6dff"/, 'the electric glow colour is explicit');
-  assert.match(kioskHeader, /scale=\{0\.7\}/);
-  assert.match(kioskHeader, /strands=\{4\}/);
-  assert.match(kioskHeader, /bend=\{0\.6\}/);
-  assert.match(kioskHeader, /crackle=\{1\.5\}/);
-  assert.match(kioskHeader, /arcs=\{1\}/);
-  assert.match(kioskHeader, /speed=\{2\.5\}/);
-  assert.match(kioskHeader, /interactive/, 'the logo reacts to the pointer');
-  assert.match(kioskHeader, /intensity=\{1\}/);
-  assert.match(kioskHeader, /glow=\{1\}/);
-  assert.match(kioskHeader, /thickness=\{1\.5\}/);
-  assert.match(kioskHeader, /flicker=\{0\.6\}/);
-  assert.match(kioskHeader, /fill=\{0\}/);
-  assert.match(kioskHeader, /cursorIntensity=\{0\.75\}/);
-  assert.match(kioskHeader, /cursorRadius=\{100\}/);
-  assert.match(kioskHeader, /onRender=\{alRenderizarLogo\}/, 'the static logo gives way once the effect renders');
-  assert.match(kioskHeader, /object-contain/, 'the fallback logo is never cropped');
-  assert.match(kioskHeader, /alt=\{`Logo de \$\{nombreLogo\}`\}/, 'the logo stays labelled');
-  assert.match(kioskHeader, /aria-hidden="true" className="absolute inset-0"/, 'the WebGL canvas is decorative');
+  assert.match(kioskHeader, /object-contain/, 'the logo is never cropped');
+  assert.match(kioskHeader, /alt=\{`Logo de \$\{centro \|\| 'la institución educativa'\}`\}/, 'the logo stays labelled');
   assert.doesNotMatch(kioskHeader + maskedHeading, /truncate|text-ellipsis/, 'titles are never cut');
   assert.doesNotMatch(kiosk, /Kiosco electoral/, 'no extra label');
   assert.doesNotMatch(kiosk, /Mesa \{status\.mesa\.nombre\}/, 'no mesa badge');
   assert.doesNotMatch(kiosk, /Sigue las indicaciones en pantalla/, 'no instruction text');
-});
-
-test('ElectricLogo traces the I.E. logo with capped WebGL and reduced motion', () => {
-  assert.match(electricLogo, /from 'ogl'/, 'uses the installed ogl renderer');
-  assert.match(electricLogo, /renderer\.isWebgl2/, 'requires WebGL2');
-  assert.match(electricLogo, /Math\.min\(window\.devicePixelRatio \|\| 1, 2/, 'caps the device pixel ratio');
-  assert.match(electricLogo, /PIXEL_BUDGET/, 'caps the render budget');
-  assert.match(electricLogo, /traceShape\(image\)/, 'traces the supplied logo image');
-  assert.match(electricLogo, /prefers-reduced-motion/, 'respects reduced motion');
-  assert.match(electricLogo, /IntersectionObserver/, 'pauses outside the viewport');
-  assert.match(electricLogo, /getExtension\('WEBGL_lose_context'\)\?\.loseContext\(\)/, 'releases WebGL on unmount');
-  assert.doesNotMatch(electricLogo, /<img\b/, 'the effect draws on a canvas, not a second image');
 });
 
 test('the old fondo.jpg asset and its component are removed', () => {

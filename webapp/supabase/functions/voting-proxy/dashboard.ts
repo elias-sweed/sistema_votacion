@@ -63,7 +63,19 @@ interface DeleteRequest {
   id?: string;
 }
 
-type RequestBody = VerifyRequest | VoteRequest | StatusRequest | CandidatesRequest | DeleteRequest;
+interface OperadoresRequest {
+  action: "operadores";
+  operacion: "listar" | "activar" | "desactivar";
+  id?: string;
+}
+
+type RequestBody =
+  | VerifyRequest
+  | VoteRequest
+  | StatusRequest
+  | CandidatesRequest
+  | DeleteRequest
+  | OperadoresRequest;
 
 interface DbError {
   message: string;
@@ -75,18 +87,38 @@ interface DbResult {
   error: DbError | null;
 }
 
+export interface AuthUser {
+  id?: string;
+  email?: string;
+  banned_until?: string | null;
+  last_sign_in_at?: string | null;
+  app_metadata?: Record<string, unknown>;
+  user_metadata?: Record<string, unknown>;
+}
+
 // Solo se usa la parte de supabase-js que necesita este proxy. La interfaz
 // permite inyectar un doble en las pruebas sin acoplar la logica a Deno.
 export interface SupabaseLike {
   from: (table: string) => any;
   rpc: (name: string, params: Record<string, unknown>) => Promise<DbResult>;
-  // Solo lo usa la acción "borrar" para comprobar que el JWT
-  // pertenece a un administrador antes de tocar datos con service_role.
+  // Solo las acciones protegidas lo usan para comprobar que el JWT
+  // pertenece a un administrador antes de actuar con service_role.
   auth?: {
     getUser: (jwt?: string) => Promise<{
-      data: { user: { app_metadata?: Record<string, unknown> } | null };
+      data: { user: AuthUser | null };
       error: DbError | null;
     }>;
+    admin?: {
+      listUsers: (params?: { page?: number; perPage?: number }) => Promise<{
+        data: { users: AuthUser[] } | null;
+        error: DbError | null;
+      }>;
+      updateUserById: (id: string, attrs: {
+        ban_duration?: string;
+        app_metadata?: Record<string, unknown>;
+      }) => Promise<{ data: { user: AuthUser | null }; error: DbError | null }>;
+      revokeSessions?: (id: string) => Promise<{ error: DbError | null }>;
+    };
   };
 }
 
@@ -204,6 +236,15 @@ export function parseRequest(value: unknown): RequestBody | null {
       return { action: "borrar", tabla: value.tabla, id: value.id };
     }
     return { action: "borrar", tabla: value.tabla as TablaBorrable };
+  }
+  if (value.action === "operadores") {
+    const operacion = value.operacion;
+    if (operacion !== "listar" && operacion !== "activar" && operacion !== "desactivar") {
+      return null;
+    }
+    if (operacion === "listar") return { action: "operadores", operacion };
+    if (typeof value.id !== "string" || !validateUuid(value.id)) return null;
+    return { action: "operadores", operacion, id: value.id };
   }
   return null;
 }
@@ -544,6 +585,145 @@ async function handleDelete(
   return json({ success: true, tabla: body.tabla });
 }
 
+type VerificacionAdmin =
+  | { ok: true; usuario: AuthUser }
+  | { ok: false; respuesta: Response };
+
+async function verificarAdmin(
+  supabase: SupabaseLike,
+  req: Request,
+): Promise<VerificacionAdmin> {
+  if (!supabase.auth?.getUser) {
+    return {
+      ok: false,
+      respuesta: json({ error: "La función no puede verificar la sesión" }, 500),
+    };
+  }
+
+  const token = extraerBearer(req);
+  if (!token) {
+    return {
+      ok: false,
+      respuesta: json({ error: "Se requiere una sesión de administrador" }, 401),
+    };
+  }
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data?.user) {
+    return { ok: false, respuesta: json({ error: "Sesión inválida o expirada" }, 401) };
+  }
+
+  const rol = data.user.app_metadata?.role;
+  if (typeof rol !== "string" || rol.toLowerCase() !== "admin") {
+    return {
+      ok: false,
+      respuesta: json({ error: "Acceso denegado: se requiere rol de administrador" }, 403),
+    };
+  }
+
+  return { ok: true, usuario: data.user };
+}
+
+function esOperador(usuario: AuthUser): boolean {
+  const rol = usuario.app_metadata?.role;
+  return typeof rol === "string" && rol.toLowerCase() === "operador";
+}
+
+async function listarOperadores(supabase: SupabaseLike): Promise<AuthUser[]> {
+  const admin = supabase.auth?.admin;
+  if (!admin?.listUsers) throw new Error("La Admin API no está disponible");
+
+  const encontrados: AuthUser[] = [];
+  const porPagina = 200;
+  for (let pagina = 1; pagina <= 50; pagina++) {
+    const { data, error } = await admin.listUsers({ page: pagina, perPage: porPagina });
+    if (error) throw new Error(error.message);
+    const usuarios = data?.users ?? [];
+    for (const usuario of usuarios) {
+      if (esOperador(usuario)) encontrados.push(usuario);
+    }
+    if (usuarios.length < porPagina) break;
+  }
+
+  return encontrados.map((usuario) => ({
+    id: usuario.id,
+    email: usuario.email,
+    banned_until: usuario.banned_until ?? null,
+    last_sign_in_at: usuario.last_sign_in_at ?? null,
+  }));
+}
+
+async function registrarAccionOperador(
+  supabase: SupabaseLike,
+  actor: AuthUser,
+  accion: string,
+  objetivo: AuthUser,
+): Promise<void> {
+  try {
+    const { error } = await supabase.from("auditoria_operador").insert({
+      actor_uuid: actor.id ?? null,
+      actor_email: actor.email ?? null,
+      rol: "admin",
+      accion,
+      entidad: "operador",
+      entidad_id: objetivo.id ?? null,
+      detalle: { email: objetivo.email ?? null },
+    });
+    if (error) logError("No se pudo registrar la acción del operador", error);
+  } catch (error) {
+    logError("No se pudo registrar la acción del operador", error);
+  }
+}
+
+async function handleOperadores(
+  supabase: SupabaseLike,
+  body: OperadoresRequest,
+  req: Request,
+): Promise<Response> {
+  const verificacion = await verificarAdmin(supabase, req);
+  if (!verificacion.ok) return verificacion.respuesta;
+
+  const admin = supabase.auth?.admin;
+  if (!admin?.updateUserById) {
+    return json({ error: "La Admin API no está disponible" }, 500);
+  }
+
+  if (body.operacion === "listar") {
+    try {
+      const operadores = await listarOperadores(supabase);
+      return json({ success: true, operadores });
+    } catch (error) {
+      logError("Error al listar operadores", error);
+      return json({ error: describeError(error) }, 500);
+    }
+  }
+
+  const id = body.id;
+  if (!id) return json({ error: "ID de operador inválido" }, 400);
+
+  const activar = body.operacion === "activar";
+  const { data, error } = await admin.updateUserById(id, {
+    ban_duration: activar ? "none" : "876000h",
+  });
+  if (error) {
+    logError("Error al actualizar el operador", error);
+    return json({ error: error.message }, 500);
+  }
+
+  if (!activar && admin.revokeSessions) {
+    try {
+      await admin.revokeSessions(id);
+    } catch (error) {
+      logError("No se pudieron revocar las sesiones del operador", error);
+    }
+  }
+
+  const objetivo = data?.user ?? { id };
+  await registrarAccionOperador(supabase, verificacion.usuario, body.operacion, objetivo);
+
+  return json({ success: true, operacion: body.operacion, id });
+}
+
 export async function handleProxyRequest(req: Request, deps: ProxyDependencies): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -577,6 +757,7 @@ export async function handleProxyRequest(req: Request, deps: ProxyDependencies):
     if (body.action === "candidatos") return await handleCandidates(deps.supabase);
     if (body.action === "verificar") return await handleVerify(deps.supabase, body, clientIp);
     if (body.action === "borrar") return await handleDelete(deps.supabase, body, req);
+    if (body.action === "operadores") return await handleOperadores(deps.supabase, body, req);
     return await handleVote(deps.supabase, body, clientIp);
   } catch (error) {
     logError("Error inesperado en voting-proxy", error);

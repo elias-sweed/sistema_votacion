@@ -146,8 +146,8 @@ export default function CandidatoImageField({
             perspective={1100}
             stiffness={170}
             damping={20}
-            width={300}
-            height={400}
+            width={400}
+            height={300}
             radius={22}
             background="#27272a"
             color="#f5f5f5"

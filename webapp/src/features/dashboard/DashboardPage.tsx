@@ -22,7 +22,23 @@ const TARJETA_OCULTA: Variants = {
   }
 }
 
-type Vista = 'candidatos' | 'mesas' | 'padron' | 'resultados' | 'configuracion'
+type Vista =
+  | 'candidatos'
+  | 'mesas'
+  | 'padron'
+  | 'resultados'
+  | 'configuracion'
+  | 'auditoria'
+  | 'operadores'
+
+type Movimiento = {
+  id: number
+  creado_en: string
+  actor_email: string | null
+  accion: string
+  entidad: string
+  detalle: Record<string, unknown> | null
+}
 
 type Resumen = {
   votantes: number
@@ -69,23 +85,28 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [cargando, setCargando] = useState(resumenInicial === null)
   const [tieneDatos, setTieneDatos] = useState(resumenInicial !== null)
   const [error, setError] = useState<string | null>(null)
+  const [movimientos, setMovimientos] = useState<Movimiento[]>([])
   const reducido = useReducedMotion()
 
   const cargar = useCallback(async () => {
     setCargando(true)
     setError(null)
 
-    const [estadisticas, candidatos, mesas, configuracion] = await Promise.all([
+    const [estadisticas, candidatos, mesas, configuracion, auditoria] = await Promise.all([
       supabase.rpc('obtener_estadisticas_padron'),
       supabase.from('candidatos').select('activo'),
       supabase.from('mesas').select('activo'),
-      supabase.from('configuracion').select('eleccion_abierta, titulo, centro').eq('id', 1).maybeSingle()
+      supabase.from('configuracion').select('eleccion_abierta, titulo, centro').eq('id', 1).maybeSingle(),
+      supabase.from('auditoria_operador')
+        .select('id, creado_en, actor_email, accion, entidad, detalle')
+        .order('creado_en', { ascending: false })
+        .limit(5)
     ])
 
-    if (estadisticas.error || candidatos.error || mesas.error || configuracion.error) {
+    if (estadisticas.error || candidatos.error || mesas.error || configuracion.error || auditoria.error) {
       setError(
         mensajeDeError(
-          estadisticas.error ?? candidatos.error ?? mesas.error ?? configuracion.error,
+          estadisticas.error ?? candidatos.error ?? mesas.error ?? configuracion.error ?? auditoria.error,
           'No se pudo cargar el resumen general.'
         )
       )
@@ -111,6 +132,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
       titulo: typeof conf.titulo === 'string' ? conf.titulo : '',
       centro: typeof conf.centro === 'string' ? conf.centro : ''
     }
+    setMovimientos((auditoria.data ?? []) as Movimiento[])
     setResumen(nuevoResumen)
     guardarCache(CLAVES_CACHE.dashboard, nuevoResumen)
     setTieneDatos(true)
@@ -244,6 +266,42 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                 <p className="text-xs text-slate-400">Estado de la elección</p>
               </div>
               <Badge variant="info">Gestionar</Badge>
+            </div>
+          </AdminCard>
+
+          <AdminCard
+            className="border-transparent transition hover:border-blue-400/40 sm:col-span-2"
+            onClick={() => onNavigate('auditoria')}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Últimos movimientos</p>
+                {movimientos.length === 0 ? (
+                  <p className="mt-2 text-sm text-slate-400">Todavía no hay movimientos registrados.</p>
+                ) : (
+                  <ul className="mt-2 space-y-1.5 text-sm text-slate-300">
+                    {movimientos.map((movimiento) => (
+                      <li key={movimiento.id} className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-slate-500">
+                          {new Date(movimiento.creado_en).toLocaleString('es-PE', {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })}
+                        </span>
+                        <span className="capitalize text-white">{movimiento.accion}</span>
+                        <span className="text-slate-400">{movimiento.entidad}</span>
+                        {typeof movimiento.detalle?.nombre === 'string' && (
+                          <span className="text-slate-500">{movimiento.detalle.nombre}</span>
+                        )}
+                        {movimiento.actor_email && (
+                          <span className="text-slate-500">· {movimiento.actor_email}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <Badge variant="info">Ver auditoría</Badge>
             </div>
           </AdminCard>
         </div>

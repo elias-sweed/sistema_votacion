@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import ElectricLogo from '../../components/ui/ElectricLogo'
+import { useLayoutEffect, useRef } from 'react'
 import MaskedHeading from '../../components/ui/MaskedHeading'
-import logoIE from '../../assets/logo.png'
 import videoTitulo from '../../assets/TituloVid/playa.mp4'
 
 type Props = {
@@ -56,22 +54,6 @@ function LineaAjustada({ texto, maxPx }: LineaProps) {
 }
 
 export default function KioskHeader({ titulo, centro, logoUrl }: Props) {
-  const [logoListo, setLogoListo] = useState(false)
-  const listoRef = useRef(false)
-  const fuenteLogo = logoUrl || logoIE
-  const nombreLogo = centro || 'la institución educativa'
-
-  useEffect(() => {
-    listoRef.current = false
-    setLogoListo(false)
-  }, [fuenteLogo])
-
-  const alRenderizarLogo = useCallback(() => {
-    if (listoRef.current) return
-    listoRef.current = true
-    setLogoListo(true)
-  }, [])
-
   return (
     <header className="relative mb-4 flex shrink-0 items-center gap-4 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 px-5 py-4 shadow-2xl sm:mb-5 sm:gap-6 sm:px-8 sm:py-5">
       <div
@@ -115,40 +97,14 @@ export default function KioskHeader({ titulo, centro, logoUrl }: Props) {
         )}
       </div>
 
-      <div className="relative h-16 w-16 shrink-0 sm:h-20 sm:w-20 lg:h-24 lg:w-24">
+      {logoUrl && (
         <img
-          src={fuenteLogo}
-          alt={`Logo de ${nombreLogo}`}
+          src={logoUrl}
+          alt={`Logo de ${centro || 'la institución educativa'}`}
           referrerPolicy="no-referrer"
-          className={`absolute inset-0 h-full w-full object-contain drop-shadow-[0_6px_18px_rgba(0,0,0,0.9)] transition-opacity duration-300 ${
-            logoListo ? 'opacity-0' : 'opacity-100'
-          }`}
+          className="relative h-16 w-16 shrink-0 object-contain drop-shadow-[0_6px_18px_rgba(0,0,0,0.9)] sm:h-20 sm:w-20 lg:h-24 lg:w-24"
         />
-        <div aria-hidden="true" className="absolute inset-0">
-          <ElectricLogo
-            key={fuenteLogo}
-            src={fuenteLogo}
-            color="#ecc7ff"
-            glowColor="#ad6dff"
-            scale={0.7}
-            strands={4}
-            bend={0.6}
-            crackle={1.5}
-            arcs={1}
-            speed={2.5}
-            interactive
-            intensity={1}
-            glow={1}
-            thickness={1.5}
-            flicker={0.6}
-            fill={0}
-            cursorIntensity={0.75}
-            cursorRadius={100}
-            className="h-full w-full"
-            onRender={alRenderizarLogo}
-          />
-        </div>
-      </div>
+      )}
     </header>
   )
 }

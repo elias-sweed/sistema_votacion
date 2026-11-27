@@ -104,6 +104,58 @@ function createDeleteSupabase({
   };
 }
 
+function createOperatorSupabase({ rol = 'admin', listing = null } = {}) {
+  const idOperador = '123e4567-e89b-42d3-a456-426614174000';
+  const calls = { updates: [], revoked: [], audits: [] };
+  const adminUser = {
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    email: 'admin@admin.com',
+    app_metadata: { role: rol },
+  };
+  const objetivo = {
+    id: idOperador,
+    email: 'operador@correo.com',
+    banned_until: null,
+    last_sign_in_at: null,
+    app_metadata: { role: 'operador' },
+  };
+
+  function builder(table) {
+    const b = {
+      insert: (values) => {
+        calls.audits.push({ table, values });
+        return b;
+      },
+      then: (resolve) => Promise.resolve({ data: null, error: null }).then(resolve),
+    };
+    return b;
+  }
+
+  return {
+    calls,
+    idOperador,
+    from: (table) => builder(table),
+    rpc: async () => ({ data: null, error: null }),
+    auth: {
+      getUser: async () => ({ data: { user: adminUser }, error: null }),
+      admin: {
+        listUsers: async () => ({
+          data: { users: listing ?? [objetivo, { ...objetivo, id: 'otro', app_metadata: { role: 'authenticated' } }] },
+          error: null,
+        }),
+        updateUserById: async (id, values) => {
+          calls.updates.push({ id, values });
+          return { data: { user: { ...objetivo, id } }, error: null };
+        },
+        revokeSessions: async (id) => {
+          calls.revoked.push(id);
+          return { error: null };
+        },
+      },
+    },
+  };
+}
+
 function proxyRequest(body, headers = {}) {
   return new Request('http://localhost/functions/v1/voting-proxy', {
     method: 'POST',
@@ -498,4 +550,62 @@ test('borrar propaga el error de safeupdate con su mensaje real', async (t) => {
   );
   assert.equal(response.status, 500);
   assert.match((await readJson(response)).error, /DELETE requires a WHERE clause/);
+});
+
+test('operadores requiere una sesión de administrador', async () => {
+  const supabase = createOperatorSupabase({ rol: 'operador' });
+  const response = await handleProxyRequest(
+    proxyRequest({ action: 'operadores', operacion: 'listar' }, { authorization: 'Bearer token' }),
+    { supabase },
+  );
+  assert.equal(response.status, 403);
+  assert.equal(supabase.calls.updates.length, 0);
+});
+
+test('operadores lista solo cuentas con app_metadata.role operador', async () => {
+  const supabase = createOperatorSupabase();
+  const response = await handleProxyRequest(
+    proxyRequest({ action: 'operadores', operacion: 'listar' }, { authorization: 'Bearer token' }),
+    { supabase },
+  );
+  assert.equal(response.status, 200);
+  const data = await readJson(response);
+  assert.equal(data.success, true);
+  assert.equal(data.operadores.length, 1);
+  assert.equal(data.operadores[0].email, 'operador@correo.com');
+});
+
+test('operadores desactiva, revoca sesiones y registra el movimiento', async () => {
+  const supabase = createOperatorSupabase();
+  const response = await handleProxyRequest(
+    proxyRequest(
+      { action: 'operadores', operacion: 'desactivar', id: supabase.idOperador },
+      { authorization: 'Bearer token' }
+    ),
+    { supabase },
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(supabase.calls.updates, [{
+    id: supabase.idOperador,
+    values: { ban_duration: '876000h' },
+  }]);
+  assert.deepEqual(supabase.calls.revoked, [supabase.idOperador]);
+  assert.equal(supabase.calls.audits.length, 1);
+  assert.equal(supabase.calls.audits[0].values.accion, 'desactivar');
+  assert.equal(supabase.calls.audits[0].values.entidad, 'operador');
+});
+
+test('operadores activa sin revocar sesiones', async () => {
+  const supabase = createOperatorSupabase();
+  const response = await handleProxyRequest(
+    proxyRequest(
+      { action: 'operadores', operacion: 'activar', id: supabase.idOperador },
+      { authorization: 'Bearer token' }
+    ),
+    { supabase },
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(supabase.calls.updates[0].values, { ban_duration: 'none' });
+  assert.equal(supabase.calls.revoked.length, 0);
+  assert.equal(supabase.calls.audits[0].values.accion, 'activar');
 });

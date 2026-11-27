@@ -59,13 +59,13 @@ function fotoOColor(candidate: Candidate): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;')
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">
     <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0c4a6e"/><stop offset="1" stop-color="#1e3a8a"/>
     </linearGradient></defs>
-    <rect width="640" height="800" fill="url(#g)"/>
-    <circle cx="320" cy="330" r="150" fill="#7dd3fc" opacity="0.18"/>
-    <text x="320" y="390" fill="#e0f2fe" font-family="monospace" font-size="150" font-weight="bold" text-anchor="middle">${siglas}</text>
+    <rect width="640" height="480" fill="url(#g)"/>
+    <circle cx="320" cy="240" r="150" fill="#7dd3fc" opacity="0.18"/>
+    <text x="320" y="290" fill="#e0f2fe" font-family="monospace" font-size="150" font-weight="bold" text-anchor="middle">${siglas}</text>
   </svg>`
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
@@ -393,7 +393,7 @@ export default function VotingKioskPage() {
           src={fotoOColor(selectedCandidate)}
           alt={`Foto de ${selectedCandidate.nombre}`}
           referrerPolicy="no-referrer"
-          className="relative h-[58dvh] w-auto max-w-full rounded-3xl object-contain shadow-[0_25px_80px_-30px_rgba(0,0,0,0.9)]"
+          className="relative max-h-[58dvh] w-[min(90vw,900px)] max-w-full rounded-3xl object-contain shadow-[0_25px_80px_-30px_rgba(0,0,0,0.9)]"
         />
         <p className="relative mt-4 text-center text-2xl font-bold drop-shadow-lg sm:text-3xl">
           {selectedCandidate.nombre}
