@@ -165,14 +165,20 @@ export default function ResultadosPage({ onNavigate }: ResultadosPageProps) {
       eleccion_abierta?: boolean
     }
 
+    // Una papeleta equivaldrá a un elector que votó. Los agregados del panel
+    // salen todos del conteo de votos para que "Votos emitidos" y "Votaron"
+    // nunca se contradigan, incluso si ha_votado quedó desincronizado.
+    const totalVotos = filas.reduce((suma, fila) => suma + fila.votos, 0)
+    const totalVotantes = numero(est.total_votantes)
+
     const nuevo: Datos = {
       resultados: filas.sort((a, b) => b.votos - a.votos || a.nombre.localeCompare(b.nombre)),
       activos,
-      totalVotos: filas.reduce((suma, fila) => suma + fila.votos, 0),
-      totalVotantes: numero(est.total_votantes),
-      totalVotaron: numero(est.total_votaron),
-      totalPendientes: numero(est.total_pendientes),
-      participacion: numero(est.participacion_pct),
+      totalVotos,
+      totalVotantes,
+      totalVotaron: totalVotos,
+      totalPendientes: Math.max(totalVotantes - totalVotos, 0),
+      participacion: porcentaje(totalVotos, totalVotantes),
       porMesa: Array.isArray(est.por_mesa) ? est.por_mesa : [],
       titulo: typeof conf.titulo === 'string' ? conf.titulo : '',
       centro: typeof conf.centro === 'string' ? conf.centro : '',

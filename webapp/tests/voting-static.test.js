@@ -801,3 +801,19 @@ test('proxy always returns an explicit null name for unknown voters', () => {
   assert.match(proxy, /nombre: null/);
   assert.match(service, /data\.nombre != null/);
 });
+
+test('votes cast and voters who voted are always the same number', () => {
+  assert.match(resultadosPage, /const totalVotos = filas\.reduce/, 'the count comes from the ballot rows');
+  assert.match(resultadosPage, /totalVotaron: totalVotos/, 'Votaron mirrors Votos emitidos');
+  assert.match(resultadosPage, /totalPendientes: Math\.max\(totalVotantes - totalVotos, 0\)/);
+  assert.match(resultadosPage, /participacion: porcentaje\(totalVotos, totalVotantes\)/);
+  assert.doesNotMatch(resultadosPage, /totalVotaron: numero\(est\.total_votaron\)/, 'ha_votado cannot contradict the count');
+
+  const consistencia = readFileSync(
+    new URL('../supabase/migrations/023_resultados_consistencia.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(consistencia, /select count\(\*\) into v_votos from public\.votos/);
+  assert.match(consistencia, /v_votos,\s*\n\s*greatest\(v_total - v_votos, 0\)/);
+  assert.match(consistencia, /count\(v\.id\),\s*\n\s*greatest\(v_total - count\(v\.id\), 0\)/);
+});
