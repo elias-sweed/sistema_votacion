@@ -20,7 +20,7 @@ type Vista = 'inicio' | 'candidatos' | 'mesas' | 'padron' | 'resultados' | 'conf
 const SUBTITULOS: Record<Vista, string> = {
   inicio: 'Estado general del proceso electoral.',
   candidatos: 'Gestiona los candidatos y su estado.',
-  mesas: 'Administra las mesas, sus enlaces y la participación.',
+  mesas: 'Un solo enlace para toda la votación.',
   padron: 'Agrega una persona, importa el Excel o revisa el padrón cargado.',
   resultados: 'Sigue el conteo de votos y la participación en vivo.',
   configuracion: 'Estado de la elección, seguridad y zona peligrosa.'
@@ -37,7 +37,7 @@ const VISTA_POR_SECCION: Record<string, Vista> = {
 const BREADCRUMB: Record<Vista, string> = {
   inicio: 'Panel > Inicio',
   candidatos: 'Panel > Candidatos',
-  mesas: 'Panel > Mesas',
+  mesas: 'Panel > Mesa principal',
   padron: 'Panel > Padrón',
   resultados: 'Panel > Resultados',
   configuracion: 'Panel > Configuración'

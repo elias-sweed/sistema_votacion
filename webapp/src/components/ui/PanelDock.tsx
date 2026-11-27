@@ -29,7 +29,7 @@ type PanelDockProps = {
 const ITEMS: Array<{ vista: Vista; label: string; icon: typeof UserGroupIcon }> = [
   { vista: 'inicio', label: 'Inicio', icon: Home01Icon },
   { vista: 'candidatos', label: 'Candidatos', icon: UserGroupIcon },
-  { vista: 'mesas', label: 'Mesas', icon: Table01Icon },
+  { vista: 'mesas', label: 'Mesa', icon: Table01Icon },
   { vista: 'padron', label: 'Padrón', icon: IdCardIcon },
   { vista: 'resultados', label: 'Resultados', icon: ChartBarBigIcon },
   { vista: 'configuracion', label: 'Configuración', icon: Settings01Icon }

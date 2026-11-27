@@ -22,6 +22,7 @@ import { Badge } from '../../components/ui/Badge'
 import { AdminModal } from '../../components/ui/AdminModal'
 import { RevealSection } from '../../components/ui/RevealSection'
 import { EmptyState } from '../../components/ui/EmptyState'
+import FlipCard from '../../components/ui/FlipCard'
 import GridViewIcon from '@hugeicons/core-free-icons/GridViewIcon'
 import Menu01Icon from '@hugeicons/core-free-icons/Menu01Icon'
 
@@ -278,7 +279,7 @@ export default function CandidatosPage() {
         <button
           type="button"
           onClick={() => { setConfirmandoEliminar(null); iniciarEdicion(c) }}
-          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/[0.05] hover:text-white"
+          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
         >
           <HugeiconsIcon icon={Edit02Icon} size={14} strokeWidth={1.8} />
           Editar
@@ -309,10 +310,10 @@ export default function CandidatosPage() {
           className="flex-1 rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
         />
         <div className="flex gap-2">
-          <button type="submit" className="rounded-lg bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:brightness-110">
+          <button type="submit" className="rounded-lg bg-linear-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:brightness-110">
             Guardar
           </button>
-          <button type="button" onClick={cancelarEdicion} className="rounded-lg border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white backdrop-blur-md transition hover:bg-white/[0.1]">
+          <button type="button" onClick={cancelarEdicion} className="rounded-lg border border-white/10 bg-white/6 text-sm text-white backdrop-blur-md transition hover:bg-white/10">
             Cancelar
           </button>
         </div>
@@ -333,12 +334,12 @@ export default function CandidatosPage() {
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-300">
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/4 px-3 py-1.5 text-xs font-medium text-slate-300">
           <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
           {candidatos.length} {candidatos.length === 1 ? 'candidato' : 'candidatos'}
         </div>
 
-        <div className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1" role="group" aria-label="Vista de candidatos">
+        <div className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/4 p-1" role="group" aria-label="Vista de candidatos">
           <button
             type="button"
             onClick={() => setVista('lista')}
@@ -419,19 +420,16 @@ export default function CandidatosPage() {
               />
 
               {foto ? (
-                <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 sm:flex-row sm:items-center">
-                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/30">
-                    <img src={foto} alt="Fotografía del candidato" className="h-full w-full object-cover" />
-                  </div>
-                  <div className="min-w-0 flex-1">
+                <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                  <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-white">{nombreArchivo ?? 'Imagen seleccionada'}</p>
                     <p className="mt-1 text-xs text-slate-500">Optimizada automáticamente · 640 px · WebP</p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => archivoRef.current?.click()}
-                      className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/[0.12]"
+                      className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/12"
                     >
                       Cambiar
                     </button>
@@ -454,17 +452,17 @@ export default function CandidatosPage() {
                   onDragLeave={(e) => { const siguiente = e.relatedTarget as Node | null; if (!siguiente || !e.currentTarget.contains(siguiente)) setArrastrando(false) }}
                   onDrop={soltarImagen}
                   className={`group flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-6 py-8 text-center transition ${
-                    arrastrando ? 'border-blue-400/70 bg-blue-500/10' : 'border-white/15 bg-black/20 hover:border-blue-300/40 hover:bg-white/[0.04]'
+                    arrastrando ? 'border-blue-400/70 bg-blue-500/10' : 'border-white/15 bg-black/20 hover:border-blue-300/40 hover:bg-white/4'
                   }`}
                 >
-                  <span className={`grid h-12 w-12 place-items-center rounded-2xl border transition ${arrastrando ? 'border-blue-400/40 bg-blue-500/20 text-blue-200' : 'border-white/10 bg-white/[0.05] text-slate-300 group-hover:text-blue-200'}`}>
+                  <span className={`grid h-12 w-12 place-items-center rounded-2xl border transition ${arrastrando ? 'border-blue-400/40 bg-blue-500/20 text-blue-200' : 'border-white/10 bg-white/5 text-slate-300 group-hover:text-blue-200'}`}>
                     <HugeiconsIcon icon={ImageUpload01Icon} size={22} strokeWidth={1.7} />
                   </span>
                   <span className="space-y-1">
                     <span className="block text-sm font-medium text-white">{arrastrando ? 'Suelta la imagen aquí' : 'Arrastra tu imagen aquí'}</span>
                     <span className="block text-xs text-slate-500">o selecciona un archivo desde tu equipo</span>
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-2 text-xs font-medium text-slate-200 transition group-hover:bg-white/[0.1]">
+                  <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3.5 py-2 text-xs font-medium text-slate-200 transition group-hover:bg-white/10">
                     <HugeiconsIcon icon={ImageAdd01Icon} size={15} strokeWidth={1.8} />
                     Seleccionar imagen
                   </span>
@@ -473,6 +471,65 @@ export default function CandidatosPage() {
               )}
 
             </div>
+
+            {foto && (
+              <div className="col-span-3 flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-5">
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <span className="rounded-full border border-blue-400/25 bg-blue-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-blue-200">
+                    Vista previa de la tarjeta
+                  </span>
+                  <span className="text-xs text-slate-500">Foto por delante · datos por detrás</span>
+                </div>
+
+                <FlipCard
+                  front={
+                    <img
+                      src={foto}
+                      alt="Fotografía del candidato"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  }
+                  back={
+                    <div className="flex h-full flex-col justify-between bg-linear-to-br from-blue-500/90 via-blue-800/90 to-[#050a1a] p-6">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-100/80">
+                          Así se verá en la papeleta
+                        </p>
+                        <h4 className="mt-3 text-2xl font-bold leading-tight text-white">
+                          {nombre.trim() || 'Nombre del candidato'}
+                        </h4>
+                        <p className="mt-3 text-sm text-blue-100/80">Tarjeta del candidato</p>
+                      </div>
+                      <p className="text-xs text-blue-100/60">Toca para volver a la foto</p>
+                    </div>
+                  }
+                  axis="y"
+                  flipOnClick
+                  draggable
+                  dragDistance={0}
+                  tilt
+                  tiltMax={12}
+                  glare
+                  glareOpacity={0.22}
+                  hoverScale={1.03}
+                  perspective={1100}
+                  stiffness={170}
+                  damping={20}
+                  width={300}
+                  height={400}
+                  radius={22}
+                  background="#27272a"
+                  color="#f5f5f5"
+                  shadow
+                  shadowColor="#000000"
+                  shadowOpacity={0.45}
+                  ariaLabel="Vista previa de la tarjeta del candidato: toca para girar"
+                />
+                <p className="text-center text-[11px] text-slate-500">
+                  Toca o arrastra la tarjeta para girarla
+                </p>
+              </div>
+            )}
 
             {error && (
               <div className="col-span-3 flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-200">
@@ -491,7 +548,7 @@ export default function CandidatosPage() {
               <button
                 type="submit"
                 disabled={guardando}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 text-sm font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-linear-to-r from-blue-400 via-sky-400 to-blue-600 px-6 text-sm font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <HugeiconsIcon icon={PlusSignIcon} size={18} strokeWidth={2} />
                 {guardando ? 'Guardando…' : 'Agregar candidato'}
@@ -529,7 +586,7 @@ export default function CandidatosPage() {
                           {c.foto_url ? (
                             <img src={c.foto_url} alt={c.nombre} className="h-full w-full object-cover" />
                           ) : (
-                            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500 via-blue-800 to-[#050a1a]">
+                            <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-blue-500 via-blue-800 to-[#050a1a]">
                               <span className="text-xl font-bold text-white/90">{iniciales(c.nombre) || '?'}</span>
                             </div>
                           )}
@@ -553,12 +610,12 @@ export default function CandidatosPage() {
           {candidatos.map((c) => {
             const estaEditando = editandoId === c.id
             return (
-              <div key={c.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl">
-                <div className="relative aspect-[4/3] overflow-hidden border-b border-white/10 bg-black/30">
+              <div key={c.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/4 backdrop-blur-xl">
+                <div className="relative aspect-4/3 overflow-hidden border-b border-white/10 bg-black/30">
                   {c.foto_url ? (
                     <img src={c.foto_url} alt={c.nombre} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500 via-blue-800 to-[#050a1a]">
+                    <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-blue-500 via-blue-800 to-[#050a1a]">
                       <span className="text-4xl font-bold text-white/90">{iniciales(c.nombre) || '?'}</span>
                     </div>
                   )}

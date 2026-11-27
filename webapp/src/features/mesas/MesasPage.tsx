@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { borrarMesa, mensajeBorrado } from '../../lib/borrado'
@@ -15,11 +14,14 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { RevealSection } from '../../components/ui/RevealSection'
 import { PasswordInput } from '../../components/ui/PasswordInput'
 import { HugeiconsIcon } from '@hugeicons/react'
+import Cancel01Icon from '@hugeicons/core-free-icons/Cancel01Icon'
+import CommandLineIcon from '@hugeicons/core-free-icons/CommandLineIcon'
 import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
 import Edit02Icon from '@hugeicons/core-free-icons/Edit02Icon'
-import Rotate01Icon from '@hugeicons/core-free-icons/Rotate01Icon'
 import Link01Icon from '@hugeicons/core-free-icons/Link01Icon'
-import CommandLineIcon from '@hugeicons/core-free-icons/CommandLineIcon'
+import PauseIcon from '@hugeicons/core-free-icons/PauseIcon'
+import PlayIcon from '@hugeicons/core-free-icons/PlayIcon'
+import Rotate01Icon from '@hugeicons/core-free-icons/Rotate01Icon'
 import Table01Icon from '@hugeicons/core-free-icons/Table01Icon'
 
 type Mesa = {
@@ -42,15 +44,11 @@ type ResumenMesa = {
   votos_emitidos: number
 }
 
-const GRADOS = ['1°', '2°', '3°', '4°', '5°', '6°'] as const
+const NOMBRE_PRINCIPAL = 'Mesa principal'
 
-function gradoDeNombre(nombre: string): string {
-  const texto = nombre.trim()
-  return GRADOS.find((grado) => texto === grado || texto.startsWith(`${grado} `)) ?? ''
+function esPrincipal(mesa: Mesa): boolean {
+  return mesa.nombre.trim().toLowerCase() === NOMBRE_PRINCIPAL.toLowerCase()
 }
-
-const CLASE_SELECT =
-  'w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15'
 
 function enlaceDeMesa(mesa: Mesa): string {
   if (!mesa.token_acceso) return ''
@@ -70,6 +68,7 @@ function comandoKiosco(mesa: Mesa): string {
 
 export default function MesasPage() {
   const toast = useToast()
+  const menuRef = useRef<HTMLDivElement>(null)
   const [mesasInicial] = useState(() => leerCache<Mesa[]>(CLAVES_CACHE.mesas))
   const [mesas, setMesas] = useState<Mesa[]>(mesasInicial ?? [])
   const [resumenes, setResumenes] = useState<Record<string, ResumenMesa>>({})
@@ -77,22 +76,37 @@ export default function MesasPage() {
   const [tieneDatos, setTieneDatos] = useState(mesasInicial !== null)
   const [error, setError] = useState<string | null>(null)
   const [exito, setExito] = useState<string | null>(null)
-
-  // Solo mesas por grado (1° a 6°), sin secciones ni altas en grupo.
-  const [grado, setGrado] = useState('')
   const [guardando, setGuardando] = useState(false)
 
-  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [menuAbierto, setMenuAbierto] = useState(false)
+  const [editando, setEditando] = useState(false)
   const [editNombre, setEditNombre] = useState('')
-  const [rotandoId, setRotandoId] = useState<string | null>(null)
-  const [confirmandoRotar, setConfirmandoRotar] = useState<Mesa | null>(null)
+  const [rotando, setRotando] = useState(false)
+  const [confirmandoRotar, setConfirmandoRotar] = useState(false)
   const [copiadoId, setCopiadoId] = useState<string | null>(null)
   const [copiadoComandoId, setCopiadoComandoId] = useState<string | null>(null)
-  const [confirmandoEliminar, setConfirmandoEliminar] = useState<Mesa | null>(null)
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
   const [passwordEliminar, setPasswordEliminar] = useState('')
   const [eliminando, setEliminando] = useState(false)
   const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
-  const [menuAbierto, setMenuAbierto] = useState<string | null>(null)
+
+  // Una sola mesa: se respeta la ya creada con este nombre y, si no existe,
+  // se adopta la primera para no perder los votos registrados.
+  const mesa = mesas.find(esPrincipal) ?? mesas[0] ?? null
+  const resumen = mesa ? resumenes[mesa.id] ?? null : null
+  const enlace = mesa ? enlaceDeMesa(mesa) : ''
+
+  useEffect(() => { void cargar() }, [])
+
+  useEffect(() => {
+    if (!menuAbierto) return
+    const alPresionar = (evento: KeyboardEvent) => {
+      if (evento.key === 'Escape') setMenuAbierto(false)
+    }
+    document.addEventListener('keydown', alPresionar)
+    menuRef.current?.querySelector<HTMLButtonElement>('[data-accion]')?.focus()
+    return () => document.removeEventListener('keydown', alPresionar)
+  }, [menuAbierto])
 
   async function cargar() {
     setCargando(true)
@@ -106,7 +120,7 @@ export default function MesasPage() {
     setCargando(false)
 
     if (mesasRes.error) {
-      setError(mensajeDeError(mesasRes.error, 'No se pudieron cargar las mesas.'))
+      setError(mensajeDeError(mesasRes.error, 'No se pudo cargar la mesa principal.'))
       return
     }
 
@@ -116,7 +130,7 @@ export default function MesasPage() {
     setTieneDatos(true)
 
     if (resumenRes.error) {
-      setError(mensajeDeError(resumenRes.error, 'No se pudo cargar la participación por mesa.'))
+      setError(mensajeDeError(resumenRes.error, 'No se pudo cargar la participación.'))
       return
     }
 
@@ -127,155 +141,131 @@ export default function MesasPage() {
     setResumenes(mapa)
   }
 
-  useEffect(() => { void cargar() }, [])
-
-  async function agregarMesa(e: FormEvent) {
-    e.preventDefault()
+  async function crearMesaPrincipal() {
     setError(null)
     setExito(null)
-    if (!GRADOS.includes(grado.trim() as typeof GRADOS[number])) {
-      setError('Selecciona uno de los seis grados.')
-      return
-    }
-    const nombreMesa = grado.trim()
     setGuardando(true)
 
     const { error: err } = await supabase.from('mesas')
-      .insert({ nombre: nombreMesa, activo: true })
+      .insert({ nombre: NOMBRE_PRINCIPAL, activo: true })
     setGuardando(false)
 
     if (err) {
-      if (err.code === '23505') setError(`La mesa ${nombreMesa} ya existe.`)
-      else setError(mensajeDeError(err, 'No se pudo agregar la mesa.'))
+      setError(mensajeDeError(err, 'No se pudo crear la mesa principal.'))
       return
     }
 
-    setGrado('')
-    const mensajeCambio = `se agregó la mesa de ${nombreMesa} grado`
-    setExito(mensajeCambio)
-    toast({ title: 'Mesa agregada', description: mensajeCambio, variant: 'success', duration: 3000 })
+    setExito('Se creó la mesa principal con su enlace único.')
+    toast({ title: 'Mesa principal creada', variant: 'success', duration: 3000 })
     await cargar()
   }
 
-  function iniciarEdicion(m: Mesa) {
-    setEditandoId(m.id)
-    setEditNombre(gradoDeNombre(m.nombre))
+  function iniciarEdicion() {
+    if (!mesa) return
+    setEditNombre(mesa.nombre)
     setError(null)
     setExito(null)
-    setMenuAbierto(null)
+    setMenuAbierto(false)
+    setEditando(true)
   }
 
-  function cancelarEdicion() {
-    setEditandoId(null)
-    setEditNombre('')
-  }
-
-  async function guardarEdicion(m: Mesa) {
-    setError(null)
-    setExito(null)
-    const nombreTrim = editNombre.trim()
-    if (!GRADOS.includes(nombreTrim as typeof GRADOS[number])) {
-      setError('Selecciona uno de los seis grados.')
+  async function guardarNombre() {
+    if (!mesa) return
+    const nombre = editNombre.trim()
+    if (!nombre) {
+      setError('Escribe un nombre para la mesa.')
       return
     }
-    if (nombreTrim === m.nombre) { setEditandoId(null); return }
+    if (nombre === mesa.nombre) {
+      setEditando(false)
+      return
+    }
 
     const { error: err } = await supabase.from('mesas')
-      .update({ nombre: nombreTrim }).eq('id', m.id)
-    if (err) {
-      if (err.code === '23505') setError('Ya existe una mesa con ese nombre.')
-      else setError(mensajeDeError(err, 'No se pudo actualizar la mesa.'))
-      return
-    }
+      .update({ nombre }).eq('id', mesa.id)
+    if (err) return
 
-    setEditandoId(null)
-    setEditNombre('')
-    setExito('Mesa actualizada.')
+    setEditando(false)
+    setExito('Nombre actualizado.')
+    toast({ title: 'Nombre actualizado', description: nombre, variant: 'success', duration: 2500 })
     await cargar()
   }
 
-  async function alternarActivo(m: Mesa) {
+  async function alternarActivo() {
+    if (!mesa) return
     setError(null)
     setExito(null)
-    setMenuAbierto(null)
+    setMenuAbierto(false)
 
     const { error: err } = await supabase.from('mesas')
-      .update({ activo: !m.activo }).eq('id', m.id)
+      .update({ activo: !mesa.activo }).eq('id', mesa.id)
     if (err) {
       toast({ title: 'No se pudo actualizar', description: mensajeDeError(err, err.message), variant: 'error', duration: 6000 })
       return
     }
+
     setMesas((prev) => {
-      const siguiente = prev.map((x) => (x.id === m.id ? { ...x, activo: !x.activo } : x))
+      const siguiente = prev.map((x) => x.id === mesa.id ? { ...x, activo: !x.activo } : x)
       guardarCache(CLAVES_CACHE.mesas, siguiente)
       return siguiente
     })
     toast({
-      title: m.activo ? 'Mesa desactivada' : 'Mesa activada',
-      description: m.nombre,
+      title: mesa.activo ? 'Mesa desactivada' : 'Mesa activada',
+      description: mesa.nombre,
       variant: 'success',
       duration: 3000
     })
   }
 
-  async function copiarEnlace(m: Mesa) {
-    const enlace = enlaceDeMesa(m)
+  async function copiarEnlace() {
     if (!enlace) {
-      setError('Esta mesa no tiene enlace.')
+      setError('La mesa no tiene enlace.')
       return
     }
     try {
       await navigator.clipboard.writeText(enlace)
-      setCopiadoId(m.id)
-      setExito(`Enlace de ${m.nombre} copiado.`)
-      toast({ title: 'Enlace copiado', description: m.nombre, variant: 'success', duration: 2500 })
-      window.setTimeout(() => setCopiadoId((actual) => actual === m.id ? null : actual), 2500)
+      setCopiadoId(mesa?.id ?? null)
+      setExito('Enlace copiado al portapapeles.')
+      toast({ title: 'Enlace copiado', variant: 'success', duration: 2500 })
+      window.setTimeout(() => setCopiadoId(null), 2500)
     } catch {
       setError('No se pudo copiar el enlace.')
     }
   }
 
-  function abrirEnlace(m: Mesa) {
-    const enlace = enlaceDeMesa(m)
-    if (!enlace) {
-      setError('Esta mesa no tiene enlace.')
+  function abrirEnlace() {
+    if (!enlace || !mesa?.activo) {
+      setError('El enlace no está disponible.')
       return
     }
     window.open(enlace, '_blank', 'noopener,noreferrer')
   }
 
-  async function copiarComandoKiosco(m: Mesa) {
-    const comando = comandoKiosco(m)
+  async function copiarComandoKiosco() {
+    const comando = mesa ? comandoKiosco(mesa) : ''
     if (!comando) {
-      setError('Esta mesa no tiene enlace.')
+      setError('La mesa no tiene enlace.')
       return
     }
     try {
       await navigator.clipboard.writeText(comando)
-      setCopiadoComandoId(m.id)
-      toast({
-        title: 'Comando kiosco copiado',
-        description: m.nombre,
-        variant: 'success',
-        duration: 2500
-      })
-      window.setTimeout(
-        () => setCopiadoComandoId((actual) => actual === m.id ? null : actual),
-        2500
-      )
+      setCopiadoComandoId(mesa?.id ?? null)
+      toast({ title: 'Comando kiosco copiado', variant: 'success', duration: 2500 })
+      window.setTimeout(() => setCopiadoComandoId(null), 2500)
     } catch {
       setError('No se pudo copiar el comando.')
     }
   }
 
-  async function rotarEnlace(m: Mesa) {
-    setRotandoId(m.id)
+  async function rotarEnlace() {
+    if (!mesa || rotando) return
+    setRotando(true)
     setError(null)
     setExito(null)
-    setMenuAbierto(null)
-    const { data, error: err } = await supabase.rpc('rotar_token_mesa', { p_mesa_id: m.id })
-    setRotandoId(null)
-    setConfirmandoRotar(null)
+
+    const { data, error: err } = await supabase.rpc('rotar_token_mesa', { p_mesa_id: mesa.id })
+    setRotando(false)
+    setConfirmandoRotar(false)
 
     if (err) {
       setError(mensajeDeError(err, 'No se pudo regenerar el enlace.'))
@@ -287,26 +277,25 @@ export default function MesasPage() {
     }
 
     setMesas((prev) => {
-      const siguiente = prev.map((x) => x.id === m.id ? { ...x, token_acceso: data } : x)
+      const siguiente = prev.map((x) => x.id === mesa.id ? { ...x, token_acceso: data } : x)
       guardarCache(CLAVES_CACHE.mesas, siguiente)
       return siguiente
     })
-    setExito(`Enlace de ${m.nombre} regenerado.`)
-    toast({ title: 'Enlace regenerado', description: m.nombre, variant: 'success', duration: 3000 })
+    setExito('Enlace regenerado. El anterior ya no funciona.')
+    toast({ title: 'Enlace regenerado', variant: 'success', duration: 3000 })
   }
 
   function cerrarEliminar() {
     if (eliminando) return
-    setConfirmandoEliminar(null)
+    setConfirmandoEliminar(false)
     setPasswordEliminar('')
     setErrorEliminar(null)
   }
 
   async function eliminarMesa() {
-    if (!confirmandoEliminar || eliminando) return
+    if (!mesa || eliminando) return
 
     setErrorEliminar(null)
-
     if (!passwordEliminar) {
       setErrorEliminar('Escribe tu contraseña para confirmar.')
       return
@@ -326,47 +315,55 @@ export default function MesasPage() {
         email,
         password: passwordEliminar
       })
-
       if (authError) {
         setErrorEliminar('Contraseña incorrecta.')
         return
       }
 
-      const resultado = await borrarMesa(confirmandoEliminar.id)
-
+      const resultado = await borrarMesa(mesa.id)
       if (!resultado.ok) {
         setErrorEliminar(mensajeBorrado(resultado))
         return
       }
 
-      const mensajeCambio = `se eliminó la mesa ${confirmandoEliminar.nombre}`
-      setExito(mensajeCambio)
-      toast({ title: 'Mesa eliminada', description: mensajeCambio, variant: 'success', duration: 3000 })
-      setConfirmandoEliminar(null)
-      setPasswordEliminar('')
+      setExito('Se eliminó la mesa principal y su enlace.')
+      toast({ title: 'Mesa eliminada', variant: 'success', duration: 3000 })
+      cerrarEliminar()
       await cargar()
     } finally {
       setEliminando(false)
     }
   }
 
-  const resumenGlobal = (mesas.length > 0 ? resumenes[mesas[0].id] : null) ?? null
-  const totalVotos = mesas.reduce(
-    (acc, m) => acc + Number(resumenes[m.id]?.votos_emitidos ?? 0),
-    0
-  )
-  const totales = {
-    mesas: mesas.length,
-    activas: mesas.filter((m) => m.activo).length,
-    padron: Number(resumenGlobal?.total_padron ?? 0),
-    votaron: Number(resumenGlobal?.votaron ?? 0),
-    votos: totalVotos
+  function filaMenu(
+    icono: typeof Edit02Icon,
+    etiqueta: string,
+    alHacerClic: () => void,
+    opciones: { peligro?: boolean; deshabilitado?: boolean } = {}
+  ) {
+    return (
+      <button
+        type="button"
+        data-accion
+        disabled={opciones.deshabilitado}
+        onClick={alHacerClic}
+        className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
+          opciones.peligro
+            ? 'text-red-200 hover:bg-red-500/12'
+            : 'text-slate-100 hover:bg-white/[0.09]'
+        }`}
+      >
+        <HugeiconsIcon icon={icono} size={17} strokeWidth={1.8} />
+        <span className="flex-1">{etiqueta}</span>
+      </button>
+    )
   }
 
-  return (    <RevealSection className="space-y-6">
+  return (
+    <RevealSection className="space-y-6">
       <SectionHeader
-        title="Mesas / Salones"
-        description="Administra las mesas, sus enlaces y la participación."
+        title="Mesa principal"
+        description="Un solo enlace para toda la votación."
         actions={
           <AdminButton variant="secondary" size="sm" onClick={() => void cargar()} disabled={cargando}>
             {cargando ? 'Actualizando…' : 'Actualizar'}
@@ -376,295 +373,233 @@ export default function MesasPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <AdminCard>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Mesas activas</p>
-              <p className="text-2xl font-bold text-white">{totales.activas}</p>
-              <p className="text-xs text-slate-400">de {totales.mesas} registradas</p>
-            </div>
-            <Badge variant="info">Gestionar</Badge>
-          </div>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">En padrón</p>
+          <p className="mt-2 text-2xl font-bold text-white">{Number(resumen?.total_padron ?? 0)}</p>
         </AdminCard>
         <AdminCard>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">En padrón</p>
-              <p className="text-2xl font-bold text-white">{totales.padron}</p>
-            </div>
-          </div>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Ya votaron</p>
+          <p className="mt-2 text-2xl font-bold text-white">{Number(resumen?.votaron ?? 0)}</p>
         </AdminCard>
         <AdminCard>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Ya votaron</p>
-              <p className="text-2xl font-bold text-white">{totales.votaron}</p>
-            </div>
-          </div>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Votos por este enlace</p>
+          <p className="mt-2 text-2xl font-bold text-white">{Number(resumen?.votos_emitidos ?? 0)}</p>
         </AdminCard>
         <AdminCard>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Votos registrados</p>
-              <p className="text-2xl font-bold text-white">{totales.votos}</p>
-            </div>
-          </div>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Participación</p>
+          <p className="mt-2 text-2xl font-bold text-white">{Number(resumen?.participacion_pct ?? 0).toFixed(0)}%</p>
         </AdminCard>
       </div>
 
-      <AdminCard>
-        <div className="space-y-4">
-          <p className="text-sm text-slate-400">
-            Solo hay mesas por grado: 1°, 2°, 3°, 4°, 5° y 6°. Sin secciones ni grupos.
-          </p>
-
-          <form onSubmit={agregarMesa} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="sm:w-56">
-              <label htmlFor="mesa-grado" className="mb-1 block text-xs text-slate-400">Grado de la mesa</label>
-              <select
-                id="mesa-grado"
-                value={grado}
-                onChange={(e) => setGrado(e.target.value)}
-                className={CLASE_SELECT}
-              >
-                <option value="">Seleccionar el grado</option>
-                {GRADOS.map((g) => <option key={g} value={g}>{g} grado</option>)}
-              </select>
-            </div>
-
-            <button
-              type="submit"
-              disabled={guardando || !grado}
-              className="rounded-xl bg-linear-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {guardando ? 'Agregando…' : 'Agregar mesa'}
-            </button>
-          </form>
-
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          {exito && <p className="text-sm text-emerald-400">{exito}</p>}
-
-          <details className="group text-xs text-slate-500">
-            <summary className="cursor-pointer select-none font-medium text-slate-400 transition hover:text-white">
-              ℹ️ Cómo funciona el enlace de cada mesa
-            </summary>
-            <div className="mt-1.5 space-y-2 leading-relaxed">
-              <p>
-                Cada mesa recibe un enlace único. Ábrelo en la máquina de ese salón y el voto quedará
-                registrado en esa mesa. Si regeneras el enlace, el anterior deja de funcionar.
-              </p>
-              <p>
-                Para dejarla a pantalla completa, abre Chrome así en la máquina del salón:
-              </p>
-              <code className="block overflow-x-auto rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-[11px] text-slate-300">
-                chrome --kiosk "https://tu-dominio/votar/TOKEN"
-              </code>
-              <p>
-                En el menú <span className="text-slate-300">Más</span> de cada mesa tienes{' '}
-                <span className="text-slate-300">Copiar comando kiosco</span>. La guía completa
-                (Edge, macOS, Linux e inicio automático) está en{' '}
-                <span className="text-slate-300">MODO_KIOSCO.md</span>.
-              </p>
-            </div>
-          </details>
-        </div>
-      </AdminCard>
+      {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
+      {exito && <p className="text-sm text-emerald-400">{exito}</p>}
 
       {cargando && !tieneDatos && <MesasSkeleton />}
-      {tieneDatos && mesas.length === 0 && (
+
+      {tieneDatos && !cargando && !mesa && (
         <AdminCard>
           <EmptyState
             icon={<HugeiconsIcon icon={Table01Icon} size={22} strokeWidth={1.7} />}
-            title="No hay mesas configuradas"
-            description="Crea la primera mesa para generar un enlace único de votación para ese salón."
+            title="No hay mesa principal"
+            description="Crea la mesa principal para generar el enlace único de votación."
             action={
-              <AdminButton
-                size="sm"
-                onClick={() => {
-                  requestAnimationFrame(() => document.getElementById('mesa-grado')?.focus())
-                }}
-              >
-                Agregar mesa
+              <AdminButton onClick={() => void crearMesaPrincipal()} disabled={guardando}>
+                {guardando ? 'Creando…' : 'Crear mesa principal'}
               </AdminButton>
             }
           />
         </AdminCard>
       )}
 
-      <ul className="grid gap-3 sm:grid-cols-2">
-        {mesas.map((m) => {
-          const r = resumenes[m.id]
-          const votosMesa = Number(r?.votos_emitidos ?? 0)
-          const porcentajeVotos = totalVotos > 0 ? (votosMesa / totalVotos) * 100 : 0
-          const enlace = enlaceDeMesa(m)
-          const estaEditando = editandoId === m.id
-          const menuEstaAbierto = menuAbierto === m.id
+      {mesa && (
+        <AdminCard className="relative overflow-hidden">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-400/25 bg-blue-500/12 text-blue-100">
+                <HugeiconsIcon icon={Table01Icon} size={20} strokeWidth={1.8} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Enlace único
+                </p>
+                <p className="truncate text-xl font-semibold text-white">{mesa.nombre}</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {mesa.activo ? 'Lista para recibir votos' : 'Enlace desactivado'}
+                  {mesa.token_acceso ? ` · …${mesa.token_acceso.slice(-6)}` : ' · sin enlace'}
+                </p>
+              </div>
+            </div>
+            <Badge variant={mesa.activo ? 'success' : 'default'}>
+              {mesa.activo ? 'Activa' : 'Inactiva'}
+            </Badge>
+          </div>
 
-          return (
-            <li key={m.id} className="rounded-2xl border border-white/10 bg-white/4 p-4 backdrop-blur-xl space-y-3">
-              {estaEditando ? (
-                <form onSubmit={(e) => { e.preventDefault(); void guardarEdicion(m); }} className="flex flex-col gap-2">
-                  <select value={editNombre} onChange={(e) => setEditNombre(e.target.value)}
-                    aria-label="Grado de la mesa"
-                    className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15">
-                    <option value="">Seleccionar el grado</option>
-                    {GRADOS.map((g) => <option key={g} value={g}>{g} grado</option>)}
-                  </select>
-                  <div className="flex gap-2">
-                    <button type="submit"
-                      className="flex-1 rounded-lg bg-linear-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:brightness-110">
-                      Guardar
-                    </button>
-                    <button type="button" onClick={cancelarEdicion}
-                      className="flex-1 rounded-lg border border-white/10 bg-white/6 px-4 py-2 text-sm text-white backdrop-blur-md transition hover:bg-white/10">
-                      Cancelar
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className={`truncate text-lg font-semibold ${m.activo ? 'text-white' : 'text-slate-500 line-through'}`}>
-                        {m.nombre}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {m.activo ? 'Enlace operativo' : 'Enlace desactivado'}
-                        {m.token_acceso ? ` · …${m.token_acceso.slice(-6)}` : ' · sin enlace'}
-                      </p>
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${
-                      m.activo ? 'bg-emerald-400/15 text-emerald-200' : 'bg-slate-500/15 text-slate-400'
-                    }`}>
-                      {m.activo ? 'Activa' : 'Inactiva'}
-                    </span>
-                  </div>
+          <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Enlace de votación</p>
+            <p className="mt-1 break-all font-mono text-xs text-blue-100">
+              {enlace || 'Sin enlace disponible'}
+            </p>
+          </div>
 
-                  <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Votos registrados aquí</p>
-                    <p className="mt-1 text-2xl font-semibold tabular-nums text-white">{votosMesa}</p>
-                  </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <AdminButton onClick={() => void copiarEnlace()} disabled={!enlace}>
+              <span className="inline-flex items-center gap-2">
+                <HugeiconsIcon icon={Link01Icon} size={15} strokeWidth={1.8} />
+                {copiadoId === mesa.id ? 'Copiado' : 'Copiar enlace'}
+              </span>
+            </AdminButton>
+            <AdminButton variant="secondary" onClick={abrirEnlace} disabled={!enlace || !mesa.activo}>
+              <span className="inline-flex items-center gap-2">
+                <HugeiconsIcon icon={Link01Icon} size={15} strokeWidth={1.8} />
+                Abrir kiosco
+              </span>
+            </AdminButton>
+            <AdminButton variant="secondary" onClick={() => setMenuAbierto(true)}>
+              <span className="inline-flex items-center gap-2">
+                <HugeiconsIcon icon={Edit02Icon} size={15} strokeWidth={1.8} />
+                Más
+              </span>
+            </AdminButton>
+          </div>
 
-                  <div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>Del total de votos</span>
-                      <span className="tabular-nums">{porcentajeVotos.toFixed(1)}%</span>
-                    </div>
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-linear-to-r from-blue-400 to-sky-500"
-                        style={{ width: `${Math.min(100, Math.max(0, porcentajeVotos))}%` }}
-                      />
-                    </div>
-                  </div>
+          <details className="group mt-5 text-xs text-slate-500">
+            <summary className="cursor-pointer select-none font-medium text-slate-400 transition hover:text-white">
+              Cómo funciona el enlace
+            </summary>
+            <div className="mt-2 space-y-2 leading-relaxed">
+              <p>
+                Todas las personas del padrón votan desde este único enlace. Si lo regeneras, el
+                anterior deja de funcionar.
+              </p>
+              <p>Para abrirlo a pantalla completa en la máquina del salón:</p>
+              <code className="block overflow-x-auto rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-[11px] text-slate-300">
+                chrome --kiosk "https://tu-dominio/votar/TOKEN"
+              </code>
+              <p>
+                En <span className="text-slate-300">Más</span> puedes{' '}
+                <span className="text-slate-300">copiar el comando kiosco</span>. La guía completa
+                está en <span className="text-slate-300">MODO_KIOSCO.md</span>.
+              </p>
+            </div>
+          </details>
+        </AdminCard>
+      )}
 
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void copiarEnlace(m)}
-                      disabled={!enlace}
-                      className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-100 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <HugeiconsIcon icon={Link01Icon} size={13} strokeWidth={1.8} />
-                      {copiadoId === m.id ? 'Copiado' : 'Copiar enlace'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => abrirEnlace(m)}
-                      disabled={!enlace || !m.activo}
-                      className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <HugeiconsIcon icon={Link01Icon} size={13} strokeWidth={1.8} />
-                      Abrir kiosco
-                    </button>
+      {/* Acciones de la mesa: panel delantero que tapa el contenido de fondo. */}
+      {menuAbierto && mesa && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="presentation">
+          <button
+            type="button"
+            aria-label="Cerrar acciones de la mesa"
+            onClick={() => setMenuAbierto(false)}
+            className="absolute inset-0 cursor-default bg-slate-950/80 backdrop-blur-md"
+          />
+          <div
+            ref={menuRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Acciones de la mesa"
+            className="relative w-full max-w-sm rounded-3xl border border-white/12 bg-slate-950/95 p-2 shadow-[0_40px_120px_-30px_rgba(0,0,0,1)] animate-modal-in"
+          >
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Acciones de la mesa
+                </p>
+                <p className="mt-0.5 truncate text-sm font-semibold text-white">{mesa.nombre}</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Cerrar"
+                onClick={() => setMenuAbierto(false)}
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/8 hover:text-white"
+              >
+                <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={1.8} />
+              </button>
+            </div>
 
-                    {/* Menú de acciones secundarias */}
-                    <div className="relative inline-block">
-                      <button
-                        type="button"
-                        onClick={() => setMenuAbierto(menuEstaAbierto ? null : m.id)}
-                        className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-white/10"
-                      >
-                        <HugeiconsIcon icon={Edit02Icon} size={13} strokeWidth={1.8} />
-                        Más
-                      </button>
-                      {menuEstaAbierto && (
-                        <div className="absolute right-0 mt-1.5 w-48 rounded-xl border border-white/10 bg-slate-950/95 p-2 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)] backdrop-blur-xl z-50">
-                          <button
-                            type="button"
-                            onClick={() => { setMenuAbierto(null); void rotarEnlace(m) }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/5 hover:text-white transition"
-                          >
-                            <HugeiconsIcon icon={Rotate01Icon} size={13} strokeWidth={1.8} />
-                            Regenerar enlace
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setMenuAbierto(null); void copiarComandoKiosco(m) }}
-                            disabled={!enlace}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/5 hover:text-white transition disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            <HugeiconsIcon icon={CommandLineIcon} size={13} strokeWidth={1.8} />
-                            {copiadoComandoId === m.id ? 'Comando copiado' : 'Copiar comando kiosco'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setMenuAbierto(null); iniciarEdicion(m) }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/5 hover:text-white transition"
-                          >
-                            <HugeiconsIcon icon={Edit02Icon} size={13} strokeWidth={1.8} />
-                            Editar nombre
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setMenuAbierto(null); void alternarActivo(m) }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-200 hover:bg-white/5 hover:text-white transition"
-                          >
-                            {m.activo ? 'Desactivar' : 'Activar'}
-                          </button>
-                          <hr className="my-1 border-white/5" />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setMenuAbierto(null)
-                              setConfirmandoEliminar(m)
-                              setPasswordEliminar('')
-                              setErrorEliminar(null)
-                            }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-red-200 hover:bg-red-500/10 transition"
-                          >
-                            <HugeiconsIcon icon={Delete02Icon} size={13} strokeWidth={1.8} />
-                            Eliminar mesa
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </>
+            <div className="space-y-1">
+              {filaMenu(Edit02Icon, 'Editar nombre', iniciarEdicion)}
+              {filaMenu(
+                mesa.activo ? PauseIcon : PlayIcon,
+                mesa.activo ? 'Desactivar' : 'Activar',
+                () => { setMenuAbierto(false); void alternarActivo() }
               )}
-            </li>
-          )
-        })}
-      </ul>
+              {filaMenu(Rotate01Icon, 'Regenerar enlace', () => {
+                setMenuAbierto(false)
+                setConfirmandoRotar(true)
+              })}
+              {filaMenu(
+                CommandLineIcon,
+                copiadoComandoId === mesa.id ? 'Comando copiado' : 'Copiar comando kiosco',
+                () => { setMenuAbierto(false); void copiarComandoKiosco() },
+                { deshabilitado: !enlace }
+              )}
+            </div>
 
-      {confirmandoRotar && (
+            <div className="my-2 h-px bg-white/8" />
+
+            {filaMenu(Delete02Icon, 'Eliminar mesa', () => {
+              setMenuAbierto(false)
+              setPasswordEliminar('')
+              setErrorEliminar(null)
+              setConfirmandoEliminar(true)
+            }, { peligro: true })}
+
+            <button
+              type="button"
+              onClick={() => setMenuAbierto(false)}
+              className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs text-slate-400 transition hover:bg-white/8 hover:text-white"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {confirmandoRotar && mesa && (
         <AdminModal
-          open={confirmandoRotar !== null}
-          onClose={() => { if (!rotandoId) setConfirmandoRotar(null) }}
-          title={`Regenerar enlace de ${confirmandoRotar.nombre}`}
-          description="El enlace actual dejará de funcionar. La máquina de esa mesa tendrá que abrir el nuevo."
+          open={confirmandoRotar}
+          onClose={() => { if (!rotando) setConfirmandoRotar(false) }}
+          title={`Regenerar enlace de ${mesa.nombre}`}
+          description="El enlace actual dejará de funcionar. La máquina del salón tendrá que abrir el nuevo."
           confirmLabel="Regenerar enlace"
           confirmVariant="danger"
           tone="warning"
-          loading={rotandoId !== null}
-          onConfirm={() => void rotarEnlace(confirmandoRotar)}
+          loading={rotando}
+          onConfirm={() => void rotarEnlace()}
         />
       )}
 
-      {confirmandoEliminar && (
+      {editando && mesa && (
         <AdminModal
-          open={confirmandoEliminar !== null}
+          open={editando}
+          onClose={() => setEditando(false)}
+          title="Editar nombre de la mesa"
+          description="Este nombre aparece en el panel y en la verificación del votante."
+          confirmLabel="Guardar"
+          modalId="modal-nombre-mesa"
+          onConfirm={() => void guardarNombre()}
+        >
+          <label htmlFor="nombre-mesa" className="mb-1 block text-xs text-slate-400">
+            Nombre
+          </label>
+          <input
+            id="nombre-mesa"
+            autoFocus
+            value={editNombre}
+            onChange={(e) => setEditNombre(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void guardarNombre() }}
+            className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+          />
+          {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+        </AdminModal>
+      )}
+
+      {confirmandoEliminar && mesa && (
+        <AdminModal
+          open={confirmandoEliminar}
           onClose={cerrarEliminar}
-          title={`Eliminar mesa ${confirmandoEliminar.nombre}`}
+          title={`Eliminar ${mesa.nombre}`}
           description="Se borrará la mesa, su enlace y los votos registrados en ella. Esta acción no se puede deshacer."
           confirmLabel="Eliminar mesa"
           confirmVariant="danger"

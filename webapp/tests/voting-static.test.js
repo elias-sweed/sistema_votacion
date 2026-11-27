@@ -61,6 +61,8 @@ const padronPage = readFileSync(
 );
 const importarPadron = readFileSync(new URL('../src/lib/importarPadron.ts', import.meta.url), 'utf8');
 const mesasPage = readFileSync(new URL('../src/features/mesas/MesasPage.tsx', import.meta.url), 'utf8');
+const candidatosPage = readFileSync(new URL('../src/features/candidatos/CandidatosPage.tsx', import.meta.url), 'utf8');
+const flipCard = readFileSync(new URL('../src/components/ui/FlipCard.tsx', import.meta.url), 'utf8');
 const chromaGrid = readFileSync(new URL('../src/components/ui/ChromaGrid.tsx', import.meta.url), 'utf8');
 const sessionHelper = readFileSync(new URL('../src/lib/session.ts', import.meta.url), 'utf8');
 const supabaseClient = readFileSync(new URL('../src/lib/supabase.ts', import.meta.url), 'utf8');
@@ -251,14 +253,44 @@ test('manual padron form matches the template fields and a template can be downl
   assert.match(padronPage, /Apellido Materno/, 'labels match the template headers');
 });
 
-test('mesas are only for the six grades, with no sections or groups', () => {
-  assert.match(mesasPage, /const GRADOS = \['1°', '2°', '3°', '4°', '5°', '6°'\]/, 'only six grades exist');
-  assert.match(mesasPage, /<select\s+id="mesa-grado"/, 'grade uses a native select');
-  assert.match(mesasPage, /const nombreMesa = grado\.trim\(\)/, 'the mesa name is just the grade');
-  assert.doesNotMatch(mesasPage, /SECCIONES|id="mesa-seccion"|setSeccion|modoAlta|gradosGrupo|seccionesGrupo|nombresMesasGrupo/, 'sections and group mode are gone');
-  assert.doesNotMatch(mesasPage, /type="checkbox"/, 'no chip selection remains');
-  assert.match(mesasPage, /gradoDeNombre/, 'editing an old mesa normalizes it to a grade');
-  assert.match(mesasPage, /<option value="">Seleccionar el grado<\/option>/, 'the edit control also uses the grade select');
+test('only one main mesa with one link is shown', () => {
+  assert.match(mesasPage, /NOMBRE_PRINCIPAL = 'Mesa principal'/, 'a single main mesa exists');
+  assert.match(mesasPage, /mesas\.find\(esPrincipal\) \?\? mesas\[0\] \?\? null/, 'only one mesa is selected');
+  assert.match(mesasPage, /insert\(\{ nombre: NOMBRE_PRINCIPAL, activo: true \}\)/, 'creating adds just the main mesa');
+  assert.doesNotMatch(mesasPage, /const GRADOS|gradoDeNombre|mesa-grado|mesa-seccion|modoAlta/, 'per-grade and grouped mesas are gone');
+  assert.doesNotMatch(mesasPage, /mesas\.map\(/, 'no list of mesas is rendered');
+  assert.match(mesasPage, /Un solo enlace para toda la votación/, 'the page explains the single link');
+});
+
+test('the Más menu is a front panel that covers the background', () => {
+  assert.match(mesasPage, /fixed inset-0 z-\[70\]/, 'the menu covers the viewport');
+  assert.match(mesasPage, /bg-slate-950\/80 backdrop-blur-md/, 'the background is hidden behind a blur');
+  assert.match(mesasPage, /role="dialog"\s+aria-modal="true"/, 'the actions are a modal dialog');
+  assert.match(mesasPage, /'Eliminar mesa'/, 'delete is in the front menu');
+  assert.match(mesasPage, /mesa\.activo \? 'Desactivar' : 'Activar'/, 'deactivate is in the front menu');
+  assert.match(mesasPage, /'Editar nombre'/, 'rename is in the front menu');
+  assert.match(mesasPage, /data-accion/, 'the front actions are focusable');
+  assert.match(mesasPage, /evento\.key === 'Escape'/, 'Escape closes the front panel');
+});
+
+test('the candidate image preview is a FlipCard', () => {
+  assert.match(candidatosPage, /from '..\/..\/components\/ui\/FlipCard'/, 'local FlipCard is imported');
+  assert.match(candidatosPage, /<FlipCard[\s\S]*?front=\{/, 'the photo is on the front');
+  assert.match(candidatosPage, /back=\{/, 'the candidate name is on the back');
+  assert.match(candidatosPage, /axis="y"/, 'it flips on the vertical axis');
+  assert.match(candidatosPage, /flipOnClick/, 'click flips the preview');
+  assert.match(candidatosPage, /dragDistance=\{0\}/, 'dragging is enabled with the default distance');
+  assert.match(candidatosPage, /tiltMax=\{12\}/, 'tilt uses the requested intensity');
+  assert.match(candidatosPage, /glareOpacity=\{0\.22\}/, 'glare uses the requested opacity');
+  assert.match(candidatosPage, /hoverScale=\{1\.03\}/, 'hover scale matches the example');
+  assert.match(candidatosPage, /width=\{300\}\s+height=\{400\}/, 'card uses the example size');
+  assert.match(candidatosPage, /radius=\{22\}/, 'card uses the example radius');
+  assert.match(candidatosPage, /shadowOpacity=\{0\.45\}/, 'shadow matches the example');
+
+  assert.match(flipCard, /from 'motion\/react'/, 'motion powers the animation');
+  assert.match(flipCard, /useReducedMotion/, 'reduced motion is respected');
+  assert.match(flipCard, /aria-pressed=\{shown\}/, 'flip state is exposed to assistive tech');
+  assert.match(flipCard, /role="button"/, 'the card is keyboard reachable');
 });
 
 test('padron separates individual entry, the Excel padrón and the loaded list', () => {
