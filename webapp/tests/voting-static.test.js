@@ -22,6 +22,11 @@ const maskedHeading = readFileSync(new URL('../src/components/ui/MaskedHeading.t
 const resultadosPage = readFileSync(new URL('../src/features/resultados/ResultadosPage.tsx', import.meta.url), 'utf8');
 const acta = readFileSync(new URL('../src/features/resultados/ActaImprimible.tsx', import.meta.url), 'utf8');
 const service = readFileSync(new URL('../src/features/voting/votingService.ts', import.meta.url), 'utf8');
+const votoBlancoHelper = readFileSync(new URL('../src/lib/votoBlanco.ts', import.meta.url), 'utf8');
+const migracionVotoBlanco = readFileSync(
+  new URL('../supabase/migrations/019_voto_en_blanco.sql', import.meta.url),
+  'utf8'
+);
 const proxyEntry = readFileSync(new URL('../supabase/functions/voting-proxy/index.ts', import.meta.url), 'utf8');
 const proxy = readFileSync(new URL('../supabase/functions/voting-proxy/handler.ts', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
@@ -490,6 +495,21 @@ test('candidate cards use ChromaGrid and stay full-screen with up to six visible
   assert.doesNotMatch(kiosk, /Elige a tu candidato/, 'no step title');
   assert.doesNotMatch(kiosk, /Toca para seleccionar/, 'no instructional text on the cards');
   assert.match(chromaGrid, /aria-pressed=\{onSelect \? selected : undefined\}/, 'ChromaGrid marks the tapped card');
+});
+
+test('voto en blanco is a fixed reserved option, hidden in the panel and shown in the kiosk', () => {
+  assert.match(votoBlancoHelper, /import imagenVotoBlanco from '\.\.\/assets\/boto_blanco\.png'/);
+  assert.match(votoBlancoHelper, /ID_VOTO_BLANCO = 'b1a0c4d2-6f1e-4c8a-9d3f-7e2a5c8b1f04'/);
+  assert.match(votoBlancoHelper, /export function esVotoBlanco/);
+  assert.match(votoBlancoHelper, /export function ordenarOpciones/);
+  assert.match(migracionVotoBlanco, /insert into public\.candidatos/);
+  assert.match(migracionVotoBlanco, /'Voto en blanco'/);
+  assert.match(migracionVotoBlanco, /on conflict \(id\) do update/, 'the migration is idempotent');
+  assert.match(kiosk, /if \(esVotoBlanco\(candidate\.id\)\) return IMAGEN_VOTO_BLANCO/);
+  assert.match(kiosk, /setCandidates\(ordenarOpciones\(activeCandidates\)\)/, 'blank vote goes last');
+  assert.match(kiosk, /candidato o voto en blanco/, 'screen reader announces the option');
+  assert.match(candidatosPage, /filter\(\(c\) => !esVotoBlanco\(c\.id\)\)/);
+  assert.equal((candidatosPage.match(/filter\(\(c\) => !esVotoBlanco\(c\.id\)\)/g) ?? []).length, 2, 'both cache and server lists are filtered');
 });
 
 test('selecting a card shows ElectricBorder, then the candidate photo with yes/no', () => {

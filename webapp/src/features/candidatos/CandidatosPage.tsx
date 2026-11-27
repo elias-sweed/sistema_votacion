@@ -10,6 +10,7 @@ import PlusSignIcon from '@hugeicons/core-free-icons/PlusSignIcon'
 import UserIcon from '@hugeicons/core-free-icons/UserIcon'
 import { supabase } from '../../lib/supabase'
 import type { RolPanel } from '../../lib/roles'
+import { esVotoBlanco } from '../../lib/votoBlanco'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { borrarCandidato, mensajeBorrado } from '../../lib/borrado'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
@@ -85,7 +86,10 @@ type CandidatosPageProps = { rol?: RolPanel | null }
 export default function CandidatosPage({ rol }: CandidatosPageProps) {
   const puedeEliminar = rol !== 'operador'
   const toast = useToast()
-  const [candidatosInicial] = useState(() => leerCache<Candidato[]>(CLAVES_CACHE.candidatos))
+  const [candidatosInicial] = useState(() => {
+    const cache = leerCache<Candidato[]>(CLAVES_CACHE.candidatos)
+    return cache === null ? null : cache.filter((c) => !esVotoBlanco(c.id))
+  })
   const [candidatos, setCandidatos] = useState<Candidato[]>(candidatosInicial ?? [])
   const [cargando, setCargando] = useState(candidatosInicial === null)
   const [tieneDatos, setTieneDatos] = useState(candidatosInicial !== null)
@@ -171,7 +175,7 @@ export default function CandidatosPage({ rol }: CandidatosPageProps) {
       .from('candidatos').select('*').order('creado_en', { ascending: true })
     setCargando(false)
     if (err) { setError(mensajeDeError(err, 'No se pudieron cargar los candidatos.')); return }
-    const lista = data ?? []
+    const lista = (data ?? []).filter((c) => !esVotoBlanco(c.id))
     setCandidatos(lista)
     guardarCache(CLAVES_CACHE.candidatos, lista)
     setTieneDatos(true)

@@ -15,6 +15,7 @@ import {
 import type { ElectionStatus } from './votingService'
 import KioskHeader from './KioskHeader'
 import { useOnlineStatus } from '../../lib/useOnlineStatus'
+import { esVotoBlanco, IMAGEN_VOTO_BLANCO, ordenarOpciones } from '../../lib/votoBlanco'
 
 type Candidate = Awaited<ReturnType<typeof loadActiveCandidates>>[number]
 type Step = 'dni' | 'candidates' | 'confirm' | 'success' | 'notice' | 'ambiguous'
@@ -52,6 +53,7 @@ function initials(name: string) {
 
 /** Imagen de respaldo para candidatos sin foto: nunca se ve un <img> roto. */
 function fotoOColor(candidate: Candidate): string {
+  if (esVotoBlanco(candidate.id)) return IMAGEN_VOTO_BLANCO
   if (candidate.foto_url) return candidate.foto_url
   const siglas = initials(candidate.nombre)
     .replace(/&/g, '&amp;')
@@ -155,7 +157,7 @@ export default function VotingKioskPage() {
         loadActiveCandidates(token),
       ])
       setStatus(electionStatus)
-      setCandidates(activeCandidates)
+      setCandidates(ordenarOpciones(activeCandidates))
     } catch (error) {
       const kind = error instanceof VotingError ? error.kind : 'unknown'
       setLoadError(
@@ -428,7 +430,7 @@ export default function VotingKioskPage() {
           Volver
         </button>
         <p className="sr-only" aria-live="polite">
-          {marcando ? 'Opción marcada. Preparando la confirmación…' : 'Toca la tarjeta de tu candidato.'}
+          {marcando ? 'Opción marcada. Preparando la confirmación…' : 'Toca la opción que prefieras: candidato o voto en blanco.'}
         </p>
         <div className="relative h-full w-full">
           <ChromaGrid
