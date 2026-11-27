@@ -244,11 +244,15 @@ main[data-dock] {
 
 @media print {
   @page {
-    margin: 16mm;
+    size: A4;
+    margin: 14mm;
   }
 
   html,
   body {
+    margin: 0;
+    padding: 0;
+    width: 210mm;
     background: #ffffff !important;
   }
 
@@ -258,7 +262,7 @@ main[data-dock] {
 
   .acta-imprimible,
   .acta-imprimible * {
-    visibility: visible;
+    visibility: visible !important;
   }
 
   .acta-imprimible {
@@ -266,8 +270,27 @@ main[data-dock] {
     position: absolute;
     inset: 0 auto auto 0;
     width: 100%;
+    overflow: visible;
     color: #111111;
     background: #ffffff;
     font-family: "Ubuntu Mono", monospace;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .acta-imprimible img {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .acta-imprimible table {
+    break-inside: auto;
+  }
+
+  .acta-imprimible tr,
+  .acta-imprimible section,
+  .acta-imprimible header,
+  .acta-imprimible footer {
+    break-inside: avoid;
   }
 }

@@ -13,6 +13,7 @@ import {
   VotingError,
 } from './votingService'
 import type { ElectionStatus } from './votingService'
+import KioskHeader from './KioskHeader'
 import { useOnlineStatus } from '../../lib/useOnlineStatus'
 
 type Candidate = Awaited<ReturnType<typeof loadActiveCandidates>>[number]
@@ -348,7 +349,7 @@ export default function VotingKioskPage() {
 
   if (!token) {
     return (
-      <main className="relative flex min-h-screen items-center justify-center px-4 py-10 text-white">
+      <main className="relative flex h-dvh w-full items-center justify-center overflow-hidden px-4 py-6 text-white">
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(37,99,235,0.18),transparent_55%)]" />
         <section className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950/80 p-8 text-center shadow-2xl backdrop-blur-xl">
           <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-400/15 text-2xl text-amber-200" aria-hidden="true">!</span>
@@ -479,28 +480,13 @@ export default function VotingKioskPage() {
   }
 
   return (
-    <main className="relative min-h-screen px-4 py-8 text-white sm:px-8 sm:py-12">
-      <div className="relative mx-auto w-full max-w-3xl">
-        <header className="mb-10 flex items-center justify-center gap-5 sm:gap-8">
-          <div className="min-w-0">
-            <h1 className="font-display text-3xl font-bold leading-tight tracking-tight sm:text-5xl">
-              {status?.title || 'Votación escolar'}
-            </h1>
-            {status?.centro && (
-              <p className="mt-2 font-display text-3xl font-bold leading-tight tracking-tight sm:text-5xl">
-                {status.centro}
-              </p>
-            )}
-          </div>
-          {status?.logoUrl && (
-            <img
-              src={status.logoUrl}
-              alt={`Logo de ${status.centro || 'la institución educativa'}`}
-              referrerPolicy="no-referrer"
-              className="h-20 w-20 shrink-0 object-contain sm:h-28 sm:w-28"
-            />
-          )}
-        </header>
+    <main className="relative flex h-dvh w-full flex-col items-center justify-center overflow-hidden px-4 py-3 text-white sm:px-8 sm:py-5">
+      <div className="relative flex min-h-0 w-full max-w-5xl flex-col">
+        <KioskHeader
+          titulo={status?.title || 'Votación escolar'}
+          centro={status?.centro}
+          logoUrl={status?.logoUrl}
+        />
 
         {!enLinea && (
           <div
@@ -524,12 +510,12 @@ export default function VotingKioskPage() {
         )}
 
         <section
-          className="rounded-3xl border border-white/10 bg-slate-950/75 p-5 shadow-2xl backdrop-blur-xl sm:p-8"
+          className="min-h-0 rounded-3xl border border-white/10 bg-slate-950/75 p-4 shadow-2xl backdrop-blur-xl sm:p-6 lg:p-8"
           aria-live="polite"
           aria-busy={loading || checking || submitting}
         >
           {loading && (
-            <div className="py-12 text-center" role="status">
+            <div className="py-8 text-center" role="status">
               <p className="text-slate-300">Consultando el estado de la elección…</p>
             </div>
           )}
@@ -544,7 +530,7 @@ export default function VotingKioskPage() {
           )}
 
           {!loading && !loadError && status && !status.open && (
-            <div className="py-12 text-center">
+            <div className="py-8 text-center">
               <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-800 text-2xl" aria-hidden="true">—</span>
               <h2 className="mt-5 text-2xl font-semibold">La votación está cerrada</h2>
               <p className="mt-2 text-slate-300">No se aceptan votos en este momento. Consulta al personal electoral.</p>
@@ -552,14 +538,14 @@ export default function VotingKioskPage() {
           )}
 
           {!loading && !loadError && status?.open && candidates.length === 0 && (
-            <div className="py-12 text-center">
+            <div className="py-8 text-center">
               <h2 className="text-2xl font-semibold">No hay opciones habilitadas</h2>
               <p className="mt-2 text-slate-300">La votación no puede continuar. Consulta al personal electoral.</p>
             </div>
           )}
 
           {eleccionLista && step === 'dni' && (
-            <div className="mx-auto max-w-md space-y-6">
+            <div className="mx-auto max-w-md space-y-5">
               <div className="text-center">
                 <h2 className="text-2xl font-semibold">Escribe tu DNI</h2>
                 <p className="mt-2 text-sm text-white/90">
@@ -630,7 +616,7 @@ export default function VotingKioskPage() {
           )}
 
           {step === 'success' && (
-            <div className="py-12 text-center" aria-live="polite">
+            <div className="py-8 text-center" aria-live="polite">
               <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-3xl text-emerald-300" aria-hidden="true">✓</span>
               <h2 className="mt-5 text-2xl font-bold text-emerald-200">Tu voto fue registrado</h2>
               <p className="mt-2 text-slate-300">Volviendo al ingreso del DNI para el siguiente votante…</p>
@@ -638,7 +624,7 @@ export default function VotingKioskPage() {
           )}
 
           {step === 'notice' && (
-            <div className="mx-auto max-w-md space-y-5 py-10 text-center">
+            <div className="mx-auto max-w-md space-y-5 py-8 text-center">
               <h2 className="text-2xl font-semibold">No se pudo completar la votación</h2>
               <p className="text-slate-200">{message}</p>
               <button type="button" onClick={resetFlow} className="kiosk-button-secondary">Volver al inicio</button>
@@ -646,7 +632,7 @@ export default function VotingKioskPage() {
           )}
 
           {step === 'ambiguous' && (
-            <div className="mx-auto max-w-md space-y-5 py-10 text-center">
+            <div className="mx-auto max-w-md space-y-5 py-8 text-center">
               <h2 className="text-2xl font-semibold text-amber-100">No hay confirmación del servidor</h2>
               <p className="text-slate-200">{message}</p>
               <p className="text-sm text-slate-400">Por seguridad, esta pantalla no volverá a enviar el voto. Pide al personal electoral que verifique el estado antes de continuar.</p>
@@ -657,7 +643,7 @@ export default function VotingKioskPage() {
           )}
         </section>
 
-        <footer className="mt-5 text-center text-xs text-slate-300">
+        <footer className="mt-3 text-center text-xs text-slate-300">
           Si necesitas ayuda, no compartas tu DNI en voz alta y consulta al personal electoral.
         </footer>
       </div>

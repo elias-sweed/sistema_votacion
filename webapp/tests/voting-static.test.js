@@ -17,6 +17,11 @@ const frontend = sourceFiles(fileURLToPath(new URL('../src/', import.meta.url)))
   .map((path) => readFileSync(path, 'utf8'))
   .join('\n');
 const kiosk = readFileSync(new URL('../src/features/voting/VotingKioskPage.tsx', import.meta.url), 'utf8');
+const kioskHeader = readFileSync(new URL('../src/features/voting/KioskHeader.tsx', import.meta.url), 'utf8');
+const maskedHeading = readFileSync(new URL('../src/components/ui/MaskedHeading.tsx', import.meta.url), 'utf8');
+const electricLogo = readFileSync(new URL('../src/components/ui/ElectricLogo.tsx', import.meta.url), 'utf8');
+const resultadosPage = readFileSync(new URL('../src/features/resultados/ResultadosPage.tsx', import.meta.url), 'utf8');
+const acta = readFileSync(new URL('../src/features/resultados/ActaImprimible.tsx', import.meta.url), 'utf8');
 const service = readFileSync(new URL('../src/features/voting/votingService.ts', import.meta.url), 'utf8');
 const proxyEntry = readFileSync(new URL('../supabase/functions/voting-proxy/index.ts', import.meta.url), 'utf8');
 const proxy = readFileSync(new URL('../supabase/functions/voting-proxy/handler.ts', import.meta.url), 'utf8');
@@ -94,6 +99,9 @@ test('animated background is global, decorative and never interactive', () => {
     'background has no pointer interaction'
   );
   assert.match(backgroundCanvas, /uTime/, 'only the background is animated');
+  assert.match(globalBackground, /<BackgroundCanvas\b/, 'the animated canvas is the background');
+  assert.doesNotMatch(globalBackground, /<img\b/, 'no static image sits behind the animation');
+  assert.doesNotMatch(frontend, /fondo\.jpg/, 'the old fondo.jpg asset is not referenced');
 });
 
 test('admin panel navigation uses the dock with a switchable position', () => {
@@ -347,6 +355,32 @@ test('the change and remove image buttons are below the FlipCard preview', () =>
   assert.doesNotMatch(candidatosPage, /onChange=\{seleccionarImagen\}/, 'the old inline uploader is gone');
 });
 
+test('the printable acta is a formal document with the I.E. logo', () => {
+  assert.match(resultadosPage, /import ActaImprimible from '\.\/ActaImprimible'/, 'the acta lives in its own component');
+  assert.match(resultadosPage, /<ActaImprimible[\s\S]*?titulo=\{datos\.titulo\}/, 'the election title is passed');
+  assert.match(resultadosPage, /centro=\{datos\.centro\}/, 'the school name is passed');
+  assert.match(resultadosPage, /resultados=\{ordenados\}/, 'the final count is passed');
+  assert.match(resultadosPage, /mesas=\{mesas\}/, 'the per-table count is passed');
+  assert.match(resultadosPage, /hayEmpate=\{empate\}/, 'ties are reported without a winner');
+  assert.doesNotMatch(resultadosPage, /<header style=\{\{ textAlign: 'center'/, 'the old compact acta is gone');
+
+  assert.match(acta, /import logoIE from '\.\.\/\.\.\/assets\/logo\.png'/, 'the I.E. logo is a bundled asset');
+  assert.match(acta, /<img[\s\S]*?src=\{logoIE\}/, 'the logo appears in the acta');
+  assert.match(acta, /Acta de resultados/, 'the document has a formal title');
+  assert.match(acta, /Se deja constancia/, 'the acta opens with a direct formal statement');
+  assert.match(acta, /Fecha de emisión/, 'the issue date is explicit');
+  assert.match(acta, /Total de votos emitidos/, 'the total is stated');
+  assert.match(acta, /Padrón electoral/, 'participation data is included');
+  assert.match(acta, /Votos por mesa/, 'the per-table detail is included');
+  assert.match(acta, /Firma del presidente de mesa/, 'signature lines are included');
+  assert.match(acta, /Firma del secretario de mesa/, 'both authorities sign');
+  assert.match(acta, /Observación[\s\S]*?empate/, 'a tie is recorded as an observation');
+
+  assert.match(estilos, /@page[\s\S]*?size: A4/, 'the document prints on A4');
+  assert.match(estilos, /print-color-adjust: exact/, 'the logo colours survive printing');
+  assert.match(estilos, /break-inside: avoid/, 'rows and sections do not split across pages');
+});
+
 test('padron separates individual entry, the Excel padrón and the loaded list', () => {
   const individual = padronPage.indexOf('id="padron-dni"');
   const excel = padronPage.indexOf('id="file-input"');
@@ -464,19 +498,103 @@ test('a confirmed vote announces success and returns straight to the DNI', () =>
   assert.doesNotMatch(kiosk, /Comenzar siguiente votante/, 'no extra button is needed');
 });
 
-test('the DNI screen header shows only the event, the school and the logo', () => {
-  assert.match(kiosk, /<header className="mb-10 flex items-center justify-center gap-5 sm:gap-8">/);
-  assert.match(kiosk, /\{status\?\.title \|\| 'Votación escolar'\}/, 'the event name comes first');
-  assert.match(kiosk, /\{status\.centro\}/, 'the school name comes below');
-  assert.match(
-    kiosk,
-    /font-display text-3xl font-bold leading-tight tracking-tight sm:text-5xl/,
-    'both names use the same large style'
-  );
-  assert.match(kiosk, /alt=\{`Logo de \$\{status\.centro \|\| 'la institución educativa'\}`\}/, 'the logo sits beside them');
+test('the DNI header fits one screen with a video MaskedHeading, one-line names and logo', () => {
+  assert.match(kiosk, /import KioskHeader from '\.\/KioskHeader'/, 'header lives in its own component');
+  assert.match(kiosk, /<KioskHeader[\s\S]*?titulo=\{status\?\.title \|\| 'Votación escolar'\}/, 'event name comes first');
+  assert.match(kiosk, /centro=\{status\?\.centro\}/, 'school name comes below');
+  assert.match(kiosk, /logoUrl=\{status\?\.logoUrl\}/, 'logo is passed to the header');
+  assert.match(kiosk, /h-dvh w-full flex-col items-center justify-center overflow-hidden/, 'the DNI screen never scrolls');
+  assert.doesNotMatch(kiosk, /min-h-screen px-4 py-8/, 'the old scrollable layout is gone');
+
+  assert.match(kioskHeader, /import MaskedHeading from '\.\.\/\.\.\/components\/ui\/MaskedHeading'/, 'masked title component is local');
+  assert.match(kioskHeader, /<MaskedHeading[\s\S]*?text=\{titulo\}/, 'the event name is the masked text');
+  assert.match(kioskHeader, /tag="h1"/, 'the masked title remains the main heading');
+  assert.match(kioskHeader, /mediaType="video"/, 'the letters are filled by video');
+  assert.match(kioskHeader, /src=\{videoTitulo\}/, 'the kiosk video fills the title');
+  assert.match(kioskHeader, /playa\.mp4/, 'the video asset is imported');
+  assert.match(kioskHeader, /fillScale=\{1\.25\}/);
+  assert.match(kioskHeader, /parallax=\{26\}/);
+  assert.match(kioskHeader, /reveal="scale"/);
+  assert.match(kioskHeader, /trigger="view"/);
+  assert.match(kioskHeader, /spotlight=\{false\}/);
+  assert.match(kioskHeader, /outline=\{false\}/);
+  assert.match(kioskHeader, /duration=\{1\.1\}/);
+  assert.match(kioskHeader, /stagger=\{0\.09\}/);
+  assert.match(kioskHeader, /drift=\{18\}/);
+  assert.match(kioskHeader, /hoverZoom=\{0\}/);
+  assert.match(kioskHeader, /align="center"/);
+  assert.match(kioskHeader, /brightness=\{1\}/);
+  assert.match(kioskHeader, /saturation=\{1\}/);
+  assert.match(kioskHeader, /grayscale=\{false\}/);
+  assert.match(kioskHeader, /outlineWidth=\{1\}/);
+  assert.match(kioskHeader, /weight=\{700\}/);
+  assert.match(kioskHeader, /tracking=\{-0\.03\}/);
+  assert.match(kioskHeader, /lineHeight=\{1\.06\}/);
+  assert.match(kioskHeader, /textScale=\{0\.115\}/);
+  assert.match(kioskHeader, /singleLine/, 'the masked title stays on one line');
+  assert.doesNotMatch(kioskHeader, /<video\b/, 'the video belongs to the letters, not a separate background');
+
+  assert.match(maskedHeading, /ref=\{measureRef\} className="text-transparent"/, 'the transparent measure text remains accessible');
+  assert.doesNotMatch(maskedHeading, /ref=\{measureRef\}[^\n]*aria-hidden/, 'the heading is not hidden from assistive tech');
+  assert.match(maskedHeading, /clipPath/, 'the video is clipped to the glyphs');
+  assert.match(maskedHeading, /<video[\s\S]*?autoPlay[\s\S]*?muted[\s\S]*?loop[\s\S]*?playsInline/, 'masked video is decorative and silent');
+  assert.match(maskedHeading, /whitespace-nowrap/, 'masked titles never wrap');
+  assert.match(maskedHeading, /getBoundingClientRect\(\)\.width/, 'the masked title is measured to avoid clipping');
+  assert.match(maskedHeading, /ResizeObserver/, 'masked titles resize with the viewport');
+  assert.match(maskedHeading, /prefers-reduced-motion/, 'video and reveal respect reduced motion');
+
+  assert.match(kioskHeader, /measureText/, 'the I.E. name is measured to avoid clipping');
+  assert.match(kioskHeader, /import ElectricLogo from '\.\.\/\.\.\/components\/ui\/ElectricLogo'/, 'the I.E. logo uses the electric renderer');
+  assert.match(kioskHeader, /import logoIE from '\.\.\/\.\.\/assets\/logo\.png'/, 'the local logo is the fallback');
+  assert.match(kioskHeader, /const fuenteLogo = logoUrl \|\| logoIE/, 'the configured logo is preferred');
+  assert.match(kioskHeader, /<ElectricLogo[\s\S]*?src=\{fuenteLogo\}/, 'the logo image is traced by the effect');
+  assert.match(kioskHeader, /color="#ecc7ff"/, 'the electric stroke colour is explicit');
+  assert.match(kioskHeader, /glowColor="#ad6dff"/, 'the electric glow colour is explicit');
+  assert.match(kioskHeader, /scale=\{0\.7\}/);
+  assert.match(kioskHeader, /strands=\{4\}/);
+  assert.match(kioskHeader, /bend=\{0\.6\}/);
+  assert.match(kioskHeader, /crackle=\{1\.5\}/);
+  assert.match(kioskHeader, /arcs=\{1\}/);
+  assert.match(kioskHeader, /speed=\{2\.5\}/);
+  assert.match(kioskHeader, /interactive/, 'the logo reacts to the pointer');
+  assert.match(kioskHeader, /intensity=\{1\}/);
+  assert.match(kioskHeader, /glow=\{1\}/);
+  assert.match(kioskHeader, /thickness=\{1\.5\}/);
+  assert.match(kioskHeader, /flicker=\{0\.6\}/);
+  assert.match(kioskHeader, /fill=\{0\}/);
+  assert.match(kioskHeader, /cursorIntensity=\{0\.75\}/);
+  assert.match(kioskHeader, /cursorRadius=\{100\}/);
+  assert.match(kioskHeader, /onRender=\{alRenderizarLogo\}/, 'the static logo gives way once the effect renders');
+  assert.match(kioskHeader, /object-contain/, 'the fallback logo is never cropped');
+  assert.match(kioskHeader, /alt=\{`Logo de \$\{nombreLogo\}`\}/, 'the logo stays labelled');
+  assert.match(kioskHeader, /aria-hidden="true" className="absolute inset-0"/, 'the WebGL canvas is decorative');
+  assert.doesNotMatch(kioskHeader + maskedHeading, /truncate|text-ellipsis/, 'titles are never cut');
   assert.doesNotMatch(kiosk, /Kiosco electoral/, 'no extra label');
   assert.doesNotMatch(kiosk, /Mesa \{status\.mesa\.nombre\}/, 'no mesa badge');
   assert.doesNotMatch(kiosk, /Sigue las indicaciones en pantalla/, 'no instruction text');
+});
+
+test('ElectricLogo traces the I.E. logo with capped WebGL and reduced motion', () => {
+  assert.match(electricLogo, /from 'ogl'/, 'uses the installed ogl renderer');
+  assert.match(electricLogo, /renderer\.isWebgl2/, 'requires WebGL2');
+  assert.match(electricLogo, /Math\.min\(window\.devicePixelRatio \|\| 1, 2/, 'caps the device pixel ratio');
+  assert.match(electricLogo, /PIXEL_BUDGET/, 'caps the render budget');
+  assert.match(electricLogo, /traceShape\(image\)/, 'traces the supplied logo image');
+  assert.match(electricLogo, /prefers-reduced-motion/, 'respects reduced motion');
+  assert.match(electricLogo, /IntersectionObserver/, 'pauses outside the viewport');
+  assert.match(electricLogo, /getExtension\('WEBGL_lose_context'\)\?\.loseContext\(\)/, 'releases WebGL on unmount');
+  assert.doesNotMatch(electricLogo, /<img\b/, 'the effect draws on a canvas, not a second image');
+});
+
+test('the old fondo.jpg asset and its component are removed', () => {
+  assert.throws(
+    () => readFileSync(new URL('../src/assets/fondo.jpg', import.meta.url), 'utf8'),
+    'fondo.jpg no longer exists'
+  );
+  assert.throws(
+    () => readFileSync(new URL('../src/components/ui/GradientASCIIBackground.tsx', import.meta.url), 'utf8'),
+    'the static background component no longer exists'
+  );
 });
 
 test('the removed laser component is not bundled', () => {

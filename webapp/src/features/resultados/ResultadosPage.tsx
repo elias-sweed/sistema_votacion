@@ -16,6 +16,7 @@ import { Badge } from '../../components/ui/Badge'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { StatCard } from '../../components/ui/StatCard'
 import { RevealSection } from '../../components/ui/RevealSection'
+import ActaImprimible from './ActaImprimible'
 
 type VistaDestino = 'candidatos' | 'mesas' | 'configuracion'
 
@@ -558,110 +559,20 @@ export default function ResultadosPage({ onNavigate }: ResultadosPageProps) {
 
       {/* Documento imprimible: el CSS @media print oculta el resto de la app. */}
       {datos && hayCandidatos && (
-        <div className="acta-imprimible" aria-hidden="true">
-          <header style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <h1 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>
-              {datos.titulo || 'Elección de Municipios Escolares'}
-            </h1>
-            <p style={{ fontSize: '13px', margin: '4px 0 0' }}>{datos.centro}</p>
-            <p style={{ fontSize: '15px', fontWeight: 700, margin: '18px 0 0', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Acta de resultados
-            </p>
-            <p style={{ fontSize: '11px', margin: '4px 0 0' }}>
-              Emitida el{' '}
-              {new Date(datos.actualizadoEn).toLocaleString('es-PE', {
-                dateStyle: 'long',
-                timeStyle: 'short'
-              })}
-            </p>
-          </header>
-
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-            <thead>
-              <tr>
-                <th style={{ border: '1px solid #111', padding: '6px 8px', textAlign: 'left' }}>N.º</th>
-                <th style={{ border: '1px solid #111', padding: '6px 8px', textAlign: 'left' }}>Candidato</th>
-                <th style={{ border: '1px solid #111', padding: '6px 8px', textAlign: 'right' }}>Votos</th>
-                <th style={{ border: '1px solid #111', padding: '6px 8px', textAlign: 'right' }}>% del total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ordenados.map((candidato, indice) => (
-                <tr key={candidato.id}>
-                  <td style={{ border: '1px solid #111', padding: '6px 8px' }}>{indice + 1}</td>
-                  <td style={{ border: '1px solid #111', padding: '6px 8px' }}>{candidato.nombre}</td>
-                  <td style={{ border: '1px solid #111', padding: '6px 8px', textAlign: 'right' }}>
-                    {candidato.votos}
-                  </td>
-                  <td style={{ border: '1px solid #111', padding: '6px 8px', textAlign: 'right' }}>
-                    {formatearPorcentaje(porcentaje(candidato.votos, totalVotos))}%
-                  </td>
-                </tr>
-              ))}
-              <tr>
-                <td style={{ border: '1px solid #111', padding: '6px 8px', fontWeight: 700 }} colSpan={2}>
-                  Total de votos emitidos
-                </td>
-                <td style={{ border: '1px solid #111', padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>
-                  {totalVotos}
-                </td>
-                <td style={{ border: '1px solid #111', padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>
-                  100,0%
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <section style={{ marginTop: '18px', fontSize: '12px' }}>
-            <p style={{ margin: '0 0 6px' }}>
-              <strong>Padrón electoral:</strong> {datos.totalVotantes} votantes ·{' '}
-              <strong>Votaron:</strong> {datos.totalVotaron} ·{' '}
-              <strong>Pendientes:</strong> {datos.totalPendientes} ·{' '}
-              <strong>Participación:</strong> {formatearPorcentaje(datos.participacion)}%
-            </p>
-            <p style={{ margin: 0 }}>
-              <strong>Estado de la elección al emitir el acta:</strong>{' '}
-              {datos.eleccionAbierta ? 'abierta' : 'cerrada'}
-            </p>
-          </section>
-
-          {mesas.length > 0 && (
-            <section style={{ marginTop: '18px' }}>
-              <p style={{ fontSize: '12px', fontWeight: 700, margin: '0 0 6px' }}>Votos por mesa</p>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-                <thead>
-                  <tr>
-                    <th style={{ border: '1px solid #111', padding: '5px 8px', textAlign: 'left' }}>Mesa</th>
-                    <th style={{ border: '1px solid #111', padding: '5px 8px', textAlign: 'right' }}>Votos</th>
-                    <th style={{ border: '1px solid #111', padding: '5px 8px', textAlign: 'right' }}>% del total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mesas.map((mesa) => (
-                    <tr key={mesa.mesa_id}>
-                      <td style={{ border: '1px solid #111', padding: '5px 8px' }}>{mesa.mesa_nombre}</td>
-                      <td style={{ border: '1px solid #111', padding: '5px 8px', textAlign: 'right' }}>
-                        {numero(mesa.total)}
-                      </td>
-                      <td style={{ border: '1px solid #111', padding: '5px 8px', textAlign: 'right' }}>
-                        {formatearPorcentaje(porcentaje(numero(mesa.total), totalVotos))}%
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          )}
-
-          <footer style={{ marginTop: '56px', display: 'flex', justifyContent: 'space-around', gap: '24px', fontSize: '11px' }}>
-            <div style={{ textAlign: 'center', width: '40%' }}>
-              <div style={{ borderTop: '1px solid #111', paddingTop: '6px' }}>Presidente de mesa</div>
-            </div>
-            <div style={{ textAlign: 'center', width: '40%' }}>
-              <div style={{ borderTop: '1px solid #111', paddingTop: '6px' }}>Secretario de mesa</div>
-            </div>
-          </footer>
-        </div>
+        <ActaImprimible
+          titulo={datos.titulo}
+          centro={datos.centro}
+          actualizadoEn={datos.actualizadoEn}
+          eleccionAbierta={datos.eleccionAbierta}
+          resultados={ordenados}
+          totalVotos={totalVotos}
+          totalVotantes={datos.totalVotantes}
+          totalVotaron={datos.totalVotaron}
+          totalPendientes={datos.totalPendientes}
+          participacion={datos.participacion}
+          mesas={mesas}
+          hayEmpate={empate}
+        />
       )}
     </RevealSection>
   )
