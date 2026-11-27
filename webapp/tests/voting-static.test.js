@@ -84,6 +84,10 @@ const migracionRevisionPadron = readFileSync(
   new URL('../supabase/migrations/021_padron_revision.sql', import.meta.url),
   'utf8'
 );
+const migracionVotoUnico = readFileSync(
+  new URL('../supabase/migrations/022_fix_voto_unico.sql', import.meta.url),
+  'utf8'
+);
 const mesasPage = readFileSync(new URL('../src/features/mesas/MesasPage.tsx', import.meta.url), 'utf8');
 const candidatosPage = readFileSync(new URL('../src/features/candidatos/CandidatosPage.tsx', import.meta.url), 'utf8');
 const candidatoImageField = readFileSync(new URL('../src/features/candidatos/CandidatoImageField.tsx', import.meta.url), 'utf8');
@@ -358,6 +362,31 @@ test('padron rows have an edit button and edits are audited', () => {
   assert.match(migracionEdicionPadron, /after insert or update or delete on public\.votantes/);
   assert.match(migracionEdicionPadron, /'editar', 'votante', new\.dni/);
   assert.match(migracionEdicionPadron, /before update on public\.votantes/, 'integrity trigger');
+  assert.doesNotMatch(
+    migracionEdicionPadron,
+    /new\.ha_votado := old\.ha_votado/,
+    'the panel trigger must not revert the voting RPC update'
+  );
+  assert.match(migracionEdicionPadron, /if old\.ha_votado then[\s\S]*new\.ha_votado := true/);
+});
+
+test('a student who already voted cannot vote again', () => {
+  assert.match(service, /if \(!data\.puede_votar\) throw new VotingError\(/, 'frontend blocks a voted DNI');
+  assert.match(proxy, /puede_votar: result\.puede_votar === true/);
+  assert.match(proxy, /p_mesa_id: resolved\.mesa\.id/, 'vote is bound to the link mesa');
+  assert.match(proxy, /emitir_voto_con_limite/, 'vote goes through the atomic RPC');
+
+  assert.match(migracionVotoUnico, /new\.ha_votado := true/, 'voting update is preserved');
+  assert.doesNotMatch(
+    migracionVotoUnico,
+    /new\.ha_votado := old\.ha_votado/,
+    'the trigger never reopens a vote'
+  );
+  assert.match(migracionVotoUnico, /where dni = v_dni[\s\S]*for update/, 'row is locked for concurrency');
+  assert.match(migracionVotoUnico, /if not found or v_ya_voto is true then/, 'already voted is rejected');
+  assert.match(migracionVotoUnico, /v_quedo_marcado is not true/, 'persisted state is verified');
+  assert.match(migracionVotoUnico, /'P0004'/, 'duplicate vote error code');
+  assert.match(migracionVotoUnico, /not found or not v_conf\.eleccion_abierta/, 'no configuration means closed');
 });
 
 test('Excel import keeps every row: invalid ones go to a separate review list', () => {

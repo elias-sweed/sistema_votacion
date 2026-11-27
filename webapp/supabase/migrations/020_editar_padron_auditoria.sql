@@ -23,8 +23,11 @@ create policy operador_votantes_update on public.votantes
   using (public.es_operador())
   with check (public.es_operador());
 
--- 2. Integridad: nadie puede marcar/desmarcar un voto ni cambiar el DNI
---    de un votante que ya emitió su voto desde el panel. -------------------
+-- 2. Integridad: nadie puede DESMARCAR un voto ni cambiar el DNI de un
+--    votante que ya emitió su voto desde el panel. IMPORTANTE: SÍ se permite
+--    el paso de false a true, que es lo que hace emitir_voto_en_mesa.
+--    Copiar el valor anterior de ha_votado aquí rompía el voto único:
+--    la RPC marcaba al votante, el trigger lo revertía y podía votar otra vez.
 create or replace function public.proteger_votantes_edicion()
 returns trigger
 language plpgsql
@@ -32,12 +35,15 @@ security definer
 set search_path = pg_catalog, public
 as $$
 begin
-  if old.ha_votado and new.dni is distinct from old.dni then
-    raise exception 'No se puede cambiar el DNI de un votante que ya votó'
-      using errcode = 'P0003';
+  if old.ha_votado then
+    if new.dni is distinct from old.dni then
+      raise exception 'No se puede cambiar el DNI de un votante que ya votó'
+        using errcode = 'P0003';
+    end if;
+    -- Nunca se puede volver a dejar pendiente a quien ya votó.
+    new.ha_votado := true;
   end if;
 
-  new.ha_votado := old.ha_votado;
   new.creado_en := old.creado_en;
   return new;
 end;
