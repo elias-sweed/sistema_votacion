@@ -34,6 +34,10 @@ type Props = {
   onConfirm: () => void
   /** id para aria-labelledby */
   modalId?: string
+  /** Clases adicionales para el contenedor (por ejemplo, un ancho mayor). */
+  className?: string
+  /** Si se indica, el botón de confirmación envía ese formulario. */
+  confirmFormId?: string
 }
 
 const TONOS: Record<AdminModalTone, { icono: typeof AlertCircleIcon; clase: string }> = {
@@ -55,7 +59,9 @@ export function AdminModal({
   confirmVariant = 'primary',
   tone = confirmVariant === 'danger' ? 'danger' : 'primary',
   onConfirm,
-  modalId = 'admin-modal'
+  modalId = 'admin-modal',
+  className = '',
+  confirmFormId
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const previouslyFocusedElement = useRef<HTMLElement | null>(null)
@@ -161,7 +167,7 @@ export function AdminModal({
         aria-modal="true"
         aria-labelledby={modalId}
         aria-describedby={description ? `${modalId}-desc` : undefined}
-        className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)] animate-modal-in"
+        className={`relative w-full ${className || 'max-w-sm'} rounded-2xl border border-white/15 bg-slate-900/95 p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.95)] animate-modal-in`}
         style={{
           animation: 'modal-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards'
         }}
@@ -194,9 +200,10 @@ export function AdminModal({
             {cancelLabel}
           </button>
           <button
-            type="button"
+            type={confirmFormId ? 'submit' : 'button'}
+            form={confirmFormId}
             autoFocus={!children}
-            onClick={(e) => {
+            onClick={confirmFormId ? undefined : (e) => {
               e.preventDefault()
               onConfirm()
             }}

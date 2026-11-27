@@ -62,6 +62,8 @@ const padronPage = readFileSync(
 const importarPadron = readFileSync(new URL('../src/lib/importarPadron.ts', import.meta.url), 'utf8');
 const mesasPage = readFileSync(new URL('../src/features/mesas/MesasPage.tsx', import.meta.url), 'utf8');
 const candidatosPage = readFileSync(new URL('../src/features/candidatos/CandidatosPage.tsx', import.meta.url), 'utf8');
+const candidatoImageField = readFileSync(new URL('../src/features/candidatos/CandidatoImageField.tsx', import.meta.url), 'utf8');
+const flexCarousel = readFileSync(new URL('../src/components/ui/FlexCarousel.tsx', import.meta.url), 'utf8');
 const flipCard = readFileSync(new URL('../src/components/ui/FlipCard.tsx', import.meta.url), 'utf8');
 const chromaGrid = readFileSync(new URL('../src/components/ui/ChromaGrid.tsx', import.meta.url), 'utf8');
 const sessionHelper = readFileSync(new URL('../src/lib/session.ts', import.meta.url), 'utf8');
@@ -263,7 +265,7 @@ test('only one main mesa with one link is shown', () => {
 });
 
 test('the Más menu is a front panel that covers the background', () => {
-  assert.match(mesasPage, /fixed inset-0 z-\[70\]/, 'the menu covers the viewport');
+  assert.match(mesasPage, /fixed inset-0 z-(?:\[70\]|70)/, 'the menu covers the viewport');
   assert.match(mesasPage, /bg-slate-950\/80 backdrop-blur-md/, 'the background is hidden behind a blur');
   assert.match(mesasPage, /role="dialog"\s+aria-modal="true"/, 'the actions are a modal dialog');
   assert.match(mesasPage, /'Eliminar mesa'/, 'delete is in the front menu');
@@ -274,23 +276,75 @@ test('the Más menu is a front panel that covers the background', () => {
 });
 
 test('the candidate image preview is a FlipCard', () => {
-  assert.match(candidatosPage, /from '..\/..\/components\/ui\/FlipCard'/, 'local FlipCard is imported');
-  assert.match(candidatosPage, /<FlipCard[\s\S]*?front=\{/, 'the photo is on the front');
-  assert.match(candidatosPage, /back=\{/, 'the candidate name is on the back');
-  assert.match(candidatosPage, /axis="y"/, 'it flips on the vertical axis');
-  assert.match(candidatosPage, /flipOnClick/, 'click flips the preview');
-  assert.match(candidatosPage, /dragDistance=\{0\}/, 'dragging is enabled with the default distance');
-  assert.match(candidatosPage, /tiltMax=\{12\}/, 'tilt uses the requested intensity');
-  assert.match(candidatosPage, /glareOpacity=\{0\.22\}/, 'glare uses the requested opacity');
-  assert.match(candidatosPage, /hoverScale=\{1\.03\}/, 'hover scale matches the example');
-  assert.match(candidatosPage, /width=\{300\}\s+height=\{400\}/, 'card uses the example size');
-  assert.match(candidatosPage, /radius=\{22\}/, 'card uses the example radius');
-  assert.match(candidatosPage, /shadowOpacity=\{0\.45\}/, 'shadow matches the example');
+  assert.match(candidatosPage, /from '\.\/CandidatoImageField'/, 'the reusable image field is imported');
+  assert.match(candidatoImageField, /from '..\/..\/components\/ui\/FlipCard'/, 'local FlipCard is imported');
+  assert.match(candidatoImageField, /<FlipCard[\s\S]*?front=\{/, 'the photo is on the front');
+  assert.match(candidatoImageField, /back=\{/, 'the candidate name is on the back');
+  assert.match(candidatoImageField, /axis="y"/, 'it flips on the vertical axis');
+  assert.match(candidatoImageField, /flipOnClick/, 'click flips the preview');
+  assert.match(candidatoImageField, /dragDistance=\{0\}/, 'dragging is enabled with the default distance');
+  assert.match(candidatoImageField, /tiltMax=\{12\}/, 'tilt uses the requested intensity');
+  assert.match(candidatoImageField, /glareOpacity=\{0\.22\}/, 'glare uses the requested opacity');
+  assert.match(candidatoImageField, /hoverScale=\{1\.03\}/, 'hover scale matches the example');
+  assert.match(candidatoImageField, /width=\{300\}\s+height=\{400\}/, 'card uses the example size');
+  assert.match(candidatoImageField, /radius=\{22\}/, 'card uses the example radius');
+  assert.match(candidatoImageField, /shadowOpacity=\{0\.45\}/, 'shadow matches the example');
 
   assert.match(flipCard, /from 'motion\/react'/, 'motion powers the animation');
   assert.match(flipCard, /useReducedMotion/, 'reduced motion is respected');
   assert.match(flipCard, /aria-pressed=\{shown\}/, 'flip state is exposed to assistive tech');
   assert.match(flipCard, /role="button"/, 'the card is keyboard reachable');
+});
+
+test('candidates can be browsed as Lista, Galería and Carrusel', () => {
+  assert.match(candidatosPage, /type VistaCandidatos = 'lista' \| 'galeria' \| 'carrusel'/, 'three views exist');
+  assert.match(candidatosPage, /etiqueta: 'Carrusel'/, 'the third tab is labelled');
+  assert.match(candidatosPage, /CarouselHorizontalIcon/, 'the carousel tab has its own icon');
+  assert.match(candidatosPage, /role="tablist"/, 'the views are a tab list');
+  assert.match(candidatosPage, /aria-selected=\{activa\}/, 'the active view is announced');
+  assert.match(candidatosPage, /from '\.\.\/\.\.\/components\/ui\/FlexCarousel'/, 'the local FlexCarousel is imported');
+  assert.match(candidatosPage, /<FlexCarousel[\s\S]*?preset="liquid"/, 'the liquid preset is used');
+  assert.match(candidatosPage, /intro="rise"[\s\S]*?cardHeight=\{0\.5\}/, 'the example intro and card height are used');
+  assert.match(candidatosPage, /lensWidth=\{0\.74\}[\s\S]*?lensHeight=\{1\.18\}/, 'the lens matches the example');
+  assert.match(candidatosPage, /tilt=\{62\}[\s\S]*?bend=\{0\.34\}/, 'the bend matches the example');
+  assert.match(candidatosPage, /curl="twist"[\s\S]*?dispersion=\{0\.45\}/, 'the curl and dispersion match the example');
+  assert.match(candidatosPage, /onChange=\{\(indice\) => setCarruselIndice\(indice\)\}/, 'the focused candidate is tracked');
+  assert.match(candidatosPage, /candidatos\.map\(\(c\) => \(\{[\s\S]*?title: c\.nombre,[\s\S]*?subtitle: c\.activo \? 'Activo' : 'Inactivo'/, 'candidates become carousel items');
+  assert.doesNotMatch(candidatosPage, /snap-x snap-mandatory/, 'the old CSS carousel is gone');
+  assert.doesNotMatch(candidatosPage, /aria-label="Candidato anterior"/, 'the old arrow buttons are gone');
+});
+
+test('FlexCarousel animates with WebGL and supports motion preferences', () => {
+  assert.match(flexCarousel, /from 'ogl'/, 'ogl renders the carousel');
+  assert.match(flexCarousel, /renderer\.isWebgl2/, 'WebGL2 is required');
+  assert.match(flexCarousel, /prefers-reduced-motion: reduce/, 'reduced motion is respected');
+  assert.match(flexCarousel, /ResizeObserver/, 'resizes are observed');
+  assert.match(flexCarousel, /IntersectionObserver/, 'offscreen carousels pause');
+  assert.match(flexCarousel, /document\.addEventListener\('visibilitychange'/, 'hidden tabs pause the animation');
+  assert.match(flexCarousel, /role="region"/, 'the carousel is a labelled region');
+  assert.match(flexCarousel, /aria-roledescription="carousel"/, 'the carousel role is exposed');
+  assert.match(flexCarousel, /aria-live="polite"/, 'the active slide is announced');
+  assert.match(flexCarousel, /onKeyDown/, 'keyboard navigation is included');
+});
+
+test('editing a candidate saves the name and the full image', () => {
+  assert.match(candidatosPage, /setEditFoto\(c\.foto_url\)/, 'the current image is loaded into the editor');
+  assert.match(candidatosPage, /foto_url: editFoto/, 'the image is part of the update');
+  assert.match(candidatosPage, /id="editar-candidato-form"/, 'the full editor is a form');
+  assert.match(candidatosPage, /confirmFormId="editar-candidato-form"/, 'save submits the whole form');
+  assert.match(candidatosPage, /<CandidatoImageField[\s\S]*?foto=\{editFoto\}/, 'the editor uses the image field');
+  assert.match(candidatosPage, /onImagen=\{procesarImagenEdicion\}/, 'the editor can replace the image');
+  assert.match(candidatosPage, /onQuitar=\{quitarImagenEdicion\}/, 'the editor can remove the image');
+});
+
+test('the change and remove image buttons are below the FlipCard preview', () => {
+  const preview = candidatoImageField.indexOf('<FlipCard');
+  const cambiar = candidatoImageField.search(/>\s*Cambiar\s*</);
+  const quitar = candidatoImageField.search(/>\s*Quitar\s*</);
+
+  assert.ok(preview >= 0 && cambiar > preview && quitar > preview, 'both buttons come after the preview');
+  assert.match(candidatoImageField, /border-t border-white\/10 pt-4/, 'the buttons are separated below the card');
+  assert.doesNotMatch(candidatosPage, /onChange=\{seleccionarImagen\}/, 'the old inline uploader is gone');
 });
 
 test('padron separates individual entry, the Excel padrón and the loaded list', () => {

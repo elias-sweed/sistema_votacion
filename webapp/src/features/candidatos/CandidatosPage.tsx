@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
-import type { ChangeEvent, DragEvent, FormEvent } from 'react'
+import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import AlertCircleIcon from '@hugeicons/core-free-icons/AlertCircleIcon'
+import CarouselHorizontalIcon from '@hugeicons/core-free-icons/CarouselHorizontalIcon'
 import CheckmarkCircle02Icon from '@hugeicons/core-free-icons/CheckmarkCircle02Icon'
 import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
 import Edit02Icon from '@hugeicons/core-free-icons/Edit02Icon'
-import ImageAdd01Icon from '@hugeicons/core-free-icons/ImageAdd01Icon'
-import ImageUpload01Icon from '@hugeicons/core-free-icons/ImageUpload01Icon'
 import PlusSignIcon from '@hugeicons/core-free-icons/PlusSignIcon'
 import UserIcon from '@hugeicons/core-free-icons/UserIcon'
 import { supabase } from '../../lib/supabase'
@@ -22,14 +21,32 @@ import { Badge } from '../../components/ui/Badge'
 import { AdminModal } from '../../components/ui/AdminModal'
 import { RevealSection } from '../../components/ui/RevealSection'
 import { EmptyState } from '../../components/ui/EmptyState'
-import FlipCard from '../../components/ui/FlipCard'
+import CandidatoImageField from './CandidatoImageField'
+import FlexCarousel from '../../components/ui/FlexCarousel'
 import GridViewIcon from '@hugeicons/core-free-icons/GridViewIcon'
 import Menu01Icon from '@hugeicons/core-free-icons/Menu01Icon'
 
 type Candidato = { id: string; nombre: string; foto_url: string | null; activo: boolean }
+type VistaCandidatos = 'lista' | 'galeria' | 'carrusel'
+
+const VISTAS_CANDIDATOS: Array<{ valor: VistaCandidatos; etiqueta: string; icon: typeof Menu01Icon }> = [
+  { valor: 'lista', etiqueta: 'Lista', icon: Menu01Icon },
+  { valor: 'galeria', etiqueta: 'Galería', icon: GridViewIcon },
+  { valor: 'carrusel', etiqueta: 'Carrusel', icon: CarouselHorizontalIcon }
+]
 
 function iniciales(texto: string) {
   return texto.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('')
+}
+
+function imagenPlaceholder(nombre: string) {
+  const siglas = iniciales(nombre) || '?'
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="853" viewBox="0 0 640 853">
+<defs><linearGradient id="f" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b82f6"/><stop offset="0.55" stop-color="#1e3a8a"/><stop offset="1" stop-color="#050a1a"/></linearGradient></defs>
+<rect width="640" height="853" fill="url(#f)"/>
+<text x="320" y="470" text-anchor="middle" font-family="system-ui,sans-serif" font-size="220" font-weight="700" fill="rgba(255,255,255,0.92)">${siglas}</text>
+</svg>`
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
 const MAX_IMAGEN_BYTES = 5 * 1024 * 1024
@@ -64,63 +81,77 @@ function comprimirImagen(file: File): Promise<string> {
 
 export default function CandidatosPage() {
   const toast = useToast()
-  const archivoRef = useRef<HTMLInputElement>(null)
   const [candidatosInicial] = useState(() => leerCache<Candidato[]>(CLAVES_CACHE.candidatos))
   const [candidatos, setCandidatos] = useState<Candidato[]>(candidatosInicial ?? [])
   const [cargando, setCargando] = useState(candidatosInicial === null)
   const [tieneDatos, setTieneDatos] = useState(candidatosInicial !== null)
   const [error, setError] = useState<string | null>(null)
+  const [errorEdicion, setErrorEdicion] = useState<string | null>(null)
   const [exito, setExito] = useState<string | null>(null)
   const [nombre, setNombre] = useState('')
   const [foto, setFoto] = useState<string | null>(null)
   const [nombreArchivo, setNombreArchivo] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
-  const [arrastrando, setArrastrando] = useState(false)
-  const [vista, setVista] = useState<'lista' | 'galeria'>('lista')
+  const [vista, setVista] = useState<VistaCandidatos>('lista')
+  const [carruselIndice, setCarruselIndice] = useState(0)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [editNombre, setEditNombre] = useState('')
+  const [editFoto, setEditFoto] = useState<string | null>(null)
+  const [editNombreArchivo, setEditNombreArchivo] = useState<string | null>(null)
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<Candidato | null>(null)
   const [eliminando, setEliminando] = useState(false)
 
-  async function procesarImagen(file: File) {
-    setError(null)
-    setExito(null)
+  function validarImagen(file: File) {
+    if (!file.type.startsWith('image/')) return 'El archivo debe ser una imagen (JPG, PNG o WebP).'
+    if (file.size > MAX_IMAGEN_BYTES) return 'La imagen no debe superar 5 MB.'
+    return null
+  }
 
-    if (!file.type.startsWith('image/')) {
-      setError('El archivo debe ser una imagen (JPG, PNG o WebP).')
+  async function aplicarImagen(file: File, destino: 'nuevo' | 'editar') {
+    const problema = validarImagen(file)
+    if (problema) {
+      if (destino === 'editar') setErrorEdicion(problema)
+      else setError(problema)
       return
     }
-    if (file.size > MAX_IMAGEN_BYTES) {
-      setError('La imagen no debe superar 5 MB.')
-      return
-    }
+    if (destino === 'editar') setErrorEdicion(null)
+    else { setError(null); setExito(null) }
 
     try {
-      setFoto(await comprimirImagen(file))
-      setNombreArchivo(file.name)
+      const datos = await comprimirImagen(file)
+      if (destino === 'editar') {
+        setEditFoto(datos)
+        setEditNombreArchivo(file.name)
+      } else {
+        setFoto(datos)
+        setNombreArchivo(file.name)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo procesar la imagen.')
+      const mensaje = err instanceof Error ? err.message : 'No se pudo procesar la imagen.'
+      if (destino === 'editar') setErrorEdicion(mensaje)
+      else setError(mensaje)
     }
   }
 
-  async function seleccionarImagen(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    await procesarImagen(file)
+  async function procesarImagenNueva(file: File) {
+    await aplicarImagen(file, 'nuevo')
   }
 
-  async function soltarImagen(e: DragEvent<HTMLButtonElement>) {
-    e.preventDefault()
-    setArrastrando(false)
-    const file = e.dataTransfer.files?.[0]
-    if (!file) return
-    await procesarImagen(file)
+  async function procesarImagenEdicion(file: File) {
+    await aplicarImagen(file, 'editar')
   }
 
   function quitarImagen() {
     setFoto(null)
     setNombreArchivo(null)
+    setError(null)
+  }
+
+  function quitarImagenEdicion() {
+    setEditFoto(null)
+    setEditNombreArchivo(null)
+    setErrorEdicion(null)
   }
 
   function cambiarNombre(valor: string) {
@@ -143,6 +174,10 @@ export default function CandidatosPage() {
   }
 
   useEffect(() => { cargar() }, [])
+
+  useEffect(() => {
+    setCarruselIndice((actual) => Math.min(actual, Math.max(0, candidatos.length - 1)))
+  }, [candidatos.length])
 
   async function agregar(e: FormEvent) {
     e.preventDefault()
@@ -198,6 +233,10 @@ export default function CandidatosPage() {
   function iniciarEdicion(c: Candidato) {
     setEditandoId(c.id)
     setEditNombre(c.nombre)
+    setEditFoto(c.foto_url)
+    setEditNombreArchivo(null)
+    setErrorEdicion(null)
+    setConfirmandoEliminar(null)
     setError(null)
     setExito(null)
   }
@@ -205,26 +244,45 @@ export default function CandidatosPage() {
   function cancelarEdicion() {
     setEditandoId(null)
     setEditNombre('')
+    setEditFoto(null)
+    setEditNombreArchivo(null)
+    setErrorEdicion(null)
+    setGuardandoEdicion(false)
   }
 
   async function guardarEdicion(c: Candidato) {
-    setError(null); setExito(null)
+    setErrorEdicion(null); setExito(null)
     const nombreTrim = editNombre.trim()
-    if (nombreTrim.length < 3) { setError('El nombre debe tener al menos 3 caracteres.'); return }
-    if (nombreTrim === c.nombre) { setEditandoId(null); return }
-
-    const { error: err } = await supabase.from('candidatos')
-      .update({ nombre: nombreTrim }).eq('id', c.id)
-    if (err) {
-      setError(mensajeDeError(err, 'No se pudo actualizar el candidato.'))
+    if (nombreTrim.length < 3) {
+      setErrorEdicion('El nombre debe tener al menos 3 caracteres.')
       return
     }
-    setEditandoId(null)
-    setEditNombre('')
+
+    const fotoAnterior = c.foto_url ?? null
+    if (nombreTrim === c.nombre && editFoto === fotoAnterior) {
+      cancelarEdicion()
+      return
+    }
+
+    setGuardandoEdicion(true)
+    const { error: err } = await supabase.from('candidatos')
+      .update({ nombre: nombreTrim, foto_url: editFoto }).eq('id', c.id)
+    setGuardandoEdicion(false)
+    if (err) {
+      setErrorEdicion(mensajeDeError(err, 'No se pudo actualizar el candidato.'))
+      return
+    }
+
+    const detalleImagen = editFoto === null
+      ? ' · imagen quitada'
+      : editFoto !== fotoAnterior
+        ? ' · imagen actualizada'
+        : ''
+    cancelarEdicion()
     setExito('Candidato actualizado.')
     toast({
       title: 'Candidato actualizado',
-      description: `El nombre ahora es ${nombreTrim}.`,
+      description: `${nombreTrim}${detalleImagen}.`,
       variant: 'success',
       duration: 3500
     })
@@ -296,30 +354,14 @@ export default function CandidatosPage() {
     )
   }
 
-  function formularioEdicion(c: Candidato) {
-    return (
-      <form
-        onSubmit={(e) => { e.preventDefault(); void guardarEdicion(c) }}
-        className="flex flex-col gap-2 sm:flex-row sm:items-center"
-      >
-        <input
-          value={editNombre}
-          onChange={(e) => setEditNombre(e.target.value)}
-          aria-label={`Nuevo nombre para ${c.nombre}`}
-          autoFocus
-          className="flex-1 rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-white backdrop-blur-md transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-        />
-        <div className="flex gap-2">
-          <button type="submit" className="rounded-lg bg-linear-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:brightness-110">
-            Guardar
-          </button>
-          <button type="button" onClick={cancelarEdicion} className="rounded-lg border border-white/10 bg-white/6 text-sm text-white backdrop-blur-md transition hover:bg-white/10">
-            Cancelar
-          </button>
-        </div>
-      </form>
-    )
-  }
+  const candidatoEditando = candidatos.find((c) => c.id === editandoId) ?? null
+  const itemsCarrusel = candidatos.map((c) => ({
+    src: c.foto_url ?? imagenPlaceholder(c.nombre),
+    alt: `Fotografía de ${c.nombre}`,
+    title: c.nombre,
+    subtitle: c.activo ? 'Activo' : 'Inactivo'
+  }))
+  const candidatoEnFoco = candidatos[Math.min(carruselIndice, candidatos.length - 1)] ?? null
 
   return (
     <RevealSection className="space-y-6">
@@ -339,29 +381,30 @@ export default function CandidatosPage() {
           {candidatos.length} {candidatos.length === 1 ? 'candidato' : 'candidatos'}
         </div>
 
-        <div className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/4 p-1" role="group" aria-label="Vista de candidatos">
-          <button
-            type="button"
-            onClick={() => setVista('lista')}
-            aria-pressed={vista === 'lista'}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-              vista === 'lista' ? 'bg-blue-500/20 text-blue-100' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <HugeiconsIcon icon={Menu01Icon} size={14} strokeWidth={1.8} />
-            Lista
-          </button>
-          <button
-            type="button"
-            onClick={() => setVista('galeria')}
-            aria-pressed={vista === 'galeria'}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-              vista === 'galeria' ? 'bg-blue-500/20 text-blue-100' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <HugeiconsIcon icon={GridViewIcon} size={14} strokeWidth={1.8} />
-            Galería
-          </button>
+        <div
+          role="tablist"
+          aria-label="Vista de candidatos"
+          className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/4 p-1"
+        >
+          {VISTAS_CANDIDATOS.map(({ valor, etiqueta, icon }) => {
+            const activa = vista === valor
+            return (
+              <button
+                key={valor}
+                type="button"
+                role="tab"
+                aria-selected={activa}
+                aria-controls="vista-candidatos"
+                onClick={() => setVista(valor)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                  activa ? 'bg-blue-500/20 text-blue-100' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <HugeiconsIcon icon={icon} size={14} strokeWidth={1.8} />
+                {etiqueta}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -404,130 +447,33 @@ export default function CandidatosPage() {
               </p>
             </div>
 
-            <div className="col-span-3 sm:col-span-1 flex flex-col gap-2">
+            <div className="col-span-3 sm:col-span-1 space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Fotografía</span>
                 <span className="text-[11px] text-slate-500">Opcional</span>
               </div>
 
-              <input
-                ref={archivoRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={seleccionarImagen}
-                className="sr-only"
-                aria-label="Seleccionar fotografía del candidato"
+              <CandidatoImageField
+                foto={foto}
+                nombre={nombre}
+                nombreArchivo={nombreArchivo}
+                onImagen={procesarImagenNueva}
+                onQuitar={quitarImagen}
+                variante="control"
               />
-
-              {foto ? (
-                <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-white">{nombreArchivo ?? 'Imagen seleccionada'}</p>
-                    <p className="mt-1 text-xs text-slate-500">Optimizada automáticamente · 640 px · WebP</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => archivoRef.current?.click()}
-                      className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/12"
-                    >
-                      Cambiar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={quitarImagen}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/20"
-                    >
-                      <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.8} />
-                      Quitar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => archivoRef.current?.click()}
-                  onDragEnter={(e) => { e.preventDefault(); setArrastrando(true) }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDragLeave={(e) => { const siguiente = e.relatedTarget as Node | null; if (!siguiente || !e.currentTarget.contains(siguiente)) setArrastrando(false) }}
-                  onDrop={soltarImagen}
-                  className={`group flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-6 py-8 text-center transition ${
-                    arrastrando ? 'border-blue-400/70 bg-blue-500/10' : 'border-white/15 bg-black/20 hover:border-blue-300/40 hover:bg-white/4'
-                  }`}
-                >
-                  <span className={`grid h-12 w-12 place-items-center rounded-2xl border transition ${arrastrando ? 'border-blue-400/40 bg-blue-500/20 text-blue-200' : 'border-white/10 bg-white/5 text-slate-300 group-hover:text-blue-200'}`}>
-                    <HugeiconsIcon icon={ImageUpload01Icon} size={22} strokeWidth={1.7} />
-                  </span>
-                  <span className="space-y-1">
-                    <span className="block text-sm font-medium text-white">{arrastrando ? 'Suelta la imagen aquí' : 'Arrastra tu imagen aquí'}</span>
-                    <span className="block text-xs text-slate-500">o selecciona un archivo desde tu equipo</span>
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3.5 py-2 text-xs font-medium text-slate-200 transition group-hover:bg-white/10">
-                    <HugeiconsIcon icon={ImageAdd01Icon} size={15} strokeWidth={1.8} />
-                    Seleccionar imagen
-                  </span>
-                  <span className="text-[11px] text-slate-500">JPG, PNG o WebP · máx. 5 MB</span>
-                </button>
-              )}
-
             </div>
 
             {foto && (
-              <div className="col-span-3 flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-5">
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  <span className="rounded-full border border-blue-400/25 bg-blue-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-blue-200">
-                    Vista previa de la tarjeta
-                  </span>
-                  <span className="text-xs text-slate-500">Foto por delante · datos por detrás</span>
-                </div>
-
-                <FlipCard
-                  front={
-                    <img
-                      src={foto}
-                      alt="Fotografía del candidato"
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  }
-                  back={
-                    <div className="flex h-full flex-col justify-between bg-linear-to-br from-blue-500/90 via-blue-800/90 to-[#050a1a] p-6">
-                      <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-100/80">
-                          Así se verá en la papeleta
-                        </p>
-                        <h4 className="mt-3 text-2xl font-bold leading-tight text-white">
-                          {nombre.trim() || 'Nombre del candidato'}
-                        </h4>
-                        <p className="mt-3 text-sm text-blue-100/80">Tarjeta del candidato</p>
-                      </div>
-                      <p className="text-xs text-blue-100/60">Toca para volver a la foto</p>
-                    </div>
-                  }
-                  axis="y"
-                  flipOnClick
-                  draggable
-                  dragDistance={0}
-                  tilt
-                  tiltMax={12}
-                  glare
-                  glareOpacity={0.22}
-                  hoverScale={1.03}
-                  perspective={1100}
-                  stiffness={170}
-                  damping={20}
-                  width={300}
-                  height={400}
-                  radius={22}
-                  background="#27272a"
-                  color="#f5f5f5"
-                  shadow
-                  shadowColor="#000000"
-                  shadowOpacity={0.45}
-                  ariaLabel="Vista previa de la tarjeta del candidato: toca para girar"
+              <div className="col-span-3">
+                <CandidatoImageField
+                  foto={foto}
+                  nombre={nombre}
+                  nombreArchivo={nombreArchivo}
+                  onImagen={procesarImagenNueva}
+                  onQuitar={quitarImagen}
+                  ariaLabelInput="Cambiar fotografía del candidato"
+                  variante="preview"
                 />
-                <p className="text-center text-[11px] text-slate-500">
-                  Toca o arrastra la tarjeta para girarla
-                </p>
               </div>
             )}
 
@@ -570,16 +516,13 @@ export default function CandidatosPage() {
         </AdminCard>
       )}
 
-      {tieneDatos && candidatos.length > 0 && (vista === 'lista' ? (
-        <AdminCard>
-          <ul className="divide-y divide-white/10">
-            {candidatos.map((c) => {
-              const estaEditando = editandoId === c.id
-              return (
-                <li key={c.id} className="p-4">
-                  {estaEditando ? (
-                    formularioEdicion(c)
-                  ) : (
+      {tieneDatos && candidatos.length > 0 && (
+        <div id="vista-candidatos">
+          {vista === 'lista' ? (
+            <AdminCard>
+              <ul className="divide-y divide-white/10">
+                {candidatos.map((c) => (
+                  <li key={c.id} className="p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex min-w-0 items-center gap-3">
                         <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/25">
@@ -599,46 +542,160 @@ export default function CandidatosPage() {
 
                       {botonesAccion(c)}
                     </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </AdminCard>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {candidatos.map((c) => {
-            const estaEditando = editandoId === c.id
-            return (
-              <div key={c.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/4 backdrop-blur-xl">
-                <div className="relative aspect-4/3 overflow-hidden border-b border-white/10 bg-black/30">
-                  {c.foto_url ? (
-                    <img src={c.foto_url} alt={c.nombre} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-blue-500 via-blue-800 to-[#050a1a]">
-                      <span className="text-4xl font-bold text-white/90">{iniciales(c.nombre) || '?'}</span>
-                    </div>
-                  )}
-                  <span className="absolute left-3 top-3">
-                    <Badge variant={c.activo ? 'success' : 'default'}>{c.activo ? 'Activo' : 'Inactivo'}</Badge>
-                  </span>
-                </div>
+                  </li>
+                ))}
+              </ul>
+            </AdminCard>
+          ) : vista === 'galeria' ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {candidatos.map((c) => (
+                <div key={c.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/4 backdrop-blur-xl">
+                  <div className="relative aspect-4/3 overflow-hidden border-b border-white/10 bg-black/30">
+                    {c.foto_url ? (
+                      <img src={c.foto_url} alt={c.nombre} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-blue-500 via-blue-800 to-[#050a1a]">
+                        <span className="text-4xl font-bold text-white/90">{iniciales(c.nombre) || '?'}</span>
+                      </div>
+                    )}
+                    <span className="absolute left-3 top-3">
+                      <Badge variant={c.activo ? 'success' : 'default'}>{c.activo ? 'Activo' : 'Inactivo'}</Badge>
+                    </span>
+                  </div>
 
-                <div className="space-y-3 p-4">
-                  {estaEditando ? (
-                    formularioEdicion(c)
-                  ) : (
-                    <>
-                      <p className="truncate text-sm font-semibold text-white">{c.nombre}</p>
-                      {botonesAccion(c)}
-                    </>
-                  )}
+                  <div className="space-y-3 p-4">
+                    <p className="truncate text-sm font-semibold text-white">{c.nombre}</p>
+                    {botonesAccion(c)}
+                  </div>
                 </div>
+              ))}
+            </div>
+          ) : (
+            <AdminCard>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-white">Carrusel de candidatos</h3>
+                  <p className="mt-0.5 text-xs text-slate-500">Arrastra, usa la rueda o las flechas del teclado.</p>
+                </div>
+                <span className="text-xs tabular-nums text-slate-400">
+                  {Math.min(carruselIndice + 1, candidatos.length)} / {candidatos.length}
+                </span>
               </div>
-            )
-          })}
+
+              <div
+                className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black/20"
+                style={{ width: '100%', height: '560px', position: 'relative' }}
+              >
+                <FlexCarousel
+                  items={itemsCarrusel}
+                  preset="liquid"
+                  intro="rise"
+                  cardHeight={0.5}
+                  gap={12}
+                  squeeze={0.2}
+                  focusOnClick
+                  captions
+                  fit="natural"
+                  radius={0}
+                  lensWidth={0.74}
+                  lensHeight={1.18}
+                  tilt={62}
+                  roundness={1}
+                  bend={0.34}
+                  reach={0.38}
+                  curl="twist"
+                  dispersion={0.45}
+                  liquid={0}
+                  followCursor={false}
+                  autoplay={false}
+                  interval={4}
+                  captureWheel
+                  onChange={(indice) => setCarruselIndice(indice)}
+                />
+              </div>
+
+              {candidatoEnFoco && (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <p className="truncate text-sm font-semibold text-white">{candidatoEnFoco.nombre}</p>
+                    <Badge variant={candidatoEnFoco.activo ? 'success' : 'default'}>
+                      {candidatoEnFoco.activo ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                  </div>
+                  {botonesAccion(candidatoEnFoco)}
+                </div>
+              )}
+            </AdminCard>
+          )}
         </div>
-      ))}
+      )}
+
+      {candidatoEditando && (
+        <AdminModal
+          open={editandoId === candidatoEditando.id}
+          onClose={cancelarEdicion}
+          title={`Editar a ${candidatoEditando.nombre}`}
+          description="Actualiza el nombre y la imagen que aparecen en la papeleta."
+          confirmLabel={guardandoEdicion ? 'Guardando…' : 'Guardar cambios'}
+          loading={guardandoEdicion}
+          onConfirm={() => {}}
+          modalId="editar-candidato-modal"
+          className="max-w-2xl"
+          confirmFormId="editar-candidato-form"
+        >
+          <form
+            id="editar-candidato-form"
+            onSubmit={(e) => { e.preventDefault(); void guardarEdicion(candidatoEditando) }}
+            className="grid gap-4"
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor="editar-candidato-nombre" className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+                  Nombre del candidato
+                </label>
+                <span className={`text-[11px] tabular-nums ${editNombre.length >= 55 ? 'text-amber-300' : 'text-slate-500'}`}>
+                  {editNombre.length}/60
+                </span>
+              </div>
+              <input
+                id="editar-candidato-nombre"
+                value={editNombre}
+                onChange={(e) => {
+                  setEditNombre(e.target.value.slice(0, 60))
+                  setErrorEdicion(null)
+                }}
+                maxLength={60}
+                autoComplete="off"
+                className="h-12 w-full rounded-xl border border-white/10 bg-black/25 px-4 text-[15px] text-white shadow-inner shadow-black/20 backdrop-blur-md placeholder:text-slate-500 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+              />
+              <p className="text-xs text-slate-500">Nombre y apellido tal como aparecerán en la papeleta.</p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Fotografía</span>
+                <span className="text-[11px] text-slate-500">Opcional</span>
+              </div>
+              <CandidatoImageField
+                foto={editFoto}
+                nombre={editNombre}
+                nombreArchivo={editNombreArchivo}
+                onImagen={procesarImagenEdicion}
+                onQuitar={quitarImagenEdicion}
+                ariaLabelInput="Seleccionar nueva fotografía del candidato"
+                etiquetaPreview="Vista previa al editar"
+              />
+            </div>
+
+            {errorEdicion && (
+              <div className="sm:col-span-2 flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-200">
+                <span className="mt-0.5 shrink-0 text-red-300"><HugeiconsIcon icon={AlertCircleIcon} size={16} strokeWidth={1.8} /></span>
+                <span>{errorEdicion}</span>
+              </div>
+            )}
+          </form>
+        </AdminModal>
+      )}
 
       {confirmandoEliminar && (
         <AdminModal

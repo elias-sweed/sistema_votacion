@@ -350,7 +350,7 @@ export default function MesasPage() {
         className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
           opciones.peligro
             ? 'text-red-200 hover:bg-red-500/12'
-            : 'text-slate-100 hover:bg-white/[0.09]'
+            : 'text-slate-100 hover:bg-white/9'
         }`}
       >
         <HugeiconsIcon icon={icono} size={17} strokeWidth={1.8} />
@@ -486,7 +486,7 @@ export default function MesasPage() {
 
       {/* Acciones de la mesa: panel delantero que tapa el contenido de fondo. */}
       {menuAbierto && mesa && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="presentation">
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-4" role="presentation">
           <button
             type="button"
             aria-label="Cerrar acciones de la mesa"
@@ -548,7 +548,7 @@ export default function MesasPage() {
             <button
               type="button"
               onClick={() => setMenuAbierto(false)}
-              className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs text-slate-400 transition hover:bg-white/8 hover:text-white"
+              className="mt-1 w-full rounded-xl border border-white/10 bg-white/4 px-4 py-2.5 text-xs text-slate-400 transition hover:bg-white/8 hover:text-white"
             >
               Cancelar
             </button>

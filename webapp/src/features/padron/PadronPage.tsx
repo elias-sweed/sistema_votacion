@@ -661,7 +661,7 @@ export default function PadronPage() {
       {/* Encabezado con las tres pantallas del padrón */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <span className="h-px w-8 bg-gradient-to-r from-blue-400/80 to-transparent" />
+          <span className="h-px w-8 bg-linear-to-r from-blue-400/80 to-transparent" />
           <h2 className="text-xl font-bold text-white">Padrón Electoral</h2>
         </div>
         <div
@@ -821,7 +821,7 @@ export default function PadronPage() {
               <button
                 type="submit"
                 disabled={guardandoVotante}
-                className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-xl bg-linear-to-r from-blue-400 via-sky-400 to-blue-600 px-6 py-2.5 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {guardandoVotante ? 'Agregando…' : 'Agregar votante'}
               </button>
@@ -863,7 +863,7 @@ export default function PadronPage() {
                         ? 'border-blue-400/50 bg-blue-500/20 text-blue-100'
                         : completado
                           ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
-                          : 'border-white/10 bg-white/[0.04] text-slate-500'
+                          : 'border-white/10 bg-white/4 text-slate-500'
                     }`}
                   >
                     {completado ? '✓' : numero}
@@ -927,10 +927,10 @@ export default function PadronPage() {
                 className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed px-6 py-8 text-center transition ${
                   arrastrandoArchivo
                     ? 'border-blue-400/70 bg-blue-500/10'
-                    : 'border-white/15 bg-black/20 hover:border-blue-300/40 hover:bg-white/[0.04]'
+                    : 'border-white/15 bg-black/20 hover:border-blue-300/40 hover:bg-white/4'
                 }`}
               >
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-300">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
                   <HugeiconsIcon icon={File01Icon} size={20} strokeWidth={1.7} />
                 </span>
                 <span className="text-sm font-medium text-white">
@@ -972,7 +972,7 @@ export default function PadronPage() {
                     className={`rounded-lg border px-3 py-1 text-xs font-medium transition ${
                       filtroPreview === valor
                         ? 'border-blue-400/50 bg-blue-500/15 text-blue-100'
-                        : 'border-white/10 bg-white/[0.04] text-slate-400 hover:text-white'
+                        : 'border-white/10 bg-white/4 text-slate-400 hover:text-white'
                     }`}
                   >
                     {etiqueta}
@@ -982,7 +982,7 @@ export default function PadronPage() {
             </div>
             <div className="max-h-64 overflow-auto rounded-xl border border-white/10 bg-black/25 backdrop-blur-md">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-white/[0.05] backdrop-blur-xl">
+                <thead className="sticky top-0 bg-white/5 backdrop-blur-xl">
                   <tr className="text-left text-xs text-slate-400 uppercase">
                     <th className="p-2">Fila</th>
                     <th className="p-2">DNI</th>
@@ -1026,11 +1026,11 @@ export default function PadronPage() {
             </div>
             <div className="flex gap-2">
               <button onClick={confirmarImportacion} disabled={importando || previewValidos === 0}
-                className="rounded-xl bg-gradient-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
+                className="rounded-xl bg-linear-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
                 {importando ? 'Importando…' : 'Confirmar importación'}
               </button>
               <button onClick={reiniciarImportacion} disabled={importando}
-                className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2 text-white backdrop-blur-md transition hover:bg-white/[0.1] disabled:opacity-50">
+                className="rounded-xl border border-white/10 bg-white/6 px-4 py-2 text-white backdrop-blur-md transition hover:bg-white/10 disabled:opacity-50">
                 Cancelar
               </button>
             </div>
@@ -1058,7 +1058,7 @@ export default function PadronPage() {
               </div>
             )}
             <button onClick={reiniciarImportacion}
-              className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2 text-white backdrop-blur-md transition hover:bg-white/[0.1]">
+              className="rounded-xl border border-white/10 bg-white/6 px-4 py-2 text-white backdrop-blur-md transition hover:bg-white/10">
               Nueva importación
             </button>
           </div>
@@ -1099,7 +1099,7 @@ export default function PadronPage() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 space-y-3 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
+            <div className="rounded-3xl border border-white/10 bg-white/4 p-5 space-y-3 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="flex-1">
             <label htmlFor="padron-busqueda" className="mb-1 block text-xs text-slate-400">
@@ -1174,7 +1174,7 @@ export default function PadronPage() {
       )}
 
       {/* Tabla de votantes */}
-      <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
+      <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/4 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-black/30 text-left text-xs text-slate-400 uppercase backdrop-blur-xl">
@@ -1240,7 +1240,7 @@ export default function PadronPage() {
                 votantes.map((v) => (
                   <tr
                     key={v.dni}
-                    className={`transition hover:bg-white/[0.03] ${v.ha_votado ? 'bg-emerald-900/10' : ''}`}
+                    className={`transition hover:bg-white/3 ${v.ha_votado ? 'bg-emerald-900/10' : ''}`}
                   >
                     <td className="p-3">
                       <input
@@ -1294,11 +1294,11 @@ export default function PadronPage() {
             <span>Página {pagina} de {totalPages} · Total: {totalCount}</span>
             <div className="flex gap-2">
               <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
-                className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1 backdrop-blur-md transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50">
+                className="rounded-lg border border-white/10 bg-white/6 px-3 py-1 backdrop-blur-md transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
                 Anterior
               </button>
               <button onClick={() => setPagina(p => Math.min(totalPages, p + 1))} disabled={pagina >= totalPages}
-                className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1 backdrop-blur-md transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50">
+                className="rounded-lg border border-white/10 bg-white/6 px-3 py-1 backdrop-blur-md transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
                 Siguiente
               </button>
             </div>
@@ -1335,7 +1335,7 @@ export default function PadronPage() {
           loading={eliminandoVotantes}
           onConfirm={() => void eliminarSeleccionados()}
         >
-          <p className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
+          <p className="rounded-xl border border-amber-400/20 bg-amber-400/6 px-3 py-2 text-xs text-amber-100/80">
             Escribe tu contraseña de administrador para confirmar.
           </p>
 
