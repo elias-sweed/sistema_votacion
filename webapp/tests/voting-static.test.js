@@ -80,6 +80,10 @@ const migracionEdicionPadron = readFileSync(
   new URL('../supabase/migrations/020_editar_padron_auditoria.sql', import.meta.url),
   'utf8'
 );
+const migracionRevisionPadron = readFileSync(
+  new URL('../supabase/migrations/021_padron_revision.sql', import.meta.url),
+  'utf8'
+);
 const mesasPage = readFileSync(new URL('../src/features/mesas/MesasPage.tsx', import.meta.url), 'utf8');
 const candidatosPage = readFileSync(new URL('../src/features/candidatos/CandidatosPage.tsx', import.meta.url), 'utf8');
 const candidatoImageField = readFileSync(new URL('../src/features/candidatos/CandidatoImageField.tsx', import.meta.url), 'utf8');
@@ -316,6 +320,14 @@ test('padron detects duplicate names, missing fields and complete records', () =
   assert.deepEqual([...duplicados], ['11111111', '22222222'], 'accents and case are ignored');
   assert.equal(cumpleFiltroDatos(votantes[0], 'duplicados', duplicados), true);
   assert.equal(cumpleFiltroDatos(votantes[2], 'duplicados', duplicados), false);
+
+  const mismoDni = [
+    { dni: '123456789', nombre: 'Ana Uno' },
+    { dni: '123456789', nombre: 'Ana Dos' },
+    { dni: '99999999', nombre: 'Otro Nombre' }
+  ];
+  const duplicadosPorDni = dnisDuplicadosPadron(mismoDni);
+  assert.deepEqual([...duplicadosPorDni], ['123456789'], 'repeated DNI is detected too');
   assert.equal(cumpleFiltroDatos(votantes[0], 'completos'), true);
   assert.equal(cumpleFiltroDatos(votantes[2], 'completos'), false);
   assert.equal(cumpleFiltroDatos(votantes[2], 'grado'), true);
@@ -346,6 +358,40 @@ test('padron rows have an edit button and edits are audited', () => {
   assert.match(migracionEdicionPadron, /after insert or update or delete on public\.votantes/);
   assert.match(migracionEdicionPadron, /'editar', 'votante', new\.dni/);
   assert.match(migracionEdicionPadron, /before update on public\.votantes/, 'integrity trigger');
+});
+
+test('Excel import keeps every row: invalid ones go to a separate review list', () => {
+  assert.match(padronCompat, /export async function listarRevisionPadron/);
+  assert.match(padronCompat, /export async function insertarFilasRevision/);
+  assert.match(padronCompat, /export async function actualizarFilaRevision/);
+  assert.match(padronCompat, /export async function eliminarFilaRevision/);
+  assert.match(padronCompat, /export async function promoverFilaRevision/);
+  assert.match(padronCompat, /promover_votante_revision/, 'promotion goes through a validated RPC');
+
+  assert.match(padronPage, /filasARevision/, 'invalid Excel rows are collected');
+  assert.match(padronPage, /insertarFilasRevision\(filasARevision\)/, 'no Excel row is dropped');
+  assert.match(padronPage, /previewData\.length === 0/, 'import is enabled even when every row needs review');
+  assert.match(padronPage, /enRevision: true/, 'review rows are merged into the list');
+  assert.match(padronPage, /Pasar al padrón a \$\{v\.nombre\}/, 'review rows can be promoted');
+  assert.match(padronPage, /Descartar a \$\{v\.nombre\}/, 'review rows can be discarded');
+  assert.match(padronPage, /v\.ha_votado \|\| Boolean\(v\.enRevision\)/, 'review rows cannot be bulk deleted');
+  assert.match(padronPage, /El DNI debe tener exactamente 8 dígitos numéricos\./, 'manual entry stays strict');
+});
+
+test('review table accepts long and repeated DNIs without touching the real padron', () => {
+  assert.match(migracionRevisionPadron, /create table if not exists public\.padron_revision/);
+  assert.doesNotMatch(
+    migracionRevisionPadron,
+    /unique\s*\(dni\)|dni\s+text\s+primary key/,
+    'review DNI is neither unique nor primary key'
+  );
+  assert.match(migracionRevisionPadron, /for update[\s\S]*public\.es_admin_uuid\(\)/);
+  assert.match(migracionRevisionPadron, /for update[\s\S]*public\.es_operador\(\)/);
+  assert.match(migracionRevisionPadron, /length\(v_dni\) <> 8/, 'promotion requires a valid DNI');
+  assert.match(migracionRevisionPadron, /ya está registrado en el padrón/, 'promotion rejects duplicate DNI');
+  assert.match(migracionRevisionPadron, /insert into public\.votantes/);
+  assert.match(migracionRevisionPadron, /delete from public\.padron_revision where id = p_id/);
+  assert.match(migracionRevisionPadron, /'importar_revision', 'votante', new\.dni/);
 });
 
 test('manual padron form matches the template fields and a template can be downloaded', () => {
@@ -507,7 +553,7 @@ test('padron separates individual entry, the Excel padrón and the loaded list',
 
 test('the Excel preview can filter rows with missing or invalid data', () => {
   assert.match(padronPage, /filtroPreview/, 'preview has its own filter state');
-  assert.match(padronPage, /\['con-errores', `Datos faltantes \(\$\{previewInvalidos\}\)`\]/, 'missing-data filter shows a count');
+  assert.match(padronPage, /\['con-errores', `A revisión \(\$\{previewInvalidos\}\)`\]/, 'review filter shows a count');
   assert.match(padronPage, /setFiltroPreview\(valor\)/, 'buttons change the filter');
   assert.match(padronPage, /filasPreview\.slice\(0, 100\)/, 'the table uses filtered rows');
   assert.match(padronPage, /if \(filtroPreview === 'con-errores'\) return !item\.valido/, 'invalid rows are isolated');

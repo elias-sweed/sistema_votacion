@@ -201,3 +201,64 @@ export async function actualizarVotantePadron(dniOriginal: string, fila: FilaPad
 
   return supabase.from('votantes').update(registro).eq('dni', dniOriginal)
 }
+
+// --- Revisión del Excel ----------------------------------------------------
+// Las filas que no cumplen las reglas del padrón se guardan aparte: el DNI
+// puede tener cualquier longitud y repetirse, y los datos pueden estar
+// incompletos. No pueden votar hasta que se corrijan y se promuevan.
+
+export type FilaRevision = FilaPadron & {
+  id: string
+  motivos: string[]
+}
+
+export type RevisionParaGuardar = FilaPadron & {
+  motivos: string[]
+}
+
+export async function listarRevisionPadron(): Promise<{
+  filas: FilaRevision[]
+  error: ErrorListado
+}> {
+  const { data, error } = await supabase
+    .from('padron_revision')
+    .select('id,dni,nombre,grado,seccion,motivos')
+    .order('creado_en', { ascending: true })
+    .limit(1000)
+
+  if (error) return { filas: [], error }
+  return { filas: (data ?? []) as FilaRevision[], error: null }
+}
+
+export async function insertarFilasRevision(filas: RevisionParaGuardar[]) {
+  if (filas.length === 0) return { error: null as ErrorListado }
+  const { error } = await supabase.from('padron_revision').insert(
+    filas.map((fila) => ({
+      dni: fila.dni,
+      nombre: fila.nombre,
+      grado: fila.grado,
+      seccion: fila.seccion,
+      motivos: fila.motivos,
+      origen: 'excel'
+    }))
+  )
+  return { error }
+}
+
+export async function actualizarFilaRevision(id: string, fila: FilaPadron) {
+  return supabase.from('padron_revision').update({
+    dni: fila.dni,
+    nombre: fila.nombre,
+    grado: fila.grado,
+    seccion: fila.seccion,
+    motivos: [] as string[]
+  }).eq('id', id)
+}
+
+export async function eliminarFilaRevision(id: string) {
+  return supabase.from('padron_revision').delete().eq('id', id)
+}
+
+export async function promoverFilaRevision(id: string) {
+  return supabase.rpc('promover_votante_revision', { p_id: id })
+}

@@ -5,6 +5,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import Delete02Icon from '@hugeicons/core-free-icons/Delete02Icon'
 import Download01Icon from '@hugeicons/core-free-icons/Download01Icon'
 import Edit02Icon from '@hugeicons/core-free-icons/Edit02Icon'
+import CheckmarkCircle02Icon from '@hugeicons/core-free-icons/CheckmarkCircle02Icon'
 import File01Icon from '@hugeicons/core-free-icons/File01Icon'
 import FileAddIcon from '@hugeicons/core-free-icons/FileAddIcon'
 import IdCardIcon from '@hugeicons/core-free-icons/IdCardIcon'
@@ -14,13 +15,19 @@ import { supabase } from '../../lib/supabase'
 import { mensajeDeError } from '../../lib/supabaseErrors'
 import { CLAVES_CACHE, guardarCache, leerCache } from '../../lib/panelCache'
 import { dividirEnLotes, leerFilasPadron } from '../../lib/importarPadron'
+import type { FilaPadron } from '../../lib/importarPadron'
 import { generarPlantillaCSV, generarPlantillaXlsx } from '../../lib/exportarPlantilla'
 import {
+  actualizarFilaRevision,
   actualizarVotantePadron,
   detectarColumnasPadron,
+  eliminarFilaRevision,
   importarLotePadron,
+  insertarFilasRevision,
   insertarVotantePadron,
-  listarTodosVotantes
+  listarRevisionPadron,
+  listarTodosVotantes,
+  promoverFilaRevision
 } from '../../lib/padronCompat'
 import {
   cumpleFiltroDatos,
@@ -45,6 +52,10 @@ type Votante = {
   seccion: string | null
   ha_votado: boolean
   creado_en: string
+  /** Filas del Excel que no cumplen las reglas del padrón y esperan revisión. */
+  enRevision?: boolean
+  revisionId?: string
+  motivos?: string[]
 }
 
 type Estadisticas = {
@@ -75,6 +86,7 @@ type ImportPreviewItem = {
 type ImportResult = {
   insertados: number
   duplicados: number
+  revision: number
   errores: Array<{ fila: number; dni: string; nombre: string; error: string }>
   detalle: Array<{ dni: string; nombre: string; estado: string }>
 }
@@ -151,6 +163,8 @@ export default function PadronPage() {
   const [edicionSeccion, setEdicionSeccion] = useState('')
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null)
+  const [descartando, setDescartando] = useState<Votante | null>(null)
+  const [descartandoFila, setDescartandoFila] = useState(false)
 
   // Datos
   const [todosVotantes, setTodosVotantes] = useState<Votante[]>(() => listaInicial?.votantes ?? [])
@@ -253,14 +267,14 @@ export default function PadronPage() {
     setCargando(true)
     setError(null)
 
-    const { filas, total, error: err } = await listarTodosVotantes({
-      busqueda: '',
-      soloPendientes: false
-    })
+    const [{ filas, total, error: err }, revision] = await Promise.all([
+      listarTodosVotantes({ busqueda: '', soloPendientes: false }),
+      listarRevisionPadron()
+    ])
     setCargando(false)
     if (err) { setError(mensajeDeError(err, 'No se pudo cargar el padrón.')); return }
 
-    const lista: Votante[] = filas.map((v) => ({
+    const reales: Votante[] = filas.map((v) => ({
       dni: v.dni,
       nombre: v.nombre,
       grado: v.grado ?? null,
@@ -268,10 +282,28 @@ export default function PadronPage() {
       ha_votado: v.ha_votado,
       creado_en: v.creado_en
     }))
+    const enRevision: Votante[] = revision.filas.map((r) => ({
+      dni: r.dni,
+      nombre: r.nombre,
+      grado: r.grado ?? null,
+      seccion: r.seccion ?? null,
+      ha_votado: false,
+      creado_en: '',
+      enRevision: true,
+      revisionId: r.id,
+      motivos: r.motivos ?? []
+    }))
+    const lista = [...reales, ...enRevision]
     setTodosVotantes(lista)
     setTieneDatos(true)
     setPagina(1)
-    guardarCache(CLAVES_CACHE.padronLista, { votantes: lista, totalCount: total })
+    guardarCache(CLAVES_CACHE.padronLista, {
+      votantes: lista,
+      totalCount: total + enRevision.length
+    })
+    if (revision.error) {
+      setError(mensajeDeError(revision.error, 'No se pudo cargar la revisión del Excel.'))
+    }
   }, [])
 
   useEffect(() => {
@@ -398,32 +430,45 @@ export default function PadronPage() {
     const dni = edicionDni.trim()
     const nombreCompleto = edicionNombre.trim().replace(/\s+/g, ' ')
     const palabras = nombreCompleto.split(' ').filter(Boolean)
+    const esRevision = Boolean(editando.enRevision)
 
-    if (!/^[0-9]{8}$/.test(dni)) {
-      setErrorEdicion('El DNI debe tener exactamente 8 dígitos numéricos.')
-      return
-    }
-    if (editando.ha_votado && dni !== editando.dni) {
-      setErrorEdicion('Este votante ya emitió su voto: no se puede cambiar su DNI.')
-      return
-    }
-    if (palabras.length < 3 || !NOMBRE_REGEX.test(nombreCompleto)) {
-      setErrorEdicion('Escribe nombre y ambos apellidos (solo letras y espacios).')
-      return
-    }
-    if (!edicionGrado.trim() || !edicionSeccion.trim()) {
-      setErrorEdicion('Selecciona el grado y la sección para dejar el registro completo.')
-      return
+    // En revisión se permite guardar aunque el DNI sea largo o esté incompleto:
+    // primero se corrige y después se decide si pasa al padrón.
+    if (esRevision) {
+      if (!dni || !nombreCompleto) {
+        setErrorEdicion('El DNI y el nombre no pueden quedar vacíos.')
+        return
+      }
+    } else {
+      if (!/^[0-9]{8}$/.test(dni)) {
+        setErrorEdicion('El DNI debe tener exactamente 8 dígitos numéricos.')
+        return
+      }
+      if (editando.ha_votado && dni !== editando.dni) {
+        setErrorEdicion('Este votante ya emitió su voto: no se puede cambiar su DNI.')
+        return
+      }
+      if (palabras.length < 3 || !NOMBRE_REGEX.test(nombreCompleto)) {
+        setErrorEdicion('Escribe nombre y ambos apellidos (solo letras y espacios).')
+        return
+      }
+      if (!edicionGrado.trim() || !edicionSeccion.trim()) {
+        setErrorEdicion('Selecciona el grado y la sección para dejar el registro completo.')
+        return
+      }
     }
 
     setErrorEdicion(null)
     setGuardandoEdicion(true)
-    const { error: err } = await actualizarVotantePadron(editando.dni, {
+    const fila = {
       dni,
       nombre: nombreCompleto,
-      grado: edicionGrado.trim(),
-      seccion: edicionSeccion.trim()
-    })
+      grado: edicionGrado.trim() || null,
+      seccion: edicionSeccion.trim() || null
+    }
+    const { error: err } = esRevision && editando.revisionId
+      ? await actualizarFilaRevision(editando.revisionId, fila)
+      : await actualizarVotantePadron(editando.dni, fila)
     setGuardandoEdicion(false)
 
     if (err) {
@@ -436,14 +481,65 @@ export default function PadronPage() {
     }
 
     toast({
-      title: 'Votante actualizado',
-      description: `${nombreCompleto} · DNI ${dni} · ${edicionGrado} ${edicionSeccion}`,
+      title: esRevision ? 'Revisión actualizada' : 'Votante actualizado',
+      description: `${nombreCompleto} · DNI ${dni}${esRevision ? ' · pendiente de pasar al padrón' : ` · ${edicionGrado} ${edicionSeccion}`}`,
       variant: 'success',
       duration: 4000
     })
     setEditando(null)
     await cargarVotantes()
     await cargarEstadisticas()
+  }
+
+  async function pasarAlPadron(votante: Votante) {
+    if (!votante.revisionId) return
+    const { error: err } = await promoverFilaRevision(votante.revisionId)
+    if (err) {
+      toast({
+        title: 'No se pudo pasar al padrón',
+        description: mensajeDeError(err, 'Corrige los datos antes de intentarlo de nuevo.'),
+        variant: 'error',
+        duration: 7000
+      })
+      return
+    }
+    toast({
+      title: 'Votante agregado al padrón',
+      description: `${votante.nombre} · DNI ${votante.dni} ya puede votar.`,
+      variant: 'success',
+      duration: 4000
+    })
+    await cargarVotantes()
+    await cargarEstadisticas()
+  }
+
+  function pedirDescarte(votante: Votante) {
+    setDescartando(votante)
+    setDescartandoFila(false)
+  }
+
+  async function descartarRevision() {
+    if (!descartando?.revisionId || descartandoFila) return
+    setDescartandoFila(true)
+    const { error: err } = await eliminarFilaRevision(descartando.revisionId)
+    setDescartandoFila(false)
+    if (err) {
+      toast({
+        title: 'No se pudo descartar',
+        description: mensajeDeError(err, 'Inténtalo de nuevo.'),
+        variant: 'error',
+        duration: 6000
+      })
+      return
+    }
+    toast({
+      title: 'Fila descartada',
+      description: `${descartando.nombre} · DNI ${descartando.dni} se quitó de la revisión.`,
+      variant: 'success',
+      duration: 4000
+    })
+    setDescartando(null)
+    await cargarVotantes()
   }
 
   // --- IMPORTACIÓN ---
@@ -483,6 +579,15 @@ export default function PadronPage() {
         return
       }
 
+      const dnisDelArchivo = new Map<string, number>()
+      for (const fila of rows) {
+        const dni = String(fila.dni ?? '').trim()
+        dnisDelArchivo.set(dni, (dnisDelArchivo.get(dni) ?? 0) + 1)
+      }
+      const dnisEnPadron = new Set(
+        todosVotantes.filter((v) => !v.enRevision).map((v) => v.dni)
+      )
+
       const preview: ImportPreviewItem[] = []
       let filaInicial = 1
 
@@ -496,17 +601,23 @@ export default function PadronPage() {
           const fila = (item.fila ?? 0) + filaInicial - 1
           const filaArchivo = rows[fila - 1]
           const revision = evaluarDatosPadron({
-            dni: item.dni,
-            nombre: item.nombre,
+            dni: item.dni ?? filaArchivo?.dni ?? '',
+            nombre: item.nombre ?? filaArchivo?.nombre ?? '',
             grado: item.grado ?? filaArchivo?.grado ?? null,
             seccion: item.seccion ?? filaArchivo?.seccion ?? null
           })
-          const valido = Boolean(item.valido) && revision.completo
+          const dniArchivo = String(filaArchivo?.dni ?? item.dni ?? '').trim()
+          const motivos = [...revision.motivos]
+          if ((dnisDelArchivo.get(dniArchivo) ?? 0) > 1) motivos.push('DNI repetido en el archivo')
+          if (dnisEnPadron.has(dniArchivo)) motivos.push('DNI ya existe en el padrón')
+          if (!item.valido && item.motivo && !motivos.includes(item.motivo)) motivos.push(item.motivo)
+
+          const vaARevision = motivos.length > 0
           preview.push({
             ...item,
             fila,
-            valido,
-            motivo: revision.completo ? item.motivo : revision.motivos.join(', ')
+            valido: !vaARevision,
+            motivo: vaARevision ? motivos.join(', ') : null
           })
         }
         filaInicial += lote.length
@@ -528,13 +639,29 @@ export default function PadronPage() {
     setError(null)
     try {
       const rows = await leerFilasPadron(archivoSeleccionado)
-      // Solo se importan las filas que pasaron la validación completa.
-      const filasValidas = rows.filter((_, indice) => {
-        const item = previewData.find((p) => p.fila === indice + 1)
-        return item ? item.valido : true
+      const porFila = new Map(previewData.map((item) => [item.fila, item]))
+      const filasValidas: FilaPadron[] = []
+      const filasARevision: Array<FilaPadron & { motivos: string[] }> = []
+
+      rows.forEach((fila, indice) => {
+        const item = porFila.get(indice + 1)
+        if (item && !item.valido) {
+          const motivos = item.motivo
+            ? item.motivo.split(', ').filter(Boolean)
+            : ['Datos observados en la importación']
+          filasARevision.push({ ...fila, motivos })
+        } else {
+          filasValidas.push(fila)
+        }
       })
-      const filasIncompletas = rows.length - filasValidas.length
-      const resultado: ImportResult = { insertados: 0, duplicados: 0, errores: [], detalle: [] }
+
+      const resultado: ImportResult = {
+        insertados: 0,
+        duplicados: 0,
+        revision: filasARevision.length,
+        errores: [],
+        detalle: []
+      }
 
       for (const lote of dividirEnLotes(filasValidas)) {
         const parcial = await importarLotePadron(lote)
@@ -544,15 +671,18 @@ export default function PadronPage() {
         resultado.detalle.push(...parcial.detalle)
       }
 
+      const { error: errRevision } = await insertarFilasRevision(filasARevision)
+      if (errRevision) throw errRevision
+
       setResultadoImportacion(resultado)
       setPasoImportacion('resultado')
       await cargarVotantes()
       await cargarEstadisticas()
       const totalErrores = resultado.errores.length
-      setExito(`Importación completada: ${resultado.insertados} insertados, ${resultado.duplicados} duplicados, ${filasIncompletas} incompletos, ${totalErrores} errores.`)
+      setExito(`Importación completada: ${resultado.insertados} insertados, ${resultado.duplicados} duplicados, ${resultado.revision} en revisión, ${totalErrores} errores.`)
       toast({
         title: 'Importación completada',
-        description: `${resultado.insertados} insertados · ${resultado.duplicados} duplicados · ${filasIncompletas} incompletos · ${totalErrores} errores`,
+        description: `${resultado.insertados} insertados · ${resultado.duplicados} duplicados · ${resultado.revision} en revisión · ${totalErrores} errores`,
         variant: totalErrores > 0 ? 'info' : 'success',
         duration: 5000
       })
@@ -702,7 +832,8 @@ export default function PadronPage() {
     if (exportando) return
     setExportando(true)
     try {
-      const filas = votantesFiltrados
+      // Las filas en revisión no forman parte del padrón votante.
+      const filas = votantesFiltrados.filter((v) => !v.enRevision)
 
       if (filas.length === 0) {
         toast({
@@ -1061,9 +1192,9 @@ export default function PadronPage() {
           <div className="space-y-3">
             <div className="space-y-2">
               <p className="text-sm">
-                <span className="text-emerald-400 font-medium">{previewValidos} válidos</span>
+                <span className="text-emerald-400 font-medium">{previewValidos} al padrón</span>
                 {' '}·{' '}
-                <span className="text-red-400 font-medium">{previewInvalidos} con datos faltantes o inválidos</span>
+                <span className="text-amber-300 font-medium">{previewInvalidos} a revisión</span>
                 {' '}·{' '}
                 <span className="text-slate-400">{previewData.length} filas totales</span>
               </p>
@@ -1071,7 +1202,7 @@ export default function PadronPage() {
                 {([
                   ['todas', `Todas (${previewData.length})`],
                   ['validas', `Válidas (${previewValidos})`],
-                  ['con-errores', `Datos faltantes (${previewInvalidos})`]
+                  ['con-errores', `A revisión (${previewInvalidos})`]
                 ] as const).map(([valor, etiqueta]) => (
                   <button
                     key={valor}
@@ -1103,15 +1234,15 @@ export default function PadronPage() {
                 </thead>
                 <tbody className="divide-y divide-white/10">
                   {filasPreview.slice(0, 100).map((item, idx) => (
-                    <tr key={idx} className={item.valido ? '' : 'bg-red-900/20'}>
+                    <tr key={idx} className={item.valido ? '' : 'bg-amber-900/15'}>
                       <td className="p-2 text-slate-400">{item.fila}</td>
                       <td className="p-2 font-mono">{item.dni}</td>
                       <td className="p-2">{item.nombre}</td>
                       <td className="p-2 text-slate-300">{item.grado ?? '-'}</td>
                       <td className="p-2 text-slate-300">{item.seccion ?? '-'}</td>
                       <td className="p-2">
-                        <span className={`px-2 py-0.5 rounded text-xs ${item.valido ? 'bg-emerald-900/30 text-emerald-400' : 'bg-red-900/30 text-red-400'}`}>
-                          {item.valido ? '✓ Válido' : item.motivo}
+                        <span className={`px-2 py-0.5 rounded text-xs ${item.valido ? 'bg-emerald-900/30 text-emerald-400' : 'bg-amber-900/30 text-amber-200'}`}>
+                          {item.valido ? '✓ Al padrón' : item.motivo}
                         </span>
                       </td>
                     </tr>
@@ -1134,7 +1265,7 @@ export default function PadronPage() {
               </table>
             </div>
             <div className="flex gap-2">
-              <button onClick={confirmarImportacion} disabled={importando || previewValidos === 0}
+              <button onClick={confirmarImportacion} disabled={importando || previewData.length === 0}
                 className="rounded-xl bg-linear-to-r from-blue-400 via-sky-400 to-blue-600 px-4 py-2 font-bold text-white shadow-[0_10px_30px_-12px_rgba(37,99,235,0.7)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
                 {importando ? 'Importando…' : 'Confirmar importación'}
               </button>
@@ -1151,8 +1282,14 @@ export default function PadronPage() {
             <div className="flex items-center gap-4 text-sm">
               <span className="text-emerald-400">✓ Insertados: <strong>{resultadoImportacion.insertados}</strong></span>
               <span className="text-sky-300">⟳ Duplicados: <strong>{resultadoImportacion.duplicados}</strong></span>
+              <span className="text-amber-300">◷ En revisión: <strong>{resultadoImportacion.revision}</strong></span>
               <span className="text-red-400">✗ Errores: <strong>{resultadoImportacion.errores.length}</strong></span>
             </div>
+            {resultadoImportacion.revision > 0 && (
+              <p className="rounded-xl border border-amber-400/20 bg-amber-400/6 px-3 py-2 text-xs text-amber-100/80">
+                Las filas en revisión no pueden votar. Revísalas en <strong>Ver padrón</strong> con el botón Editar y luego usa «Pasar al padrón».
+              </p>
+            )}
             {resultadoImportacion.errores.length > 0 && (
               <div className="max-h-48 overflow-auto rounded-lg bg-red-900/20 border border-red-800 p-3">
                 <p className="text-xs text-red-300 mb-2">Errores detallados:</p>
@@ -1373,15 +1510,17 @@ export default function PadronPage() {
               ) : (
                 votantes.map((v) => (
                   <tr
-                    key={v.dni}
-                    className={`transition hover:bg-white/3 ${v.ha_votado ? 'bg-emerald-900/10' : ''}`}
+                    key={v.revisionId ?? v.dni}
+                    className={`transition hover:bg-white/3 ${
+                      v.enRevision ? 'bg-amber-900/10' : v.ha_votado ? 'bg-emerald-900/10' : ''
+                    }`}
                   >
                     <td className="p-3">
                       <input
                         type="checkbox"
                         checked={seleccionados.has(v.dni)}
                         onChange={() => alternarSeleccion(v.dni)}
-                        disabled={v.ha_votado}
+                        disabled={v.ha_votado || Boolean(v.enRevision)}
                         aria-label={`Seleccionar a ${v.nombre}`}
                         title={v.ha_votado ? 'Ya emitió su voto: no se puede eliminar' : undefined}
                         className="h-4 w-4 rounded border-white/20 bg-black/25 text-blue-400 focus:ring-blue-500/40 disabled:opacity-30"
@@ -1390,6 +1529,14 @@ export default function PadronPage() {
                     <td className="p-3 font-mono text-sky-300">{v.dni}</td>
                     <td className="p-3">
                       <span>{v.nombre}</span>
+                      {v.enRevision && (
+                        <span
+                          className="ml-2 cursor-help rounded-full border border-amber-400/30 bg-amber-400/15 px-2 py-0.5 text-[10px] text-amber-200"
+                          title={(v.motivos ?? []).join(', ') || 'Revisar datos'}
+                        >
+                          En revisión
+                        </span>
+                      )}
                       {dnisDuplicados.has(v.dni) && (
                         <span className="ml-2 rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-200">
                           Duplicado
@@ -1400,37 +1547,62 @@ export default function PadronPage() {
                     <td className="p-3 text-slate-300">{v.seccion ?? '-'}</td>
                     <td className="p-3">
                       <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
-                        v.ha_votado
-                          ? 'bg-emerald-900/30 text-emerald-300'
-                          : 'bg-blue-900/30 text-blue-300'
+                        v.enRevision
+                          ? 'bg-amber-900/30 text-amber-200'
+                          : v.ha_votado
+                            ? 'bg-emerald-900/30 text-emerald-300'
+                            : 'bg-blue-900/30 text-blue-300'
                       }`}>
-                        {v.ha_votado ? '✓ Votó' : '◷ Pendiente'}
+                        {v.enRevision ? '◷ Por revisar' : v.ha_votado ? '✓ Votó' : '◷ Pendiente'}
                       </span>
                     </td>
                     <td className="p-3 text-xs text-slate-500">
-                      {new Date(v.creado_en).toLocaleDateString('es-PE')}
+                      {v.enRevision ? 'Excel' : new Date(v.creado_en).toLocaleDateString('es-PE')}
                     </td>
                     <td className="p-3 text-right">
                       <div className="flex justify-end gap-1">
+                        {v.enRevision && (
+                          <button
+                            type="button"
+                            onClick={() => void pasarAlPadron(v)}
+                            aria-label={`Pasar al padrón a ${v.nombre}`}
+                            title="Pasar al padrón (debe tener DNI de 8 dígitos, nombre completo, grado y sección)"
+                            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-emerald-500/10 hover:text-emerald-200"
+                          >
+                            <HugeiconsIcon icon={CheckmarkCircle02Icon} size={15} strokeWidth={1.8} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => abrirEditor(v)}
                           aria-label={`Editar a ${v.nombre}`}
-                          title={v.ha_votado ? 'Editar datos (el DNI queda bloqueado)' : 'Editar votante'}
+                          title={v.enRevision ? 'Corregir antes de pasar al padrón' : v.ha_votado ? 'Editar datos (el DNI queda bloqueado)' : 'Editar votante'}
                           className="rounded-lg p-1.5 text-slate-400 transition hover:bg-blue-500/10 hover:text-blue-200"
                         >
                           <HugeiconsIcon icon={Edit02Icon} size={15} strokeWidth={1.8} />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => pedirEliminarSeleccionados([v.dni])}
-                          disabled={v.ha_votado}
-                          aria-label={`Eliminar a ${v.nombre}`}
-                          title={v.ha_votado ? 'Ya emitió su voto: no se puede eliminar' : 'Eliminar votante'}
-                          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-500/10 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-30"
-                        >
-                          <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.8} />
-                        </button>
+                        {v.enRevision ? (
+                          <button
+                            type="button"
+                            onClick={() => pedirDescarte(v)}
+                            aria-label={`Descartar a ${v.nombre}`}
+                            title="Descartar fila de revisión"
+                            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-500/10 hover:text-red-200"
+                          >
+                            <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.8} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => pedirEliminarSeleccionados([v.dni])}
+                            disabled={v.ha_votado}
+                            aria-label={`Eliminar a ${v.nombre}`}
+                            title={v.ha_votado ? 'Ya emitió su voto: no se puede eliminar' : 'Eliminar votante'}
+                            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-500/10 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.8} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1507,6 +1679,11 @@ export default function PadronPage() {
                   Ya votó: el DNI no se puede modificar.
                 </p>
               )}
+              {editando.enRevision && (
+                <p className="mt-1 text-[11px] text-amber-200/80">
+                  Fila del Excel: se permite DNI largo o incompleto; corrígela y luego pásala al padrón.
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="editar-nombre" className="mb-1 block text-xs text-slate-400">Nombre y apellidos</label>
@@ -1547,6 +1724,24 @@ export default function PadronPage() {
             </div>
             {errorEdicion && <p className="text-sm text-red-400">{errorEdicion}</p>}
           </form>
+        </AdminModal>
+      )}
+
+      {descartando && (
+        <AdminModal
+          open
+          onClose={() => setDescartando(null)}
+          title="Descartar fila en revisión"
+          description="La fila del Excel se eliminará de la revisión. No se agregará al padrón."
+          confirmLabel="Descartar"
+          confirmVariant="danger"
+          loading={descartandoFila}
+          modalId="modal-descartar-revision"
+          onConfirm={() => void descartarRevision()}
+        >
+          <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+            {descartando.nombre} · DNI {descartando.dni}
+          </p>
         </AdminModal>
       )}
 

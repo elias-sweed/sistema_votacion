@@ -48,7 +48,7 @@ export function evaluarDatosPadron(votante: DatosPadron): RevisionPadron {
   const faltaSeccion = !String(votante.seccion ?? '').trim()
   const motivos: string[] = []
 
-  if (dniIncompleto) motivos.push('DNI incompleto')
+  if (dniIncompleto) motivos.push(digitos.length > 8 ? 'DNI con más de 8 dígitos' : 'DNI incompleto')
   if (nombreIncompleto) motivos.push('Nombre incompleto')
   else if (faltaApellido) motivos.push('Falta un apellido')
   if (faltaGrado) motivos.push('Falta grado')
@@ -79,24 +79,36 @@ export function normalizarNombrePadron(nombre: string): string {
 }
 
 /**
- * El DNI es clave primaria, así que un duplicado real en la tabla no puede
- * existir. Se marcan como duplicados los votantes con el mismo nombre completo
- * (normalizado) y distinto DNI: suele ser la misma persona cargada dos veces.
+ * Marca como duplicados los registros con el mismo DNI o el mismo nombre
+ * completo (normalizado). En la revisión del Excel se permiten DNIs repetidos,
+ * por eso se comprueban ambas cosas.
  */
 export function dnisDuplicadosPadron(votantes: DatosPadron[]): Set<string> {
-  const grupos = new Map<string, string[]>()
+  const porNombre = new Map<string, string[]>()
+  const porDni = new Map<string, string[]>()
+
   for (const votante of votantes) {
-    const clave = normalizarNombrePadron(votante.nombre)
-    if (!clave) continue
-    const grupo = grupos.get(clave) ?? []
-    grupo.push(votante.dni)
-    grupos.set(clave, grupo)
+    const nombre = normalizarNombrePadron(votante.nombre)
+    if (nombre) {
+      const grupo = porNombre.get(nombre) ?? []
+      grupo.push(votante.dni)
+      porNombre.set(nombre, grupo)
+    }
+
+    const dni = String(votante.dni ?? '').trim()
+    if (dni) {
+      const grupo = porDni.get(dni) ?? []
+      grupo.push(votante.dni)
+      porDni.set(dni, grupo)
+    }
   }
 
   const duplicados = new Set<string>()
-  for (const grupo of grupos.values()) {
-    if (grupo.length < 2) continue
-    grupo.forEach((dni) => duplicados.add(dni))
+  for (const grupos of [porNombre, porDni]) {
+    for (const grupo of grupos.values()) {
+      if (grupo.length < 2) continue
+      grupo.forEach((dni) => duplicados.add(dni))
+    }
   }
   return duplicados
 }
