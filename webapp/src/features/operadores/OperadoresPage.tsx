@@ -14,12 +14,6 @@ type Operador = {
   last_sign_in_at: string | null
 }
 
-type RespuestaOperadores = {
-  success?: boolean
-  operadores?: Operador[]
-  error?: string
-}
-
 function estaActivo(operador: Operador): boolean {
   if (!operador.banned_until) return true
   return new Date(operador.banned_until).getTime() <= Date.now()
@@ -36,16 +30,12 @@ export default function OperadoresPage() {
   const cargar = useCallback(async () => {
     setCargando(true)
     setError(null)
-    const { data, error: err } = await supabase.functions.invoke<RespuestaOperadores>('voting-proxy', {
-      body: { action: 'operadores', operacion: 'listar' },
-    })
+    const { data, error: err } = await supabase.rpc('listar_operadores')
 
     if (err) {
       setError(mensajeDeError(err, 'No se pudo cargar la lista de operadores.'))
-    } else if (data?.error || data?.success === false) {
-      setError(data?.error ?? 'No se pudo cargar la lista de operadores.')
     } else {
-      setOperadores(data?.operadores ?? [])
+      setOperadores((data ?? []) as Operador[])
     }
     setCargando(false)
   }, [])
@@ -59,25 +49,18 @@ export default function OperadoresPage() {
     setExito(null)
 
     const activar = !estaActivo(cambiando)
-    const { data, error: err } = await supabase.functions.invoke<RespuestaOperadores>('voting-proxy', {
-      body: {
-        action: 'operadores',
-        operacion: activar ? 'activar' : 'desactivar',
-        id: cambiando.id,
-      },
-    })
+    const { error: err } = await supabase.rpc(
+      activar ? 'activar_operador' : 'desactivar_operador',
+      { p_operador_id: cambiando.id }
+    )
 
     setProcesando(false)
     if (err) {
       setError(mensajeDeError(err, 'No se pudo actualizar la cuenta.'))
       return
     }
-    if (data?.error || data?.success === false) {
-      setError(data?.error ?? 'No se pudo actualizar la cuenta.')
-      return
-    }
 
-    setExito(activar ? 'Cuenta activada.' : 'Cuenta desactivada y sesión cerrada.')
+    setExito(activar ? 'Cuenta activada.' : 'Cuenta desactivada.')
     setCambiando(null)
     await cargar()
   }
@@ -144,7 +127,7 @@ export default function OperadoresPage() {
           title={estaActivo(cambiando) ? 'Desactivar operador' : 'Activar operador'}
           description={
             estaActivo(cambiando)
-              ? 'La cuenta dejará de funcionar y se cerrarán sus sesiones abiertas.'
+              ? 'La cuenta dejará de funcionar y se le cerrará el acceso al panel.'
               : 'La cuenta volverá a tener acceso a sus secciones permitidas.'
           }
           confirmLabel={estaActivo(cambiando) ? 'Desactivar' : 'Activar'}

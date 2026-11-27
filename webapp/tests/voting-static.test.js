@@ -112,10 +112,9 @@ test('admin dashboard shows operator movements and can toggle operator accounts'
   assert.match(dashboardPage, /auditoria_operador/);
   assert.match(dashboardPage, /Últimos movimientos/);
   assert.match(auditoriaPage, /from\('auditoria_operador'\)/);
-  assert.match(operadoresPage, /activar \? 'activar' : 'desactivar'/);
-  assert.match(operadoresPage, /operacion: 'listar'/);
-  assert.match(proxy, /action: "operadores"/);
-  assert.match(proxy, /ban_duration: activar \? "none" : "876000h"/);
+  assert.match(operadoresPage, /supabase\.rpc\('listar_operadores'\)/);
+  assert.match(operadoresPage, /activar \? 'activar_operador' : 'desactivar_operador'/);
+  assert.doesNotMatch(operadoresPage, /functions\.invoke/);
 });
 
 test('auth session is not persisted in localStorage', () => {

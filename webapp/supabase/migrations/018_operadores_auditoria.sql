@@ -228,6 +228,119 @@ create trigger votantes_auditoria
 after insert or delete on public.votantes
 for each row execute function public.auditar_votantes();
 
+-- 3b. Gestión de operadores desde el panel (solo admin) ------------------
+-- Estas funciones escriben auth.users con SECURITY DEFINER. El navegador no
+-- tiene clave de servicio y nunca puede modificar app_metadata directamente.
+
+drop function if exists public.listar_operadores();
+create or replace function public.listar_operadores()
+returns table (
+  id uuid,
+  email text,
+  banned_until timestamptz,
+  last_sign_in_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+  if not public.es_admin_uuid() then
+    raise exception 'Acceso denegado: se requiere rol de administrador' using errcode = 'P0008';
+  end if;
+
+  return query
+    select u.id, u.email, u.banned_until, u.last_sign_in_at
+    from auth.users u
+    where lower(coalesce(u.raw_app_meta_data ->> 'role', '')) = 'operador'
+    order by lower(u.email);
+end;
+$$;
+
+create or replace function public.cambiar_estado_operador(
+  p_operador_id uuid,
+  p_activar boolean
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+declare
+  v_correo text;
+  v_accion text;
+begin
+  if not public.es_admin_uuid() then
+    raise exception 'Acceso denegado: se requiere rol de administrador' using errcode = 'P0008';
+  end if;
+  if p_operador_id is null then
+    raise exception 'ID de operador inválido' using errcode = 'P0009';
+  end if;
+
+  select u.email into v_correo
+  from auth.users u
+  where u.id = p_operador_id
+    and lower(coalesce(u.raw_app_meta_data ->> 'role', '')) = 'operador';
+
+  if not found then
+    raise exception 'No existe una cuenta operador con ese ID' using errcode = 'P0002';
+  end if;
+
+  update auth.users
+  set banned_until = case
+    when p_activar then null
+    else now() + interval '100 years'
+  end
+  where id = p_operador_id;
+
+  v_accion := case when p_activar then 'activar' else 'desactivar' end;
+
+  insert into public.auditoria_operador
+    (actor_uuid, actor_email, rol, accion, entidad, entidad_id, detalle)
+  values
+    (
+      nullif(auth.jwt() ->> 'sub', '')::uuid,
+      coalesce(auth.jwt() ->> 'email', auth.jwt() -> 'user_metadata' ->> 'email'),
+      'admin',
+      v_accion,
+      'operador',
+      p_operador_id::text,
+      jsonb_build_object('email', v_correo)
+    );
+
+  return p_activar;
+end;
+$$;
+
+drop function if exists public.activar_operador(uuid);
+create or replace function public.activar_operador(p_operador_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = pg_catalog, public
+as $$
+  select public.cambiar_estado_operador(p_operador_id, true);
+$$;
+
+drop function if exists public.desactivar_operador(uuid);
+create or replace function public.desactivar_operador(p_operador_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = pg_catalog, public
+as $$
+  select public.cambiar_estado_operador(p_operador_id, false);
+$$;
+
+revoke all on function public.listar_operadores() from public, anon;
+grant execute on function public.listar_operadores() to authenticated;
+revoke all on function public.cambiar_estado_operador(uuid, boolean) from public, anon;
+grant execute on function public.cambiar_estado_operador(uuid, boolean) to authenticated;
+revoke all on function public.activar_operador(uuid) from public, anon;
+grant execute on function public.activar_operador(uuid) to authenticated;
+revoke all on function public.desactivar_operador(uuid) from public, anon;
+grant execute on function public.desactivar_operador(uuid) to authenticated;
+
 -- 4. RPC del padrón: admin u operador ------------------------------------
 -- Se recrean con el mismo nombre/firma para que el front siga usando las
 -- mismas funciones. La lógica es la de 017; cambia únicamente el guard.
@@ -535,4 +648,11 @@ notify pgrst, 'reload schema';
 -- 6. Verificación --------------------------------------------------------
 -- Debe devolver: es_operador, puede_padron, puede_ver_mesas, auditoria_operador.
 select public.es_operador() as operador, public.puede_padron() as padron, public.puede_ver_mesas() as mesas;
-select count(*) as filas_auditoria from public.auditoria_operador;
+-- filas_auditoria cuenta todos los movimientos del panel;
+-- altas_operador cuenta las cuentas marcadas por marcar_operadores.sql (debe ser 4).
+select
+  (select count(*) from public.auditoria_operador) as filas_auditoria,
+  (
+    select count(*) from public.auditoria_operador
+    where entidad = 'operador' and accion = 'alta'
+  ) as altas_operador;
